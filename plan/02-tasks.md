@@ -16,6 +16,8 @@
 # open issues / ideas
 - multi-signatory side-by-side signatures merged in one line (scans)
 - footnote markers detached ("auf. 1 Hinzu") -> could map small raised digits to superscripts
-- single-page footer notes (small font at bottom) not detected as furniture
 - pdfium char angle is CLOCKWISE (verified) -> negate before mapping
 - AKN: narrative/scene are inline-only; docCourt not in AKN3 -> courtType
+[x] T15 footer pass: step `furniture` (layout/footers.py) between layout and sanitize; `flow` split out of sanitize;
+     BlockKind.FOOTNOTE; plausible_size() fixes "1 Tf"+matrix sizes (Outlook). Sample leaks fixed: 041/10184/10143 p1, 5048, 0003 p2
+[ ] T16 type-aware `letter_footer` step after classify: parse footer into sender.board/register/bank, header-zone equivalent

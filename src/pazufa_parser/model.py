@@ -97,6 +97,7 @@ class BlockKind(StrEnum):
     PAGE_NUMBER = "page_number"
     MARGINAL = "marginal"  # rotated / out-of-flow text (e.g. vertical margin notes)
     NOISE = "noise"  # OCR garbage, scanner artifacts
+    FOOTNOTE = "footnote"  # numbered note at the page bottom (content, kept in the text)
 
     @property
     def is_furniture(self) -> bool:
@@ -104,7 +105,7 @@ class BlockKind(StrEnum):
 
     @property
     def is_body(self) -> bool:
-        return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM)
+        return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM, BlockKind.FOOTNOTE)
 
 
 class RegionKind(StrEnum):

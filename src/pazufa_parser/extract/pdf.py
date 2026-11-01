@@ -97,6 +97,27 @@ def _is_garbage(ch: str) -> bool:
     return cat in ("Cc", "Cs", "Co", "Cn") and ch not in "\t\n\r"
 
 
+# loose char boxes span ascent..descent, roughly 1.15 em for common fonts
+_LOOSE_BOX_EM = 1.15
+
+
+def plausible_size(reported: float, box: BBox, angle: int) -> float:
+    """Font size as seen on the page.
+
+    pdfium reports the nominal ``Tf`` size; producers that draw with ``1 Tf`` and
+    scale via the text matrix (e.g. Outlook printouts) yield sizes around 1. If the
+    reported size disagrees with the glyph box by more than 2x, the size measured
+    from the box is used instead.
+    """
+    extent = box.height if angle in (0, 180) else box.width
+    measured = extent / _LOOSE_BOX_EM
+    if measured <= 0:
+        return reported
+    if reported < 2.0 or not (0.5 * measured <= reported <= 2.0 * measured):
+        return round(measured, 2)
+    return reported
+
+
 def extract_page_words(page: pdfium.PdfPage, rotation_aware: bool = True) -> PageText:
     """Extract words with font attributes from one page's text layer.
 
@@ -170,6 +191,7 @@ def _read_chars(textpage: pdfium.PdfTextPage, affine: Affine) -> list[_Char]:
             font_cache[key] = fi
         fname, bold, italic, invisible = fi
         angle = affine.direction_angle(R.FPDFText_GetCharAngle(tp, i))
+        size = plausible_size(size, box, angle)
         c = _Char(ch, box, size, fname, bold, italic, angle, invisible, bool(R.FPDFText_IsHyphen(tp, i)), key)
         # drop "fake bold" duplicates: identical glyph drawn again at (almost) the same spot by
         # another text object (ligatures like "tt" share one box within the same object)

@@ -34,6 +34,7 @@ from .fields import (
 )
 from .fields.legal import find_law_span
 from .layout import analyze_layout
+from .layout.footers import refine_footers
 from .model import Block, BlockKind, DocType, Document, RegionKind, Severity
 from .options import ParseOptions
 from .sanitize import is_line_structured, join_hyphenated, sanitize_block
@@ -132,8 +133,8 @@ def merge_flow(doc: Document) -> int:
     prev: Block | None = None
     joins = 0
     for b in doc.body_blocks:
-        if not b.text:
-            continue
+        if not b.text or b.kind is BlockKind.FOOTNOTE:
+            continue  # footnotes sit between a page's last and the next page's first paragraph
         if (
             prev is not None
             and id(b) not in skip
@@ -165,12 +166,25 @@ def merge_flow(doc: Document) -> int:
     return joins
 
 
+@step("furniture")
+def furniture_step(ctx: Context) -> None:
+    """Find page footers the repetition-based detection in ``layout`` missed:
+    first-page-only footers, footers of single-page documents, OCR-varying
+    logos; separate footnotes from the running text."""
+    ctx.doc.stats["footer_blocks_moved"] = refine_footers(ctx.doc)
+
+
 @step("sanitize")
 def sanitize_step(ctx: Context) -> None:
     min_conf = ctx.options.min_word_confidence
     for page in ctx.doc.pages:
         for b in page.all_blocks:
             b.text = sanitize_block(b, min_conf)
+
+
+@step("flow")
+def flow_step(ctx: Context) -> None:
+    """Re-join paragraphs split by page/column breaks (after furniture is removed)."""
     ctx.doc.stats["flow_joins"] = merge_flow(ctx.doc)
 
 
@@ -322,7 +336,9 @@ def summary_step(ctx: Context) -> None:
 DEFAULT_STEPS: list[Step] = [
     extract_step,
     layout_step,
+    furniture_step,
     sanitize_step,
+    flow_step,
     classify_step,
     entities_step,
     email_step,

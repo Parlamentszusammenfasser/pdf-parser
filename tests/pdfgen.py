@@ -23,6 +23,7 @@ class T:
     bold: bool = False
     angle: float = 0.0  # degrees, counter-clockwise
     invisible: bool = False
+    tf_one: bool = False  # draw with "1 Tf" and scale through the text matrix (Outlook style)
 
 
 def _escape(text: str) -> bytes:
@@ -44,12 +45,14 @@ def _content(items: list[T], height: float) -> bytes:
         font = "/F2" if it.bold else "/F1"
         base_y = height - it.y - it.size * 0.8
         a = math.radians(it.angle)
-        c, s = math.cos(a), math.sin(a)
+        k = it.size if it.tf_one else 1.0
+        tf = 1 if it.tf_one else it.size
+        c, s = math.cos(a) * k, math.sin(a) * k
         mode = b"3 Tr " if it.invisible else b"0 Tr "
         ops.append(
             b"BT "
             + mode
-            + f"{font} {it.size:g} Tf {c:.4f} {s:.4f} {-s:.4f} {c:.4f} {it.x:.2f} {base_y:.2f} Tm (".encode()
+            + f"{font} {tf:g} Tf {c:.4f} {s:.4f} {-s:.4f} {c:.4f} {it.x:.2f} {base_y:.2f} Tm (".encode()
             + _escape(it.text)
             + b") Tj ET"
         )

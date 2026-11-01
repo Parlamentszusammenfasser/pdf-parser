@@ -19,6 +19,7 @@ section.page+section.page{border-top:1px dashed #8886;margin-top:1.5rem;padding-
 .synopsis{display:grid;grid-template-columns:1fr 1fr;gap:.2rem 1.5rem}
 .synopsis>.lbl{font-weight:600;border-bottom:1px solid #8884}
 p.item{margin-left:1.5rem;text-indent:-1.5rem}
+p.footnote{font-size:.85em;opacity:.8}
 p{margin:.5rem 0;white-space:pre-line}
 h1,h2,h3,h4,h5,h6{line-height:1.25}
 """
@@ -32,7 +33,7 @@ def _block_html(b: Block) -> str:
     if b.kind is BlockKind.HEADING:
         lvl = min(6, b.level + 1)
         return f"<h{lvl}{labels}>{escape(' '.join(text.split()))}</h{lvl}>"
-    cls = ' class="item"' if b.kind is BlockKind.LIST_ITEM else ""
+    cls = ' class="item"' if b.kind is BlockKind.LIST_ITEM else ' class="footnote"' if b.kind is BlockKind.FOOTNOTE else ""
     return f"<p{cls}{labels}>{escape(text)}</p>"
 
 

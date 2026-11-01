@@ -103,3 +103,24 @@ def test_scanned_letter_fields():
     assert f["recipient"]["postal_code"] == "81602"
     assert f["date"] == "2023-08-16"
     assert f["subject"] == "Gesetz zur Änderung des Pflegendenvereinigungsgesetzes"
+
+
+def _txt(name):
+    return render(sample(name), "txt")
+
+
+def test_footers_removed_from_samples():
+    assert "WIRTSCHAFTSMACHT" not in _txt("0000000041.pdf")
+    assert "WIRTSCHAFTSMACHT" not in _txt("0000010184.pdf")
+    assert "Landesvorstand" not in _txt("0000010143.pdf")
+    assert "Tagesordnungen der Vollversammlung" not in _txt("0000005048.pdf")
+    assert "www.freie-wohlfahrtspflege-bayern.de" not in _txt("0000000003.pdf")
+
+
+def test_bottom_of_page_content_kept():
+    assert "Pfad der Vernunft" in _txt("041_PL_004_gesetzentwurf-4721.pdf")
+    assert "Sie streuen den Leuten Sand in die Augen" in _txt("041_PL_004_gesetzentwurf-4721.pdf")
+    assert "cc) Nummer 3 wird gestrichen." in _txt("drucksache-20-03769.pdf")
+    assert "Sehr geehrte Damen und Herren," in _txt("0000010201.pdf")
+    d = sample("0000010446.pdf")
+    assert sum(1 for b in d.body_blocks if b.kind.value == "footnote") >= 2

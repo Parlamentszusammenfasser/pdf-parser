@@ -101,13 +101,14 @@ extraction, the legal structure parser) are importable from
 ## Architecture
 
 ```
-open (pdfium) ─► extract ─► layout ─► sanitize ─► classify ─► dispatch ──► summary
-                 │           │                     │           ├ email, letter
-                 │ per page: │ lines, page         │ weighted  ├ parliamentary_print
-                 │ text layer│ furniture, XY-cut   │ rules     ├ plenary_protocol
-                 │ or OCR    │ with gutter-        │           ├ court_decision, contract
-                 │ (parallel)│ grouped strips,     │           ├ synopsis
-                 │           │ blocks, headings    │           └ legal_structure
+open (pdfium) ─► extract ─► layout ─► furniture ─► sanitize ─► flow ─► classify ─► dispatch ──► summary
+                 │           │          │                       │       │           ├ email, letter
+                 │ per page: │ lines,   │ bottom-zone           │       │ weighted  ├ parliamentary_print
+                 │ text layer│ repeated │ footers,              │       │ rules     ├ plenary_protocol
+                 │ or OCR    │ headers/ │ footnotes             │       │           ├ court_decision, contract
+                 │ (parallel)│ footers, │                       │       │           ├ synopsis
+                 │           │ XY-cut,  │       re-join paragraphs ─────┘           └ legal_structure
+                 │           │ blocks   │       across page/column breaks
 ```
 
 * **Extraction** (`extract/`): pdfium gives characters with font, size, weight,
@@ -127,6 +128,17 @@ open (pdfium) ─► extract ─► layout ─► sanitize ─► classify ─�
   numbers into columns. Blocks come from line pitch, font and indentation
   changes, list markers and bold run-in labels; headings come from document
   font statistics.
+* **Furniture** (`layout/footers.py`): a second pass catches footers that
+  repetition alone misses. These are first-page-only letter footers, footers of
+  single-page documents, and logos that OCR reads differently on every page.
+  It looks at the block zone below a clear gap at the page bottom and scores
+  each block on smaller font, footer vocabulary (register court, board, bank
+  and contact data, separators), OCR noise, token-tolerant repetition across
+  pages and gap size. Text continuing to the page bottom never forms such a
+  zone. Numbered notes become `footnote` blocks, which stay in the text and do
+  not interrupt paragraph flow. The `flow` step re-joins paragraphs only
+  after footers are gone. It runs before classification, so footer text no
+  longer skews the document type or the entities.
 * **Classification** (`classify.py`): transparent weighted rules over the
   first page, the full text and the last page, combined with layout features.
   Every decision carries its evidence.
@@ -154,7 +166,9 @@ OASIS schema (`tests/schemas/`).
 
 * Side-by-side signatures of two signatories on scans are read as one line.
 * Footnote markers are not mapped to superscripts (`Fachkraftquote auf. 1`).
-* A footer note on a single-page document cannot be told apart from body text,
-  since there is no repetition to detect.
+* Footer detection looks at page bottoms only; letterheads at the top are
+  removed only when they repeat. Footer *content* (board, register, bank) is not
+  yet parsed into fields (planned: type-aware `letter_footer` step after
+  `classify`).
 * Handwriting is not recognized. Signature scribbles are filtered out of the
   signatory field.
