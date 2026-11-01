@@ -1,0 +1,33 @@
+[project]
+name = "pazufa-parser"
+version = "0.1.0"
+description = "Robust extraction of structured information and sanitized text from PDF documents (letters, legal and parliamentary documents)"
+readme = "README.md"
+authors = [
+    { name = "Benedikt Schäfer", email = "benedikt-schaefer@posteo.de" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "pillow>=13.0.0",
+    "pypdfium2>=5.14.0",
+]
+
+[project.scripts]
+pazufa-parser = "pazufa_parser:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "lxml>=6.1.3",
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "ocr: needs a working tesseract installation with German data",
+    "samples: runs against real sample PDFs (set PAZUFA_SAMPLES_DIR)",
+]
