@@ -102,3 +102,14 @@ def test_verbose_prints_issues(tmp_path, capsys):
     p = write(tmp_path, "scan.pdf", make_scanned_pdf([[T(70, 100, "Hallo", 14)]], dpi=72))
     main([str(p), "-v", "--tesseract", "no-such-tesseract-binary", "-o", str(tmp_path / "o")])
     assert "[warning] ocr" in capsys.readouterr().err
+
+
+def test_classify_tsv_header(tmp_path, letter_pdf, capsys):
+    write(tmp_path, "a.pdf", letter_pdf)
+    assert main(["classify", str(tmp_path), "--ocr", "never"]) == EXIT_OK
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "file\ttype\tconfidence\ttitle"
+    cols = lines[1].split("\t")
+    assert len(cols) == 4 and cols[1] == "letter/statement" and 0 < float(cols[2]) <= 1
+    assert main(["classify", str(tmp_path), "--ocr", "never", "--no-header"]) == EXIT_OK
+    assert capsys.readouterr().out.splitlines()[0].startswith(str(tmp_path))

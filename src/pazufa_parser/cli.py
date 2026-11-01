@@ -22,6 +22,23 @@ from .render import available_formats, get_renderer
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
 SUBCOMMANDS = ("extract", "classify", "formats")
 
+CLASSIFY_HEADER = ("file", "type", "confidence", "title")
+CLASSIFY_COLUMNS_HELP = """output columns (tab-separated):
+  file        path of the input PDF
+  type        document type, optionally followed by /subtype:
+                letter[/statement|administrative_decision|objection|invoice|reminder|termination]
+                email
+                parliamentary_print[/bill|report|amendment|motion|inquiry|answer|notice]
+                plenary_protocol[/excerpt|full]
+                statute[/act|regulation|bylaw]
+                court_decision[/judgment|order]
+                contract
+                generic   (no type scored high enough)
+  confidence  0.00-1.00; combines how strongly the winning type scored and how far
+              it is ahead of the runner-up (use --json to see all scores)
+  title       best-guess title: subject of a letter/e-mail, title of a print,
+              agenda topic of a protocol, PDF metadata title or first heading"""
+
 
 def _page_range(value: str) -> tuple[int | None, int | None]:
     try:
@@ -104,10 +121,17 @@ def build_parser() -> argparse.ArgumentParser:
     ex.add_argument("-v", "--verbose", action="store_true", help="print issues recorded during processing")
     _add_parse_options(ex)
 
-    cl = sub.add_parser("classify", help="only print the document classification")
+    cl = sub.add_parser(
+        "classify",
+        help="only print the document classification",
+        description="Classify documents. Prints one tab-separated row per input file (after a header row).",
+        epilog=CLASSIFY_COLUMNS_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     cl.add_argument("inputs", nargs="+")
     cl.add_argument("-r", "--recursive", action="store_true")
-    cl.add_argument("--json", action="store_true", help="JSON lines output")
+    cl.add_argument("--json", action="store_true", help="JSON lines output (one object per file, includes all type scores)")
+    cl.add_argument("--no-header", action="store_true", help="omit the header row of the tab-separated output")
     _add_parse_options(cl)
 
     sub.add_parser("formats", help="list output formats")
@@ -145,6 +169,8 @@ def _cmd_classify(args: argparse.Namespace) -> int:
         print(f"{m}: no such file or directory", file=sys.stderr)
         status = EXIT_FAILED
     opts = _options(args)
+    if not args.json and not args.no_header:
+        print("\t".join(CLASSIFY_HEADER))
     for f in files:
         try:
             doc = parse(f, opts)
@@ -157,7 +183,8 @@ def _cmd_classify(args: argparse.Namespace) -> int:
             print(json.dumps({"file": str(f), "doc_type": str(c.doc_type), "subtype": c.subtype, "confidence": c.confidence, "scores": c.scores, "title": doc.fields.get("title")}, ensure_ascii=False))
         else:
             sub = f"/{c.subtype}" if c.subtype else ""
-            print(f"{f}\t{c.doc_type}{sub}\t{c.confidence:.2f}\t{doc.fields.get('title', '')}")
+            title = " ".join(str(doc.fields.get("title", "")).split())  # no tabs/newlines inside a cell
+            print(f"{f}\t{c.doc_type}{sub}\t{c.confidence:.2f}\t{title}")
     return status
 
 

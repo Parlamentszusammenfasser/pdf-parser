@@ -275,7 +275,14 @@ def summary_step(ctx: Context) -> None:
         if len(pdf_title) > 3:
             title = pdf_title
     if title is None:
-        heads = [b for b in doc.body_blocks[:15] if b.kind is BlockKind.HEADING and b.text and not _TITLE_SKIP_RE.match(b.text)]
+        heads = [
+            b
+            for b in doc.body_blocks[:15]
+            if b.kind is BlockKind.HEADING
+            and b.text
+            and not _TITLE_SKIP_RE.match(b.text)
+            and b.bbox.y0 < doc.pages[b.page - 1].height * 0.85  # not a footer logo / slogan
+        ]
         if heads:
             best = min(heads, key=lambda b: (b.level, b.page, b.bbox.y0))
             title = " ".join(best.text.split())

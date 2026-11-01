@@ -27,6 +27,15 @@ pazufa-parser classify in/ --json                 # only the classification
 pazufa-parser formats                             # list output formats
 ```
 
+`classify` prints a tab-separated table with a header row (`--no-header` omits it):
+
+| column       | meaning |
+|--------------|---------|
+| `file`       | path of the input PDF |
+| `type`       | document type, optionally `/subtype`: `letter[/statement…]`, `email`, `parliamentary_print[/bill\|report\|motion…]`, `plenary_protocol[/excerpt\|full]`, `statute[/act…]`, `court_decision[/judgment\|order]`, `contract`, `generic` (nothing scored high enough) |
+| `confidence` | 0.00–1.00: how strongly the winning type scored, combined with its lead over the runner-up (`--json` shows all scores) |
+| `title`      | best-guess title: subject of a letter/e-mail, title of a print, agenda topic of a protocol, PDF title or first heading |
+
 Useful options: `--ocr auto|always|never`, `--lang deu` (`deu+eng` for mixed
 documents; mixing languages measurably hurts German umlaut recognition),
 `--dpi 300`, `--pages 2-5`, `--password`, `--strict`, `-v` (prints the issues
