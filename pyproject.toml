@@ -3,6 +3,8 @@ name = "pazufa-pdf-parser"
 version = "0.1.0"
 description = "Robust extraction of structured information and sanitized text from PDF documents (letters, legal and parliamentary documents)"
 readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 authors = [
     { name = "Benedikt Schäfer", email = "benedikt-schaefer@posteo.de" }
 ]
