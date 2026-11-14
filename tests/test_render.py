@@ -3,8 +3,8 @@ from html.parser import HTMLParser
 
 import pytest
 
-from pazufa_parser import UnknownFormatError, available_formats, register_renderer, render
-from pazufa_parser.render.legalxml import AKN_NS
+from pazufa_pdf_parser import UnknownFormatError, available_formats, register_renderer, render
+from pazufa_pdf_parser.render.legalxml import AKN_NS
 
 ALL_DOCS = ["letter", "bill", "email", "protocol", "judgment", "contract", "synopsis", "two_column"]
 
@@ -23,7 +23,7 @@ def test_custom_renderer(parsed):
     try:
         assert "SEHR GEEHRTE" in render(parsed["letter"], "upper")
     finally:
-        from pazufa_parser.render import _REGISTRY
+        from pazufa_pdf_parser.render import _REGISTRY
 
         _REGISTRY.pop("upper", None)
 

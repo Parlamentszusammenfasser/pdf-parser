@@ -2,7 +2,7 @@
 
 
 class PazufaError(Exception):
-    """Base class for all errors raised by pazufa_parser."""
+    """Base class for all errors raised by pazufa_pdf_parser."""
 
 
 class PdfOpenError(PazufaError):

@@ -3,8 +3,8 @@
 import pytest
 from pdfgen import T, make_scanned_pdf, paragraph
 
-from pazufa_parser import DocType, PageSource, parse, render
-from pazufa_parser.extract.ocr import parse_tsv
+from pazufa_pdf_parser import DocType, PageSource, parse, render
+from pazufa_pdf_parser.extract.ocr import parse_tsv
 
 pytestmark = pytest.mark.ocr
 

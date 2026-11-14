@@ -1,8 +1,8 @@
 """Command line interface.
 
-    pazufa-parser [extract] INPUT... [-f FORMAT[,FORMAT]] [-o OUTDIR|-] [options]
-    pazufa-parser classify INPUT... [--json]
-    pazufa-parser formats
+    pazufa-pdf-parser [extract] INPUT... [-f FORMAT[,FORMAT]] [-o OUTDIR|-] [options]
+    pazufa-pdf-parser classify INPUT... [--json]
+    pazufa-pdf-parser formats
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ def _collect(inputs: list[str], recursive: bool) -> tuple[list[Path], list[str]]
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="pazufa-parser", description="Extract structured information and clean text from PDF documents.")
+    ap = argparse.ArgumentParser(prog="pazufa-pdf-parser", description="Extract structured information and clean text from PDF documents.")
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = ap.add_subparsers(dest="command")
 

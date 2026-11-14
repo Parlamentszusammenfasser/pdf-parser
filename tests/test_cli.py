@@ -1,6 +1,6 @@
 import json
 
-from pazufa_parser.cli import EXIT_FAILED, EXIT_OK, EXIT_USAGE, main
+from pazufa_pdf_parser.cli import EXIT_FAILED, EXIT_OK, EXIT_USAGE, main
 
 
 def write(tmp_path, name, data):

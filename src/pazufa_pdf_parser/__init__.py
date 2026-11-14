@@ -1,8 +1,8 @@
-"""pazufa_parser - robust extraction of structured information and clean text from PDF documents.
+"""pazufa_pdf_parser - robust extraction of structured information and clean text from PDF documents.
 
 Quick start::
 
-    from pazufa_parser import parse, render
+    from pazufa_pdf_parser import parse, render
 
     doc = parse("letter.pdf")                 # OCR is used automatically for scans
     print(doc.classification.doc_type)        # e.g. DocType.LETTER

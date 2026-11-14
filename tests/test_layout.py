@@ -1,10 +1,10 @@
 """Layout analysis on synthetic word geometry (no PDF involved)."""
 
-from pazufa_parser.layout.blocks import classify_headings, split_blocks, starts_with_marker
-from pazufa_parser.layout.furniture import detect_furniture, is_page_number, normalize_key
-from pazufa_parser.layout.lines import build_lines
-from pazufa_parser.layout.segment import Segmenter, detect_synopsis
-from pazufa_parser.model import BBox, BlockKind, Page, RegionKind, Word
+from pazufa_pdf_parser.layout.blocks import classify_headings, split_blocks, starts_with_marker
+from pazufa_pdf_parser.layout.furniture import detect_furniture, is_page_number, normalize_key
+from pazufa_pdf_parser.layout.lines import build_lines
+from pazufa_pdf_parser.layout.segment import Segmenter, detect_synopsis
+from pazufa_pdf_parser.model import BBox, BlockKind, Page, RegionKind, Word
 
 
 def words_for(x, y, text, size=10.0, bold=False, char_w=None):
@@ -69,7 +69,7 @@ class TestSegmentation:
         region = self.seg(left + right)
         cols = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
         assert cols, "columns expected"
-        from pazufa_parser.layout.blocks import fill_leaves
+        from pazufa_pdf_parser.layout.blocks import fill_leaves
 
         fill_leaves(region, 1)
         text = " ".join(b.raw_text for b in region.iter_blocks())
@@ -105,7 +105,7 @@ class TestSegmentation:
         region = self.seg(address + sidebar + body)
         cols = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
         assert cols and cols[0].aside_first
-        from pazufa_parser.layout.blocks import fill_leaves
+        from pazufa_pdf_parser.layout.blocks import fill_leaves
 
         fill_leaves(region, 1)
         order = [b.raw_text.split("\n")[0] for b in region.iter_blocks()]
@@ -122,7 +122,7 @@ class TestSegmentation:
         right = list(txt)
         right[3] = "die Wörter gestrichen. (unverändert)"
         region = self.seg(lines_block(60, 100, txt) + lines_block(320, 100, right))
-        from pazufa_parser.layout.blocks import fill_leaves
+        from pazufa_pdf_parser.layout.blocks import fill_leaves
 
         fill_leaves(region, 1)
         detect_synopsis(region, lambda r: " ".join(b.raw_text for b in r.iter_blocks()))
@@ -132,7 +132,7 @@ class TestSegmentation:
         left = lines_block(60, 100, ["Haushalt und Finanzen der Gemeinde", "werden jährlich neu beschlossen und", "vom Rat in öffentlicher Sitzung beraten"])
         right = lines_block(320, 100, ["Sportverein meldet neue Mitglieder", "Training jeden Dienstag im Freibad", "Anmeldung beim Vorstand möglich"])
         region = self.seg(left + right)
-        from pazufa_parser.layout.blocks import fill_leaves
+        from pazufa_pdf_parser.layout.blocks import fill_leaves
 
         fill_leaves(region, 1)
         detect_synopsis(region, lambda r: " ".join(b.raw_text for b in r.iter_blocks()))

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_parser import DocType, parse, render
+from pazufa_pdf_parser import DocType, parse, render
 
 pytestmark = pytest.mark.samples
 

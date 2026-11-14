@@ -2,10 +2,10 @@
 
 from pdfgen import T, make_pdf, paragraph
 
-from pazufa_parser import BlockKind, Pipeline, parse, render
-from pazufa_parser.extract.pdf import plausible_size
-from pazufa_parser.layout.footers import footer_score, lexicon_hits
-from pazufa_parser.model import BBox
+from pazufa_pdf_parser import BlockKind, Pipeline, parse, render
+from pazufa_pdf_parser.extract.pdf import plausible_size
+from pazufa_pdf_parser.layout.footers import footer_score, lexicon_hits
+from pazufa_pdf_parser.model import BBox
 
 PROSE = [
     "Der Ausschuss hat den Gesetzentwurf in seiner Sitzung beraten und",
@@ -95,7 +95,7 @@ def test_plausible_size():
 
 
 def test_scoring_helpers():
-    from pazufa_parser.model import Block, Line, Word
+    from pazufa_pdf_parser.model import Block, Line, Word
 
     def blk(text, size):
         w = Word(text, BBox(70, 780, 400, 780 + size), size=size)
