@@ -7,7 +7,7 @@ import pytest
 from conftest import HAS_QPDF
 from pdfgen import T, make_pdf, paragraph
 
-from pazufa_parser import (
+from pazufa_pdf_parser import (
     BlockKind,
     DocType,
     FuncStep,

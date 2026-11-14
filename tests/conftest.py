@@ -20,7 +20,7 @@ def pytest_configure(config):
 
 
 def _has_tesseract() -> bool:
-    from pazufa_parser.extract.ocr import tesseract_languages
+    from pazufa_pdf_parser.extract.ocr import tesseract_languages
 
     try:
         return "deu" in tesseract_languages()
@@ -329,7 +329,7 @@ def two_column_pdf() -> bytes:
 @pytest.fixture(scope="session")
 def parsed(letter_pdf, bill_pdf, email_pdf, protocol_pdf, judgment_pdf, contract_pdf, synopsis_pdf, two_column_pdf):
     """All synthetic documents parsed once (text layer only)."""
-    from pazufa_parser import parse
+    from pazufa_pdf_parser import parse
 
     srcs = {
         "letter": letter_pdf,

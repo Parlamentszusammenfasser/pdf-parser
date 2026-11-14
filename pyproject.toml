@@ -1,5 +1,5 @@
 [project]
-name = "pazufa-parser"
+name = "pazufa-pdf-parser"
 version = "0.1.0"
 description = "Robust extraction of structured information and sanitized text from PDF documents (letters, legal and parliamentary documents)"
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pazufa-parser = "pazufa_parser:main"
+pazufa-pdf-parser = "pazufa_pdf_parser:main"
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]

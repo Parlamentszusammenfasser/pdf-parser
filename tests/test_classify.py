@@ -2,8 +2,8 @@ import re
 
 import pytest
 
-from pazufa_parser.classify import Classifier, ClassifierInput, Rule, guess_language
-from pazufa_parser.model import DocType
+from pazufa_pdf_parser.classify import Classifier, ClassifierInput, Rule, guess_language
+from pazufa_pdf_parser.model import DocType
 
 
 def inp(text: str, **features) -> ClassifierInput:

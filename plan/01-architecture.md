@@ -2,7 +2,7 @@
 deps runtime: pypdfium2 (Apache/BSD; extraction+render, avoid AGPL pymupdf), pillow. tesseract via subprocess TSV (optional at runtime).
 deps dev: pytest, lxml (XSD validation of AKN output; schema vendored tests/schemas/akomantoso30.xsd + xml.xsd, OASIS)
 
-pkg src/pazufa_parser/
+pkg src/pazufa_pdf_parser/
   model.py        BBox Word Line Block Region Page Document Classification LegalNode Issue ; to_dict()
   errors.py       PazufaError, PdfOpenError, OcrUnavailable
   options.py      ParseOptions (ocr mode auto|always|never, langs, dpi, jobs, strict, password, min_text_chars...)
@@ -20,7 +20,7 @@ pkg src/pazufa_parser/
   pipeline.py     Step protocol(name, applies(ctx), run(ctx)); Context; Pipeline(steps, insert/replace/remove); stage physical then classify then dispatch logical; per-step error capture -> Issue (strict re-raises)
   render/         raw txt html legalxml(AKN 3.0) json ; registry register_renderer()
   api.py          parse(src, options) -> Document ; render(doc, fmt) ; convert(src, fmt)
-  cli.py          pazufa-parser [extract] in... -f fmt[,fmt] -o dir|- --ocr --lang --dpi --jobs --strict --json-log; classify; formats
+  cli.py          pazufa-pdf-parser [extract] in... -f fmt[,fmt] -o dir|- --ocr --lang --dpi --jobs --strict --json-log; classify; formats
 coords: view space, points, top-left origin, after /Rotate.
 formats: raw = all text incl furniture/rotated/lowconf, reading order, lines as-is, \f between pages
          txt = body only, sanitized, dehyphenated, paragraphs reflowed, blank line between blocks

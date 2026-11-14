@@ -1,7 +1,7 @@
-from pazufa_parser.fields.common import extract_entities, find_dates
-from pazufa_parser.fields.email import _finalize, _split_addresses, parse_header_lines
-from pazufa_parser.fields.legal import parse_legal_texts
-from pazufa_parser.fields.letter import split_return_address
+from pazufa_pdf_parser.fields.common import extract_entities, find_dates
+from pazufa_pdf_parser.fields.email import _finalize, _split_addresses, parse_header_lines
+from pazufa_pdf_parser.fields.legal import parse_legal_texts
+from pazufa_pdf_parser.fields.letter import split_return_address
 
 
 class TestEntities:
