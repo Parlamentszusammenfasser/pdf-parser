@@ -6,7 +6,7 @@ Source = sha256 file name in the full corpus.
 
 | File | Case | Observed on f9ab601 | Source |
 |---|---|---|---|
-| drs-clean.pdf | best case: Word Drucksache (Beschluss with law text), 3 p | correct: running header and footer removed, paragraphs joined across page breaks, no artefacts; must stay that way | 89e1fa04 |
+| drs-clean.pdf | best case: Word Drucksache (Beschluss with law text), 3 p | correct: running header and footer removed, no artefacts; must stay that way (both page breaks fall between paragraphs) | 89e1fa04 |
 | drs-beschluss.pdf | Beschluss, most common Drucksache (176×), 1 p | header split: "Beschluss des Bayerischen Landtags" comes before date and number | 561f127c |
 | drs-beschlussempfehlung-letterspaced.pdf | Beschlussempfehlung und Bericht, Berichterstatter key-values | letter-spaced word collapsed wrong: "einst im m i g" | 625dee2e |
 | drs-gesetzentwurf-blank-page.pdf | Gesetzentwurf with blank p2 | Drucksache number only in furniture; p3 header half in body ("Bayerischer Landtag", date); author list split mid-name ("Maximilian" / "Deisenhofer") | 29ee5c3b |
@@ -22,7 +22,7 @@ Source = sha256 file name in the full corpus.
 | letter-sidebar.pdf | Word letter with right sidebar | sidebar interleaved between address and subject | ff2a2aae |
 | statement-page-break.pdf | statement (PDFMaker) | paragraphs not re-joined across page break ("Art." / "105 Abs.", "höchstrichterlichen" / "Rechtsprechung") | c06a6e5c |
 | statement-toc-dot-leaders.pdf | statement with dot-leader ToC | ToC entries merged into one line | 6ae6db5b |
-| statement-ti-ligature-mixed-scan.pdf | text pages + one scanned page, `/Rotate` 0/270 | "ti" ligature → U+FFFD ("Ar�kel", 14×) | 74519dfa |
+| statement-ti-ligature-mixed-scan.pdf | text pages + one scanned page, `/Rotate` 0/270 | "ti" ligature → U+FFFD in 14 places ("Ar�kel", "kri�sch") | 74519dfa |
 | scan-garbled-font.pdf | garbled font (100 % garbage), trimmed to p. 1 | OCR fallback works; fax cover with handwriting | e05d2704 |
 | scan-letter.pdf | full scan (Konica), 1 p | sidebar before body; OK | 20f02e0d |
 | scan-reading-order.pdf | full scan (Canon) | margin text inserted mid-paragraph ("Wir / insbesondere im / wissen …") | 04b6ed7d |

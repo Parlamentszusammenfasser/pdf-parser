@@ -8,7 +8,6 @@ older problem PDFs in ``EXPECTED`` are not in the repository; point
 """
 
 import os
-import re
 from pathlib import Path
 
 import pytest
@@ -18,7 +17,7 @@ from pazufa_pdf_parser import DocType, parse, render
 pytestmark = pytest.mark.samples
 
 BY_DIR = Path(__file__).parent / "samples" / "by"
-# these contain scanned or image-only pages and produce no text without tesseract
+# these have pages the parser OCRs; without tesseract their text is missing or incomplete
 BY_OCR = {
     "drs-staatsvertrag-bilingual-rotated-maps.pdf",
     "letter-image-letterhead-ocr-merge.pdf",
@@ -85,8 +84,6 @@ def test_clean_drucksache():
     assert txt.count("Drucksache 19/9342") == 1  # running header of pp. 2-3 removed
     assert "Seite" not in txt
     assert "Drucksachen, Plenarprotokolle" not in txt  # page-1 footer removed
-    body = txt.split("Der Landtag hat", 1)[1]  # masthead line "des Bayerischen Landtags" is lower case
-    assert not re.search(r"\n\n[a-zäöü]", body)  # no paragraph split at a page break
     assert txt.rstrip().endswith("I. Vizepräsident")
     assert "Dieses Gesetz tritt am 1. Januar 2026 in Kraft." in txt
 
