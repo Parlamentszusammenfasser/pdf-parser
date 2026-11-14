@@ -163,19 +163,24 @@ def _preface(parent: ET.Element, doc: Document) -> None:
             c = _sub(pre, "container", name=name)
             _p(c, "\n".join(lines))
     email = f.get("email") or {}
-    if email:
+    header: list[tuple[str, dict[str, str]]] = []
+    if email.get("from"):
+        fr = email["from"]
+        header.append(
+            ("Von: " + " ".join(x for x in (fr.get("name"), f"<{fr['email']}>" if fr.get("email") else None) if x), {})
+        )
+    if email.get("to"):
+        header.append(("An: " + "; ".join(a.get("name") or a.get("email", "") for a in email["to"]), {}))
+    if email.get("date_text"):
+        header.append(("Datum: " + email["date_text"], {}))
+    if email.get("subject"):
+        header.append(("Betreff: " + email["subject"], {}))
+    header += [("Anlage: " + a, {"class_": "attachment"}) for a in email.get("attachments") or []]
+    # a forwarded print may carry only the inner thread, and AKN forbids an empty <container>
+    if header:
         c = _sub(pre, "container", name="emailHeader")
-        if email.get("from"):
-            fr = email["from"]
-            _p(c, "Von: " + " ".join(x for x in (fr.get("name"), f"<{fr['email']}>" if fr.get("email") else None) if x))
-        if email.get("to"):
-            _p(c, "An: " + "; ".join(a.get("name") or a.get("email", "") for a in email["to"]))
-        if email.get("date_text"):
-            _p(c, "Datum: " + email["date_text"])
-        if email.get("subject"):
-            _p(c, "Betreff: " + email["subject"])
-        for a in email.get("attachments") or []:
-            _p(c, "Anlage: " + a, class_="attachment")
+        for text, attrs in header:
+            _p(c, text, **attrs)
 
 
 # --------------------------------------------------------------------------- legal hierarchy
