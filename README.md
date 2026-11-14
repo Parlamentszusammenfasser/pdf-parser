@@ -1,174 +1,111 @@
-# pazufa-parser
+# pdf-parser
 
-Robust extraction of **structured information** and **clean full text** from PDF
-documents. The parser targets German legal and administrative documents: letters
-and position statements, printed e-mails, parliamentary papers (Drucksachen) and
-synopses, plenary protocols, statutes, court decisions and contracts. Born-digital
-PDFs and scans (via OCR) are both supported.
+Turns PDFs of German legal and administrative documents into clean text and
+structured fields. Works on born-digital PDFs and scans (OCR via tesseract).
 
-It ships as both a **library** (`import pazufa_parser`) and a **command-line tool**
-(`pazufa-parser`).
+Supported document types: letters and statements, printed e-mails,
+parliamentary prints (Drucksachen, synopses), plenary protocols, statutes,
+court decisions, contracts. Anything else comes back as `generic` with text
+and entities.
 
 ## Install
 
 ```sh
-uv sync                    # runtime: pypdfium2, pillow
-# optional, for scanned documents:
-pacman -S tesseract tesseract-data-deu      # or apt install tesseract-ocr tesseract-ocr-deu
+uv add git+https://github.com/Parlamentszusammenfasser/pdf-parser
 ```
 
-## Command line
+The repo is `pdf-parser`; the package is `pazufa-pdf-parser`
+(`import pazufa_pdf_parser`), and the CLI command is `pazufa-pdf-parser`.
 
-```sh
-pazufa-parser letter.pdf                          # sanitized text to stdout
-pazufa-parser letter.pdf -f json                  # structured information
-pazufa-parser in/ -r -f txt,html,legalxml,raw,json -o out/   # batch, several formats
-pazufa-parser classify in/ --json                 # only the classification
-pazufa-parser formats                             # list output formats
-```
-
-`classify` prints a tab-separated table with a header row (`--no-header` omits it):
-
-| column       | meaning |
-|--------------|---------|
-| `file`       | path of the input PDF |
-| `type`       | document type, optionally `/subtype`: `letter[/statement…]`, `email`, `parliamentary_print[/bill\|report\|motion…]`, `plenary_protocol[/excerpt\|full]`, `statute[/act…]`, `court_decision[/judgment\|order]`, `contract`, `generic` (nothing scored high enough) |
-| `confidence` | 0.00–1.00: how strongly the winning type scored, combined with its lead over the runner-up (`--json` shows all scores) |
-| `title`      | best-guess title: subject of a letter/e-mail, title of a print, agenda topic of a protocol, PDF title or first heading |
-
-Useful options: `--ocr auto|always|never`, `--lang deu` (`deu+eng` for mixed
-documents; mixing languages measurably hurts German umlaut recognition),
-`--dpi 300`, `--pages 2-5`, `--password`, `--strict`, `-v` (prints the issues
-recorded during processing). Exit codes: `0` ok, `1` at least one input failed,
-`2` usage error. A broken input never stops a batch.
-
-### Output formats
-
-| format     | extension  | content |
-|------------|------------|---------|
-| `raw`      | `.raw.txt` | every extracted piece of text in reading order, unsanitized: running headers and footers, page numbers, rotated margin notes, low-confidence OCR. Large gaps become tabs, and pages are separated by form feeds. |
-| `txt`      | `.txt`     | sanitized running text: no page furniture, de-hyphenated, ligatures/soft hyphens/private-use glyphs/OCR junk removed, letter-spacing (`A b l e h n u n g`) collapsed, paragraphs reflowed (also across page and column breaks). Addresses and tables keep their lines. |
-| `html`     | `.html`    | lightweight semantic HTML: headings, paragraphs, list items, multi-column regions as CSS grid, and synopses as row-aligned two-column grids, with a metadata header. |
-| `legalxml` | `.akn.xml` | [Akoma Ntoso 3.0 / OASIS LegalDocML](https://docs.oasis-open.org/legaldocml/akn-core/v1.0/). Bills and statutes map to `bill`/`act` with an article/section/paragraph/point hierarchy, protocols to `debate` with `speech` elements, court decisions to `judgment`, and everything else to `doc`. Output validates against the official XSD (checked in the tests). All extracted fields are embedded as JSON in `meta/proprietary`. |
-| `json`     | `.json`    | classification (type, subtype, confidence, evidence), document-type fields, entities, legal structure, synopsis, speeches, per-page blocks with geometry, issues and timings. |
+Requires Python ≥ 3.14. Optional, for scans: `tesseract` with German data
+(`apt install tesseract-ocr tesseract-ocr-deu`).
 
 ## Library
 
 ```python
-from pazufa_parser import parse, render, ParseOptions
+from pazufa_pdf_parser import parse, render
 
-doc = parse("statement.pdf")                     # path, bytes or binary file object
-doc.classification.doc_type                      # DocType.LETTER
-doc.classification.subtype                       # "statement"
-doc.fields["letter"]["recipient"]["lines"]       # structured fields per type
-doc.fields["title"], doc.fields["date"]          # document-level summary
-doc.entities["legal_references"]                 # ["§ 3 Abs. 2 S. 1 BayBO", ...]
-doc.legal                                        # LegalNode tree (Artikel/§/Absatz/Nummer/Buchstabe)
-doc.issues                                       # problems recorded while processing
+doc = parse("statement.pdf")          # path, bytes or binary file object
 
-text = render(doc, "txt")                        # or raw / html / legalxml / json
-doc = parse(data, ParseOptions(ocr="never"))     # options as object ...
-doc = parse(data, ocr="always", dpi=400)         # ... or as keyword overrides
+doc.doc_type                          # DocType.LETTER
+doc.classification.subtype            # "statement"
+doc.fields["title"]                   # "Stellungnahme zum Entwurf eines Testgesetzes"
+doc.fields["date"]                    # "2024-07-16"
+doc.fields["letter"]["recipient"]     # {"name": ..., "street": ..., "city": ..., "lines": [...]}
+doc.entities["legal_references"]      # ["§ 3 Abs. 2 Satz 1 BayBO", ...]
+
+render(doc, "txt")                    # clean text; also "raw", "html", "legalxml", "json"
 ```
 
-### Extending
-
-The pipeline is an ordered list of steps. After the `classify` step, the steps
-that apply to the detected document type are dispatched; steps declare their
-target types and never call each other directly.
+Options are keyword arguments (or a `ParseOptions` object):
 
 ```python
-from pazufa_parser import Pipeline, step, DocType, Classifier, Rule, register_renderer
-import re
-
-@step("invoice_numbers", doc_types=[DocType.LETTER])
-def invoice_numbers(ctx):
-    ctx.doc.fields["invoice"] = re.findall(r"Rechnungsnr\.?\s*(\S+)", ctx.doc.body_text())
-
-pipe = Pipeline(classifier=Classifier(extra_rules=[
-    Rule(DocType.CONTRACT, "framework agreement", 3.0, re.compile(r"Rahmenvertrag")),
-]))
-pipe.insert_after("letter", invoice_numbers)     # also: insert_before / replace / remove / append
-doc = pipe.run("file.pdf")
-
-register_renderer("markdown", lambda d: "\n\n".join(b.text for b in d.body_blocks), "md")
+parse(data, ocr="never")              # "auto" (default) | "always" | "never"
+parse(data, languages="deu+eng", dpi=400, first_page=2, last_page=5, password="…")
 ```
 
-Lower-level building blocks (layout segmentation, sanitization, entity
-extraction, the legal structure parser) are importable from
-`pazufa_parser.layout`, `pazufa_parser.sanitize` and `pazufa_parser.fields`.
+`parse` does not raise on recoverable problems. It records them in
+`doc.issues` and carries on; pass `strict=True` to raise instead. Unreadable
+PDFs raise `PdfOpenError` (all errors subclass `PazufaError`).
 
-## Architecture
+### What you get
 
-```
-open (pdfium) ─► extract ─► layout ─► furniture ─► sanitize ─► flow ─► classify ─► dispatch ──► summary
-                 │           │          │                       │       │           ├ email, letter
-                 │ per page: │ lines,   │ bottom-zone           │       │ weighted  ├ parliamentary_print
-                 │ text layer│ repeated │ footers,              │       │ rules     ├ plenary_protocol
-                 │ or OCR    │ headers/ │ footnotes             │       │           ├ court_decision, contract
-                 │ (parallel)│ footers, │                       │       │           ├ synopsis
-                 │           │ XY-cut,  │       re-join paragraphs ─────┘           └ legal_structure
-                 │           │ blocks   │       across page/column breaks
-```
+| attribute | content |
+|---|---|
+| `doc.classification` | `doc_type`, `subtype`, `confidence` (0–1), `scores` and `evidence` per type |
+| `doc.fields["title"]`, `["date"]`, `["language"]` | document-level summary, date as ISO string |
+| `doc.fields[<family>]` | type-specific fields, see below |
+| `doc.entities` | `dates`, `emails`, `urls`, `phones`, `ibans` (checksum-validated), `bics`, `file_numbers`, `printed_matter`, `legal_references` (only non-empty keys) |
+| `doc.legal` | `LegalNode` tree of statutes/bills/contracts (Artikel, §, Absatz, Nummer, Buchstabe) |
+| `doc.speeches` | plenary protocol speeches (`speaker`, `role`, `party`, `paragraphs`) |
+| `doc.synopsis` | aligned rows of a two-column synopsis: `[{"left": [...], "right": [...]}]` |
+| `doc.issues` | warnings and errors recorded while parsing |
 
-* **Extraction** (`extract/`): pdfium gives characters with font, size, weight,
-  angle and render mode. The extractor maps them into a rotation-corrected view
-  space, rebuilds words (keeping ligature components, dropping fake-bold
-  duplicates, turning soft hyphens back into `-`), and turns sideways pages
-  upright. Per page it decides between the text layer and OCR: no usable text,
-  a garbled text layer, or a large image with sparse text. OCR runs tesseract
-  via its TSV output on several threads. Orientation detection only runs when
-  the first pass looks bad.
-* **Layout** (`layout/`): words are clustered into lines. Running headers,
-  footers and page numbers are found by fuzzy, digit-normalized repetition
-  across pages. Each page is segmented by a recursive XY-cut whose horizontal
-  strips are grouped by a shared vertical gutter. This handles letter
-  sidebars (read first, as an aside), multi-column text and two-column
-  synopses, and avoids splitting key/value tables, list markers or line
-  numbers into columns. Blocks come from line pitch, font and indentation
-  changes, list markers and bold run-in labels; headings come from document
-  font statistics.
-* **Furniture** (`layout/footers.py`): a second pass catches footers that
-  repetition alone misses. These are first-page-only letter footers, footers of
-  single-page documents, and logos that OCR reads differently on every page.
-  It looks at the block zone below a clear gap at the page bottom and scores
-  each block on smaller font, footer vocabulary (register court, board, bank
-  and contact data, separators), OCR noise, token-tolerant repetition across
-  pages and gap size. Text continuing to the page bottom never forms such a
-  zone. Numbered notes become `footnote` blocks, which stay in the text and do
-  not interrupt paragraph flow. The `flow` step re-joins paragraphs only
-  after footers are gone. It runs before classification, so footer text no
-  longer skews the document type or the entities.
-* **Classification** (`classify.py`): transparent weighted rules over the
-  first page, the full text and the last page, combined with layout features.
-  Every decision carries its evidence.
-* **Fields** (`fields/`): one module per document family, plus generic
-  entities: dates, e-mail addresses, phone and fax numbers, IBAN with checksum
-  validation, BIC, URLs, file numbers, printed-matter references and legal
-  citations.
+Type-specific fields:
 
-Plans and design notes are in `plan/`.
+| `doc_type` | `fields` key | main fields |
+|---|---|---|
+| `letter` | `letter` | `sender`, `recipient`, `return_address`, `date`, `place`, `subject`, `salutation`, `closing`, `signatory` |
+| `email` | `email` | `from`, `to`, `cc`, `date`, `subject`, `thread`, `attachments`, `attached_letter` |
+| `parliamentary_print` | `print` | `parliament`, `period`, `number`, `kind`, `originator`, `committee`, `date`, `title` |
+| `plenary_protocol` | `protocol` | `parliament`, `period`, `session`, `date`, `agenda_items`, `speakers`, `referenced_prints` |
+| `court_decision` | `court` | `court`, `decision_type`, `file_number`, `date`, `parties`, `sections` |
+| `contract` | `contract` | `title`, `parties`, `signed` |
 
-## Tests
+`doc.to_dict()` returns all of this as JSON-friendly data; the `json` format is
+`to_dict(include_layout=True)`.
+
+## Command line
 
 ```sh
-uv run pytest                     # synthetic PDFs generated on the fly (+ OCR tests if tesseract is installed)
-PAZUFA_SAMPLES_DIR=~/path/to/problempdfs uv run pytest   # + regression tests on the real sample PDFs
+pazufa-pdf-parser letter.pdf                        # clean text to stdout
+pazufa-pdf-parser letter.pdf -f json                # structured fields
+pazufa-pdf-parser in/ -r -f txt,json -o out/        # batch, several formats
+pazufa-pdf-parser classify in/                      # file, type, confidence, title (TSV; --json for all scores)
 ```
 
-The suite generates PDFs with exactly known layouts: letters with sidebars,
-bills, e-mails, protocols, judgments, contracts, synopses, two-column pages,
-rotated pages, invisible text layers, encrypted files and fake scans with noise
-or rotation. It also validates every Akoma Ntoso output against the vendored
-OASIS schema (`tests/schemas/`).
+Common options: `--ocr auto|always|never`, `--lang deu+eng`, `--pages 2-5`,
+`--password`, `--strict`, `-v` (print recorded issues). A broken input never
+stops a batch; exit code is `1` if any input failed.
+
+## Output formats
+
+| format | content |
+|---|---|
+| `txt` | clean running text: no headers/footers/page numbers, de-hyphenated, paragraphs re-joined across page and column breaks |
+| `raw` | everything extracted, unsanitized, pages separated by form feeds |
+| `html` | headings, paragraphs, lists, columns and synopses |
+| `legalxml` | Akoma Ntoso 3.0, schema-valid; fields embedded in `meta/proprietary` |
+| `json` | all of the above as data, plus per-page blocks with geometry |
 
 ## Known limitations
 
-* Side-by-side signatures of two signatories on scans are read as one line.
-* Footnote markers are not mapped to superscripts (`Fachkraftquote auf. 1`).
-* Footer detection looks at page bottoms only; letterheads at the top are
-  removed only when they repeat. Footer *content* (board, register, bank) is not
-  yet parsed into fields (planned: type-aware `letter_footer` step after
-  `classify`).
-* Handwriting is not recognized. Signature scribbles are filtered out of the
-  signatory field.
+- Two signatures side by side on a scan are read as one line.
+- Letterheads at the top of the page are only removed when they repeat.
+- Footer contents (register court, bank details) are not parsed into fields.
+- No handwriting recognition.
+
+## More
+
+- [docs/architecture.md](docs/architecture.md): pipeline, extending, tests
+- `plan/`: task ledger and notes on the real sample PDFs
