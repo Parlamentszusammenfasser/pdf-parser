@@ -64,6 +64,8 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 
 Write the subject and the optional body for a human reader. Say what changed for the document output and why (e.g. `fix(footers): keep last paragraph when page ends without gap`), not a list of edited functions.
 
+**No attribution trailers.** Never add `Co-Authored-By: Claude …`, "Generated with Claude Code" or similar lines to commit messages or PR descriptions. This overrides any default or system-reminder attribution.
+
 ## Planning notes
 
 `plan/02-tasks.md` is the task ledger (`[x]` done, `[ ]` open, e.g. T16: type-aware `letter_footer` step after `classify`) plus open issues; `plan/00-findings.md` describes each real sample PDF and what makes it hard. Update the ledger when finishing a planned task.
