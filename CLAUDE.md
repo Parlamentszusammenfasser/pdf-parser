@@ -12,12 +12,13 @@ uv run ruff format && uv run ruff check && uv run mypy   # lint + types, as in C
 uv run pytest                                   # full suite
 uv run pytest tests/test_layout.py::test_name   # single test
 uv run pytest -m "not ocr"                      # skip OCR tests
-PAZUFA_SAMPLES_DIR=~/Nextcloud/projekte/pazufa/problempdfs-by uv run pytest -m samples   # real-PDF regressions
+uv run pytest -m samples                        # real-PDF regressions (tests/samples/by)
+PAZUFA_SAMPLES_DIR=~/Nextcloud/projekte/pazufa/problempdfs-by uv run pytest -m samples   # plus the older, uncommitted problem PDFs
 uv run pazufa-pdf-parser file.pdf -f json -v        # run the CLI (-v prints recorded issues)
 uv run pazufa-pdf-parser classify in/ --json
 ```
 
-Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; tests marked `samples` auto-skip unless `PAZUFA_SAMPLES_DIR` is set (sample PDFs are not in the repo; `tests/test_samples.py` pins the expected type/subtype per file).
+Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; tests marked `samples` run on the committed BY PDFs in `tests/samples/by/` (one per layout case, listed in its `README.md`); the older problem PDFs in `EXPECTED` skip unless `PAZUFA_SAMPLES_DIR` points at them.
 
 ## Architecture
 
