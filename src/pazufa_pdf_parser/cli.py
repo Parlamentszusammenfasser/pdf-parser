@@ -1,8 +1,8 @@
 """Command line interface.
 
-    pazufa-pdf-parser [extract] INPUT... [-f FORMAT[,FORMAT]] [-o OUTDIR|-] [options]
-    pazufa-pdf-parser classify INPUT... [--json]
-    pazufa-pdf-parser formats
+pazufa-pdf-parser [extract] INPUT... [-f FORMAT[,FORMAT]] [-o OUTDIR|-] [options]
+pazufa-pdf-parser classify INPUT... [--json]
+pazufa-pdf-parser formats
 """
 
 from __future__ import annotations
@@ -63,7 +63,12 @@ def _formats(values: list[str] | None) -> list[str]:
 
 def _add_parse_options(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("parsing")
-    g.add_argument("--ocr", choices=[m.value for m in OcrMode], default="auto", help="OCR mode (default: auto = only pages without usable text)")
+    g.add_argument(
+        "--ocr",
+        choices=[m.value for m in OcrMode],
+        default="auto",
+        help="OCR mode (default: auto = only pages without usable text)",
+    )
     g.add_argument("--lang", default="deu", help="tesseract languages, e.g. deu or deu+eng (default: deu)")
     g.add_argument("--dpi", type=int, default=300, help="render resolution for OCR (default: 300)")
     g.add_argument("--jobs", "-j", type=int, default=None, help="parallel OCR workers")
@@ -107,14 +112,26 @@ def _collect(inputs: list[str], recursive: bool) -> tuple[list[Path], list[str]]
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="pazufa-pdf-parser", description="Extract structured information and clean text from PDF documents.")
+    ap = argparse.ArgumentParser(
+        prog="pazufa-pdf-parser", description="Extract structured information and clean text from PDF documents."
+    )
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = ap.add_subparsers(dest="command")
 
     ex = sub.add_parser("extract", help="extract and render documents (default command)")
     ex.add_argument("inputs", nargs="+", help="PDF files or directories")
-    ex.add_argument("-f", "--format", action="append", help=f"output format(s), comma separated or repeated: {', '.join(available_formats())} (default: txt)")
-    ex.add_argument("-o", "--output", default=None, help="output directory, or '-' for stdout (default: stdout for a single input and format)")
+    ex.add_argument(
+        "-f",
+        "--format",
+        action="append",
+        help=f"output format(s), comma separated or repeated: {', '.join(available_formats())} (default: txt)",
+    )
+    ex.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="output directory, or '-' for stdout (default: stdout for a single input and format)",
+    )
     ex.add_argument("-r", "--recursive", action="store_true", help="recurse into directories")
     ex.add_argument("--overwrite", action="store_true", help="overwrite existing output files")
     ex.add_argument("-q", "--quiet", action="store_true", help="no progress output on stderr")
@@ -130,7 +147,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cl.add_argument("inputs", nargs="+")
     cl.add_argument("-r", "--recursive", action="store_true")
-    cl.add_argument("--json", action="store_true", help="JSON lines output (one object per file, includes all type scores)")
+    cl.add_argument(
+        "--json", action="store_true", help="JSON lines output (one object per file, includes all type scores)"
+    )
     cl.add_argument("--no-header", action="store_true", help="omit the header row of the tab-separated output")
     _add_parse_options(cl)
 
@@ -180,7 +199,19 @@ def _cmd_classify(args: argparse.Namespace) -> int:
             continue
         c = doc.classification
         if args.json:
-            print(json.dumps({"file": str(f), "doc_type": str(c.doc_type), "subtype": c.subtype, "confidence": c.confidence, "scores": c.scores, "title": doc.fields.get("title")}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "file": str(f),
+                        "doc_type": str(c.doc_type),
+                        "subtype": c.subtype,
+                        "confidence": c.confidence,
+                        "scores": c.scores,
+                        "title": doc.fields.get("title"),
+                    },
+                    ensure_ascii=False,
+                )
+            )
         else:
             sub = f"/{c.subtype}" if c.subtype else ""
             title = " ".join(str(doc.fields.get("title", "")).split())  # no tabs/newlines inside a cell
@@ -192,7 +223,10 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     fmts = _formats(args.format)
     unknown = [f for f in fmts if f not in available_formats()]
     if unknown:
-        print(f"error: unknown format(s): {', '.join(unknown)}; available: {', '.join(available_formats())}", file=sys.stderr)
+        print(
+            f"error: unknown format(s): {', '.join(unknown)}; available: {', '.join(available_formats())}",
+            file=sys.stderr,
+        )
         return EXIT_USAGE
     files, missing = _collect(args.inputs, args.recursive)
     status = EXIT_OK
@@ -255,7 +289,9 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             c = doc.classification
             sub = f"/{c.subtype}" if c.subtype else ""
             ocr = c.features.get("ocr_pages", 0)
-            info = f"{f}: {c.doc_type}{sub} ({c.confidence:.2f}), {len(doc.pages)} page(s)" + (f", {ocr} OCR" if ocr else "")
+            info = f"{f}: {c.doc_type}{sub} ({c.confidence:.2f}), {len(doc.pages)} page(s)" + (
+                f", {ocr} OCR" if ocr else ""
+            )
             info += f", {time.perf_counter() - t0:.1f}s"
             errors = [i for i in doc.issues if i.severity == "error"]
             if errors:

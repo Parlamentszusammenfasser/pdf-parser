@@ -18,7 +18,9 @@ def _pipeline() -> Pipeline:
     return _default_pipeline
 
 
-def parse(src: Source, options: ParseOptions | None = None, *, pipeline: Pipeline | None = None, **option_overrides) -> Document:
+def parse(
+    src: Source, options: ParseOptions | None = None, *, pipeline: Pipeline | None = None, **option_overrides
+) -> Document:
     """Parse a PDF (path, bytes or binary file object) into a :class:`Document`.
 
     Keyword arguments override fields of ``options``, e.g. ``parse(path, ocr="never")``.

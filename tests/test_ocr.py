@@ -1,10 +1,10 @@
 """OCR path (requires tesseract with German language data)."""
 
 import pytest
-from pdfgen import T, make_scanned_pdf, paragraph
 
 from pazufa_pdf_parser import DocType, PageSource, parse, render
 from pazufa_pdf_parser.extract.ocr import parse_tsv
+from pdfgen import T, make_scanned_pdf, paragraph
 
 pytestmark = pytest.mark.ocr
 
@@ -14,7 +14,16 @@ LETTER_LINES = [
     T(70, 186, "80539 München", 12),
     T(400, 230, "16.07.2024", 12),
     T(70, 280, "Sehr geehrte Frau Gernbauer,", 12),
-    *paragraph(70, 310, ["vielen Dank für die Möglichkeit, zum Entwurf eines Gesetzes", "Stellung nehmen zu können. Wir begrüßen die Änderungen."], 12, 1.5),
+    *paragraph(
+        70,
+        310,
+        [
+            "vielen Dank für die Möglichkeit, zum Entwurf eines Gesetzes",
+            "Stellung nehmen zu können. Wir begrüßen die Änderungen.",
+        ],
+        12,
+        1.5,
+    ),
     T(70, 380, "Mit freundlichen Grüßen", 12),
     T(70, 420, "Dr. Erika Musterfrau", 12),
 ]
@@ -30,7 +39,13 @@ def test_scan_is_ocred(scanned_letter):
     assert d.pages[0].source is PageSource.OCR
     assert d.pages[0].stats["ocr_mean_confidence"] > 70
     txt = render(d, "txt")
-    for phrase in ("Bayerische Staatskanzlei", "80539 München", "Sehr geehrte Frau Gernbauer,", "Änderungen", "Mit freundlichen Grüßen"):
+    for phrase in (
+        "Bayerische Staatskanzlei",
+        "80539 München",
+        "Sehr geehrte Frau Gernbauer,",
+        "Änderungen",
+        "Mit freundlichen Grüßen",
+    ):
         assert phrase in txt, phrase
 
 

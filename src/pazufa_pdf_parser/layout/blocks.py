@@ -21,7 +21,10 @@ LIST_MARKER_RE = re.compile(
     )""",
     re.X,
 )
-_DATE_LIKE_RE = re.compile(r"^\d{1,3}\.\s?(Wahlperiode|Legislaturperiode|Sitzung|Plenum|Plenarsitzung|Jahrhundert|Lesung|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|\d{1,2}\.)", re.I)
+_DATE_LIKE_RE = re.compile(
+    r"^\d{1,3}\.\s?(Wahlperiode|Legislaturperiode|Sitzung|Plenum|Plenarsitzung|Jahrhundert|Lesung|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|\d{1,2}\.)",
+    re.I,
+)
 _END_PUNCT = tuple(".:;!?")
 
 
@@ -103,7 +106,16 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
     out: list[Block] = []
     for bl in blocks:
         kind = BlockKind.LIST_ITEM if starts_with_marker(bl[0].text) else BlockKind.PARAGRAPH
-        out.append(Block(lines=bl, bbox=BBox.enclosing(ln.bbox for ln in bl), page=page, kind=kind, region=region_id, column=column))
+        out.append(
+            Block(
+                lines=bl,
+                bbox=BBox.enclosing(ln.bbox for ln in bl),
+                page=page,
+                kind=kind,
+                region=region_id,
+                column=column,
+            )
+        )
     return out
 
 

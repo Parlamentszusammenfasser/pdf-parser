@@ -18,15 +18,21 @@ FILE_NO_RE = re.compile(
     r"(?:Az\.?|Aktenzeichen|Geschäftsnummer|Gz\.?)\s*:?\s*([\w][\w .\-/]{2,30}\d)"
     r"|\b(\d{1,2}\s?(?:BvR|BvL|BvF|BvE|BvQ|ZR|StR|AZR|C|K|KR|S|O|U|W|B|L|N|Ws|Ss|CS|ZB|Sa|Ta)\s?\d{1,5}[./]\d{2,4})\b"
 )
-DECISION_TYPE_RE = re.compile(r"^\s*(Urteil|Endurteil|Teilurteil|Versäumnisurteil|Anerkenntnisurteil|Beschluss|Gerichtsbescheid)\s*$", re.M)
+DECISION_TYPE_RE = re.compile(
+    r"^\s*(Urteil|Endurteil|Teilurteil|Versäumnisurteil|Anerkenntnisurteil|Beschluss|Gerichtsbescheid)\s*$", re.M
+)
 SECTION_RES = {
-    "tenor": re.compile(r"^\s*(Tenor|für Recht erkannt|beschlossen|hat .{0,120}(für Recht erkannt|beschlossen))\s*:?\s*$", re.I),
+    "tenor": re.compile(
+        r"^\s*(Tenor|für Recht erkannt|beschlossen|hat .{0,120}(für Recht erkannt|beschlossen))\s*:?\s*$", re.I
+    ),
     "guiding_principles": re.compile(r"^\s*(Leitsätze?|Leitsatz|Orientierungssatz)\s*:?\s*$", re.I),
     "facts": re.compile(r"^\s*Tatbestand\s*:?\s*$", re.I),
     "reasons": re.compile(r"^\s*(Entscheidungsgründe|Gründe)\s*:?\s*$", re.I),
     "remedies": re.compile(r"^\s*(Rechtsmittelbelehrung|Rechtsbehelfsbelehrung(?:\s*:)?)\b.*$", re.I),
 }
-PARTY_ROLE_RE = re.compile(r"[-–]\s*(Kläger(?:in)?|Beklagte[rn]?|Antragsteller(?:in)?|Antragsgegner(?:in)?|Beschwerdeführer(?:in)?|Beigeladene[rn]?|Berufungskläger(?:in)?|Revisionskläger(?:in)?|Beteiligte[rn]?)\s*[-–]")
+PARTY_ROLE_RE = re.compile(
+    r"[-–]\s*(Kläger(?:in)?|Beklagte[rn]?|Antragsteller(?:in)?|Antragsgegner(?:in)?|Beschwerdeführer(?:in)?|Beigeladene[rn]?|Berufungskläger(?:in)?|Revisionskläger(?:in)?|Beteiligte[rn]?)\s*[-–]"
+)
 SUBJECT_RE = re.compile(r"^\s*wegen\s+(.{3,200}?)\s*$", re.M | re.I)
 
 
@@ -52,7 +58,9 @@ def court_sections(blocks: list[Block]) -> list[tuple[str, int]]:
 def extract_court_fields(doc: Document) -> dict:
     blocks = doc.body_blocks
     # raw lines keep "wegen ..." / "- Kläger -" at line starts
-    head = "\n".join(" ".join(ln.split()) for b in (doc.pages[0].all_blocks if doc.pages else []) for ln in b.raw_text.split("\n"))
+    head = "\n".join(
+        " ".join(ln.split()) for b in (doc.pages[0].all_blocks if doc.pages else []) for ln in b.raw_text.split("\n")
+    )
     full = "\n".join(_t(b) for b in blocks)
     fields: dict = {}
     m = COURT_RE.search(head)
@@ -88,7 +96,9 @@ def extract_court_fields(doc: Document) -> dict:
     secs = court_sections(blocks)
     if secs:
         fields["sections"] = [name for name, _ in secs]
-    judges = re.findall(r"^\s*((?:Vorsitzende[r]?\s+)?Richter(?:in)?\s+(?:am\s+\w+\s+)?[A-ZÄÖÜ][\wäöüß\-]+)\s*$", full, re.M)
+    judges = re.findall(
+        r"^\s*((?:Vorsitzende[r]?\s+)?Richter(?:in)?\s+(?:am\s+\w+\s+)?[A-ZÄÖÜ][\wäöüß\-]+)\s*$", full, re.M
+    )
     if judges:
         fields["judges"] = judges[:7]
     return fields
@@ -97,7 +107,9 @@ def extract_court_fields(doc: Document) -> dict:
 # --------------------------------------------------------------------------- contracts
 
 CONTRACT_TITLE_RE = re.compile(r"^\s*([\wÄÖÜäöüß\-]*(?:[Vv]ertrag|[Vv]ereinbarung))\b[^\n]{0,80}$", re.M)
-DESIGNATION_RE = re.compile(r"(?:nachfolgend|im Folgenden|nachstehend)\s+(?:kurz\s+)?[„\"»]?([\wÄÖÜäöüß\- ]{2,40}?)[“\"«]?\s+genannt", re.I)
+DESIGNATION_RE = re.compile(
+    r"(?:nachfolgend|im Folgenden|nachstehend)\s+(?:kurz\s+)?[„\"»]?([\wÄÖÜäöüß\- ]{2,40}?)[“\"«]?\s+genannt", re.I
+)
 
 
 def extract_contract_fields(doc: Document) -> dict:
@@ -108,7 +120,11 @@ def extract_contract_fields(doc: Document) -> dict:
     if m:
         fields["title"] = m.group(0).strip()
     parties: list[dict] = []
-    m = re.search(r"\bzwischen\b(.{3,600}?)\bund\b(.{3,600}?)(?:\n\s*\n|wird folgende|wird nachstehende|schließen folgende|$)", head, re.S | re.I)
+    m = re.search(
+        r"\bzwischen\b(.{3,600}?)\bund\b(.{3,600}?)(?:\n\s*\n|wird folgende|wird nachstehende|schließen folgende|$)",
+        head,
+        re.S | re.I,
+    )
     seg = m.group(0) if m else head
     for dm in DESIGNATION_RE.finditer(seg):
         before = seg[: dm.start()].rstrip(" ,–-(\n")

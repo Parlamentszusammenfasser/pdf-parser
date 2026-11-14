@@ -189,8 +189,27 @@ _ELEMENT_FOR_KIND = {
     "subitem": "point",
     "subsubitem": "point",
 }
-_PART_ELEMENT = {"teil": "part", "kapitel": "chapter", "titel": "title", "buch": "book", "abschnitt": "division", "unterabschnitt": "subdivision"}
-_ID_PREFIX = {"article": "art", "section": "sec", "paragraph": "para", "point": "point", "part": "part", "chapter": "chp", "title": "title", "book": "book", "division": "dvs", "subdivision": "subdvs", "hcontainer": "hcontainer"}
+_PART_ELEMENT = {
+    "teil": "part",
+    "kapitel": "chapter",
+    "titel": "title",
+    "buch": "book",
+    "abschnitt": "division",
+    "unterabschnitt": "subdivision",
+}
+_ID_PREFIX = {
+    "article": "art",
+    "section": "sec",
+    "paragraph": "para",
+    "point": "point",
+    "part": "part",
+    "chapter": "chp",
+    "title": "title",
+    "book": "book",
+    "division": "dvs",
+    "subdivision": "subdvs",
+    "hcontainer": "hcontainer",
+}
 
 
 def _legal_element(parent: ET.Element, node: LegalNode, ids: _Ids, prefix: str) -> None:
@@ -429,7 +448,9 @@ def _build_judgment(root: ET.Element, doc: Document) -> None:
     j = _sub(root, "judgment", name=doc.classification.subtype or "judgment")
     _meta(j, doc, "judgment")
     blocks = [b for b in doc.body_blocks if b.text.strip()]
-    first_sec = next((i for i, b in enumerate(blocks) if any(lbl.startswith("section:") for lbl in b.labels)), len(blocks))
+    first_sec = next(
+        (i for i, b in enumerate(blocks) if any(lbl.startswith("section:") for lbl in b.labels)), len(blocks)
+    )
     header = _sub(j, "header")
     court = doc.fields.get("court") or {}
     meta_p = _sub(header, "p", class_="docMeta")

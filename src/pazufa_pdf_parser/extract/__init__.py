@@ -93,7 +93,9 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
                 pg = opened.pdf[idx]
             except Exception as e:  # damaged page tree
                 doc.issue(Severity.ERROR, "extract", f"cannot load page: {e}", idx + 1)
-                probes.append(_Probe(idx, Page(idx + 1, 595.0, 842.0, source=PageSource.EMPTY), False, False, "unloadable"))
+                probes.append(
+                    _Probe(idx, Page(idx + 1, 595.0, 842.0, source=PageSource.EMPTY), False, False, "unloadable")
+                )
                 continue
             w, h = pg.get_size()
             page = Page(number=idx + 1, width=w, height=h, rotation=pg.get_rotation())
@@ -135,7 +137,11 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
     try:
         lang, missing = resolve_languages(options.languages, options.tesseract_cmd)
     except OcrUnavailableError as e:
-        doc.issue(Severity.WARNING if options.ocr is not OcrMode.ALWAYS else Severity.ERROR, "ocr", f"{e}; {len(todo)} page(s) left without OCR")
+        doc.issue(
+            Severity.WARNING if options.ocr is not OcrMode.ALWAYS else Severity.ERROR,
+            "ocr",
+            f"{e}; {len(todo)} page(s) left without OCR",
+        )
         for p in todo:
             if not p.page.words:
                 p.page.source = PageSource.EMPTY
@@ -151,7 +157,18 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 pg = opened.pdf[p.index]
                 img = pg.render(scale=options.dpi / 72.0, may_draw_forms=True).to_pil()
                 pg.close()
-            return p, ocr_image(img, options.dpi, lang, detect_orientation=options.detect_orientation, cmd=options.tesseract_cmd, timeout=options.ocr_timeout), None
+            return (
+                p,
+                ocr_image(
+                    img,
+                    options.dpi,
+                    lang,
+                    detect_orientation=options.detect_orientation,
+                    cmd=options.tesseract_cmd,
+                    timeout=options.ocr_timeout,
+                ),
+                None,
+            )
         except Exception as e:  # noqa: BLE001 - recorded as issue
             return p, None, e
 
@@ -167,7 +184,11 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 continue
             page.stats.update(res.stats)
             if p.merge and page.words and not res.rotation:
-                kept = [w for w in res.words if not any(w.bbox.x_overlap(t.bbox) > 0 and w.bbox.y_overlap(t.bbox) > 0 for t in page.words)]
+                kept = [
+                    w
+                    for w in res.words
+                    if not any(w.bbox.x_overlap(t.bbox) > 0 and w.bbox.y_overlap(t.bbox) > 0 for t in page.words)
+                ]
                 page.words = page.words + kept
                 page.stats["ocr_words_merged"] = len(kept)
                 page.source = PageSource.TEXT

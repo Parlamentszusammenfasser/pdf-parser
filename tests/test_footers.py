@@ -1,11 +1,10 @@
 """Second-pass footer detection (layout.footers) and the furniture/flow steps."""
 
-from pdfgen import T, make_pdf, paragraph
-
 from pazufa_pdf_parser import BlockKind, Pipeline, parse, render
 from pazufa_pdf_parser.extract.pdf import plausible_size
 from pazufa_pdf_parser.layout.footers import footer_score, lexicon_hits
 from pazufa_pdf_parser.model import BBox
+from pdfgen import T, make_pdf, paragraph
 
 PROSE = [
     "Der Ausschuss hat den Gesetzentwurf in seiner Sitzung beraten und",
@@ -55,14 +54,21 @@ def test_varying_logo_text_is_detected_by_tolerant_repetition():
 
 
 def test_text_running_to_page_bottom_is_kept():
-    lines = [f"Zeile {i} eines langen Redebeitrags, der bis an den Seitenrand reicht und weitergeht." for i in range(50)]
+    lines = [
+        f"Zeile {i} eines langen Redebeitrags, der bis an den Seitenrand reicht und weitergeht." for i in range(50)
+    ]
     d = parse(make_pdf([paragraph(70, 60, lines, 11, 1.3)]), ocr="never")
     assert footer_kinds(d) == []
     assert "Zeile 49" in render(d, "txt")
 
 
 def test_normal_body_paragraph_after_gap_is_kept():
-    pdf = make_pdf([body() + paragraph(70, 760, ["Wir bitten um Kenntnisnahme und stehen für Rückfragen gerne zur Verfügung."], 11)])
+    pdf = make_pdf(
+        [
+            body()
+            + paragraph(70, 760, ["Wir bitten um Kenntnisnahme und stehen für Rückfragen gerne zur Verfügung."], 11)
+        ]
+    )
     d = parse(pdf, ocr="never")
     assert footer_kinds(d) == []
     assert "Kenntnisnahme" in render(d, "txt")
@@ -108,4 +114,10 @@ def test_scoring_helpers():
 
 def test_step_order():
     names = Pipeline().names()
-    assert names.index("layout") < names.index("furniture") < names.index("sanitize") < names.index("flow") < names.index("classify")
+    assert (
+        names.index("layout")
+        < names.index("furniture")
+        < names.index("sanitize")
+        < names.index("flow")
+        < names.index("classify")
+    )

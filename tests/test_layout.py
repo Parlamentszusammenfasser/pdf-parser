@@ -64,8 +64,26 @@ class TestSegmentation:
         assert region.kind is RegionKind.LEAF
 
     def test_two_columns_detected_and_read_left_first(self):
-        left = lines_block(60, 100, ["linke Spalte Zeile eins", "linke Spalte Zeile zwei", "linke Spalte Zeile drei", "linke Spalte Zeile vier"])
-        right = lines_block(330, 100, ["rechte Spalte Zeile eins", "rechte Spalte Zeile zwei", "rechte Spalte Zeile drei", "rechte Spalte Zeile vier"])
+        left = lines_block(
+            60,
+            100,
+            [
+                "linke Spalte Zeile eins",
+                "linke Spalte Zeile zwei",
+                "linke Spalte Zeile drei",
+                "linke Spalte Zeile vier",
+            ],
+        )
+        right = lines_block(
+            330,
+            100,
+            [
+                "rechte Spalte Zeile eins",
+                "rechte Spalte Zeile zwei",
+                "rechte Spalte Zeile drei",
+                "rechte Spalte Zeile vier",
+            ],
+        )
         region = self.seg(left + right)
         cols = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
         assert cols, "columns expected"
@@ -77,8 +95,12 @@ class TestSegmentation:
 
     def test_full_width_heading_above_columns(self):
         title = words_for(60, 60, "Eine Überschrift über beide Spalten hinweg reicht weit nach rechts hinaus", 14)
-        left = lines_block(60, 100, ["linke Spalte mit Text eins", "linke Spalte mit Text zwei", "linke Spalte mit Text drei"])
-        right = lines_block(330, 100, ["rechte Spalte mit Text eins", "rechte Spalte mit Text zwei", "rechte Spalte mit Text drei"])
+        left = lines_block(
+            60, 100, ["linke Spalte mit Text eins", "linke Spalte mit Text zwei", "linke Spalte mit Text drei"]
+        )
+        right = lines_block(
+            330, 100, ["rechte Spalte mit Text eins", "rechte Spalte mit Text zwei", "rechte Spalte mit Text drei"]
+        )
         region = self.seg(title + left + right)
         assert region.kind is RegionKind.STACK
         assert region.children[0].kind is RegionKind.LEAF
@@ -86,7 +108,9 @@ class TestSegmentation:
 
     def test_key_value_rows_are_not_columns(self):
         ws = []
-        for i, (k, v) in enumerate([("Von:", "Thomas Schmid"), ("An:", "Referat B6"), ("Betreff:", "Anhörung"), ("Datum:", "6. März 2025")]):
+        for i, (k, v) in enumerate(
+            [("Von:", "Thomas Schmid"), ("An:", "Referat B6"), ("Betreff:", "Anhörung"), ("Datum:", "6. März 2025")]
+        ):
             ws += words_for(70, 100 + i * 13, k) + words_for(170, 100 + i * 13, v)
         region = self.seg(ws)
         assert not any(r.kind is RegionKind.COLUMNS for r in region.iter_regions())
@@ -99,8 +123,25 @@ class TestSegmentation:
         assert not any(r.kind is RegionKind.COLUMNS for r in region.iter_regions())
 
     def test_letter_sidebar_is_aside_read_first(self):
-        address = lines_block(70, 150, ["Bayerische Staatskanzlei", "Frau Staatsrätin Muster", "Franz-Josef-Strauß-Ring 1", "80539 München"], 11)
-        sidebar = lines_block(440, 140, ["Verband der Testbetriebe e.V.", "Musterweg 5", "80331 München", "Telefon 089 123456-0", "Telefax 089 123456-99", "info@testverband.de"], 8)
+        address = lines_block(
+            70,
+            150,
+            ["Bayerische Staatskanzlei", "Frau Staatsrätin Muster", "Franz-Josef-Strauß-Ring 1", "80539 München"],
+            11,
+        )
+        sidebar = lines_block(
+            440,
+            140,
+            [
+                "Verband der Testbetriebe e.V.",
+                "Musterweg 5",
+                "80331 München",
+                "Telefon 089 123456-0",
+                "Telefax 089 123456-99",
+                "info@testverband.de",
+            ],
+            8,
+        )
         body = lines_block(70, 300, PROSE, 11, char_w=4.2)
         region = self.seg(address + sidebar + body)
         cols = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
@@ -129,8 +170,24 @@ class TestSegmentation:
         assert any(r.synopsis for r in region.iter_regions())
 
     def test_different_columns_are_not_synopsis(self):
-        left = lines_block(60, 100, ["Haushalt und Finanzen der Gemeinde", "werden jährlich neu beschlossen und", "vom Rat in öffentlicher Sitzung beraten"])
-        right = lines_block(320, 100, ["Sportverein meldet neue Mitglieder", "Training jeden Dienstag im Freibad", "Anmeldung beim Vorstand möglich"])
+        left = lines_block(
+            60,
+            100,
+            [
+                "Haushalt und Finanzen der Gemeinde",
+                "werden jährlich neu beschlossen und",
+                "vom Rat in öffentlicher Sitzung beraten",
+            ],
+        )
+        right = lines_block(
+            320,
+            100,
+            [
+                "Sportverein meldet neue Mitglieder",
+                "Training jeden Dienstag im Freibad",
+                "Anmeldung beim Vorstand möglich",
+            ],
+        )
         region = self.seg(left + right)
         from pazufa_pdf_parser.layout.blocks import fill_leaves
 
@@ -150,12 +207,21 @@ class TestBlocks:
         assert len(blocks) == 2
 
     def test_list_items_split(self):
-        lines = build_lines(lines_block(70, 100, ["Einleitung zum Thema:", "1. Erster Punkt", "2. Zweiter Punkt", "a) Unterpunkt"]))
+        lines = build_lines(
+            lines_block(70, 100, ["Einleitung zum Thema:", "1. Erster Punkt", "2. Zweiter Punkt", "a) Unterpunkt"])
+        )
         blocks = split_blocks(lines, 1)
-        assert [b.kind for b in blocks] == [BlockKind.PARAGRAPH, BlockKind.LIST_ITEM, BlockKind.LIST_ITEM, BlockKind.LIST_ITEM]
+        assert [b.kind for b in blocks] == [
+            BlockKind.PARAGRAPH,
+            BlockKind.LIST_ITEM,
+            BlockKind.LIST_ITEM,
+            BlockKind.LIST_ITEM,
+        ]
 
     def test_wrapped_date_is_not_list_item(self):
-        lines = build_lines(lines_block(70, 100, ["Der Ausschuss hat in seiner Sitzung am", "17. Juli 2025 beraten und beschlossen."]))
+        lines = build_lines(
+            lines_block(70, 100, ["Der Ausschuss hat in seiner Sitzung am", "17. Juli 2025 beraten und beschlossen."])
+        )
         blocks = split_blocks(lines, 1)
         assert len(blocks) == 1
 

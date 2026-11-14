@@ -45,7 +45,10 @@ def _similar(a: str, b: str) -> bool:
     ta, tb = sorted(a.split()), sorted(b.split())
     if ta == tb:
         return True
-    return SequenceMatcher(None, a, b, autojunk=False).ratio() >= 0.85 or SequenceMatcher(None, " ".join(ta), " ".join(tb), autojunk=False).ratio() >= 0.85
+    return (
+        SequenceMatcher(None, a, b, autojunk=False).ratio() >= 0.85
+        or SequenceMatcher(None, " ".join(ta), " ".join(tb), autojunk=False).ratio() >= 0.85
+    )
 
 
 def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:

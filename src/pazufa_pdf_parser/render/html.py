@@ -33,7 +33,13 @@ def _block_html(b: Block) -> str:
     if b.kind is BlockKind.HEADING:
         lvl = min(6, b.level + 1)
         return f"<h{lvl}{labels}>{escape(' '.join(text.split()))}</h{lvl}>"
-    cls = ' class="item"' if b.kind is BlockKind.LIST_ITEM else ' class="footnote"' if b.kind is BlockKind.FOOTNOTE else ""
+    cls = (
+        ' class="item"'
+        if b.kind is BlockKind.LIST_ITEM
+        else ' class="footnote"'
+        if b.kind is BlockKind.FOOTNOTE
+        else ""
+    )
     return f"<p{cls}{labels}>{escape(text)}</p>"
 
 
@@ -91,7 +97,9 @@ def _meta_rows(doc: Document) -> list[tuple[str, str]]:
     email = f.get("email") or {}
     if email.get("from"):
         fr = email["from"]
-        rows.append(("Von", " ".join(x for x in (fr.get("name"), f"<{fr['email']}>" if fr.get("email") else None) if x)))
+        rows.append(
+            ("Von", " ".join(x for x in (fr.get("name"), f"<{fr['email']}>" if fr.get("email") else None) if x))
+        )
     if email.get("to"):
         rows.append(("An", "; ".join(a.get("name") or a.get("email", "") for a in email["to"])))
     return rows
@@ -107,7 +115,9 @@ def render_html(doc: Document) -> str:
         body = _region_html(p.layout) if p.layout else ""
         if not body.strip():
             continue
-        pages.append(f'<section class="page" data-page="{p.number}"><span class="pno">{p.number}</span>\n{body}\n</section>')
+        pages.append(
+            f'<section class="page" data-page="{p.number}"><span class="pno">{p.number}</span>\n{body}\n</section>'
+        )
     cls = doc.classification
     return (
         "<!DOCTYPE html>\n"
@@ -116,7 +126,5 @@ def render_html(doc: Document) -> str:
         '<meta name="generator" content="pazufa-parser">\n'
         f'<meta name="document-type" content="{escape(str(cls.doc_type))}">\n'
         f"<style>{CSS}</style>\n</head>\n<body>\n<article>\n"
-        f'<header class="meta"><dl>\n{meta}\n</dl></header>\n'
-        + "\n".join(pages)
-        + "\n</article>\n</body>\n</html>\n"
+        f'<header class="meta"><dl>\n{meta}\n</dl></header>\n' + "\n".join(pages) + "\n</article>\n</body>\n</html>\n"
     )

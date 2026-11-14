@@ -59,7 +59,9 @@ def _content(items: list[T], height: float) -> bytes:
     return b"\n".join(ops)
 
 
-def make_pdf(pages: list[list[T]], *, size: tuple[float, float] = A4, rotate: int = 0, title: str | None = None) -> bytes:
+def make_pdf(
+    pages: list[list[T]], *, size: tuple[float, float] = A4, rotate: int = 0, title: str | None = None
+) -> bytes:
     w, h = size
     objs: list[bytes] = []
 
@@ -105,7 +107,9 @@ def make_pdf(pages: list[list[T]], *, size: tuple[float, float] = A4, rotate: in
     return out.getvalue()
 
 
-def paragraph(x: float, y: float, lines: list[str], size: float = 11.0, leading: float = 1.35, bold: bool = False) -> list[T]:
+def paragraph(
+    x: float, y: float, lines: list[str], size: float = 11.0, leading: float = 1.35, bold: bool = False
+) -> list[T]:
     return [T(x, y + i * size * leading, ln, size, bold) for i, ln in enumerate(lines)]
 
 
