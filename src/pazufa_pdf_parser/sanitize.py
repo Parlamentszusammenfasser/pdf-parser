@@ -37,7 +37,8 @@ _JUNK_LINE_RE = re.compile(r"^[\W_]{1,}$")
 _KEEP_HYPHEN_NEXT = {"und", "oder", "bzw", "bzw.", "sowie", "als", "bis", "noch", "wie", "&", "u.", "or", "and"}
 
 _FIELD_LINE_RE = re.compile(
-    r"^(Von|An|Cc|CC|Bcc|Betreff|Gesendet( am)?|Datum|Anlagen?|From|To|Subject|Sent|Date|Tel(efon)?\.?|Fax|Mobil|E-?Mail|eMail|Web|Internet|www|Az\.?|Ihr Zeichen|Unser Zeichen|Aktenzeichen)\s*:",
+    r"^(Von|An|Cc|CC|Bcc|Betreff|Gesendet( am)?|Datum|Anlagen?|From|To|Subject|Sent|Date"
+    r"|Tel(efon)?\.?|Fax|Mobil|E-?Mail|eMail|Web|Internet|www|Az\.?|Ihr Zeichen|Unser Zeichen|Aktenzeichen)\s*:",
     re.I,
 )
 

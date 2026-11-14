@@ -273,8 +273,8 @@ def image_coverage(page: pdfium.PdfPage) -> float:
     total = 0.0
     try:
         for obj in page.get_objects(filter=[R.FPDF_PAGEOBJ_IMAGE], max_depth=4):
-            l, b, r, t = obj.get_bounds()
-            total += max(0.0, r - l) * max(0.0, t - b)
+            left, bottom, right, top = obj.get_bounds()
+            total += max(0.0, right - left) * max(0.0, top - bottom)
     except Exception:
         return 0.0
     return min(total / (w * h), 1.0)

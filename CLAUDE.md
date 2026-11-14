@@ -7,7 +7,8 @@ PDF → structured fields + clean text for German legal/administrative documents
 ## Commands
 
 ```sh
-uv sync                                         # install (dev group: pytest, lxml)
+uv sync                                         # install (dev group: pytest, lxml, ruff, mypy)
+uv run ruff format && uv run ruff check && uv run mypy   # lint + types, as in CI
 uv run pytest                                   # full suite
 uv run pytest tests/test_layout.py::test_name   # single test
 uv run pytest -m "not ocr"                      # skip OCR tests

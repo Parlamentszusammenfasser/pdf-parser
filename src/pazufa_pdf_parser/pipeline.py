@@ -98,7 +98,8 @@ def step(
 
 @step("extract", critical=True)
 def extract_step(ctx: Context) -> None:
-    assert ctx.opened is not None
+    if ctx.opened is None:
+        raise RuntimeError("extract needs an opened PDF; run the pipeline via Pipeline.run")
     ctx.doc.pages = extract_pages(ctx.opened, ctx.options, ctx.doc)
 
 

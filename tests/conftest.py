@@ -141,11 +141,14 @@ def bill_pages() -> list[list[T]]:
     p1 += paragraph(70, 300, ["Die Regelungen werden vereinfacht."], 11)
     p1 += [T(70, 340, "C) Alternativen", 11, True), T(70, 360, "Keine", 11)]
     pages.append(p1)
-    hdr = lambda n: [
-        T(70, 30, "Drucksache 19/1234", 9),
-        T(250, 30, "Bayerischer Landtag – 19. Wahlperiode", 9),
-        T(500, 30, f"Seite {n}", 9),
-    ]  # noqa: E731
+
+    def hdr(n):
+        return [
+            T(70, 30, "Drucksache 19/1234", 9),
+            T(250, 30, "Bayerischer Landtag – 19. Wahlperiode", 9),
+            T(500, 30, f"Seite {n}", 9),
+        ]
+
     p2 = hdr(2) + [
         T(170, 80, "Gesetz zur Änderung des Bayerischen Testgesetzes", 12, True),
         T(70, 120, "§ 1", 11, True),

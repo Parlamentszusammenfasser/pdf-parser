@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -117,10 +118,8 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
             if not want:
                 page.source = PageSource.TEXT if words else PageSource.EMPTY
             probes.append(_Probe(idx, page, want, merge, reason))
-            try:
+            with contextlib.suppress(Exception):
                 pg.close()
-            except Exception:
-                pass
 
     todo = [p for p in probes if p.want_ocr]
     if todo:
