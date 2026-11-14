@@ -56,7 +56,8 @@ Before adding a test, look for an existing one covering the same behaviour and e
 ## Commits
 
 Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`.
-- **Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`.
+- **Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `ci`, `build`. On `main`, `feat` cuts a minor release, `fix`/`perf` a patch (CI, python-semantic-release); the rest release nothing.
+- **PR titles** follow the same format (CI checks it): PRs are squash-merged, so the title becomes the commit that decides the release.
 - **Scope:** the package or step touched: `extract`, `layout`, `footers`, `sanitize`, `classify`, `fields`, `render`, `cli`, `pipeline`.
 - **Subject:** imperative, lower case, no period, ≤ 72 chars.
 

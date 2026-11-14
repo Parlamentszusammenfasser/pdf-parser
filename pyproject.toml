@@ -24,6 +24,7 @@ dev = [
     "lxml>=6.1.3",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.17.5",
 ]
 
@@ -33,6 +34,35 @@ markers = [
     "ocr: needs a working tesseract installation with German data",
     "samples: runs against real sample PDFs (set PAZUFA_SAMPLES_DIR)",
 ]
+
+[tool.coverage.run]
+source = ["pazufa_pdf_parser"]
+
+[tool.coverage.report]
+fail_under = 90
+
+# Releases (CI on main): the next version comes from Conventional Commits.
+# PSR bumps project.version, re-locks, builds, commits "chore(release): x.y.z",
+# tags x.y.z and creates a GitHub Release with the wheel and sdist attached.
+# The bump is committed so `git+…@x.y.z` installs report the right version.
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+tag_format = "{version}"
+allow_zero_version = true
+major_on_zero = false  # breaking changes bump the minor version while in 0.x
+commit_message = "chore(release): {version}"
+build_command = "uv lock --upgrade-package pazufa-pdf-parser && git add uv.lock && uv build"
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.branches.main]
+match = "main"
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
+upload_to_vcs_release = true
 
 [tool.ruff]
 target-version = "py312"
