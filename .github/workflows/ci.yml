@@ -1,7 +1,7 @@
 name: CI
 
-# Gates: trivy audit of uv.lock → pytest on every supported Python version.
-# ruff + mypy jobs join once the lint config lands (#4).
+# Gates: trivy audit of uv.lock → ruff lint, ruff format, mypy and pytest on
+# every supported Python version, all in parallel.
 
 on:
   push:
@@ -42,6 +42,27 @@ jobs:
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: trivy-results.sarif
+
+  # ruff and mypy come from uv.lock, so CI checks with the same versions as local runs.
+  lint:
+    needs: dependency-audit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - ruff check
+          - ruff format --check
+          - mypy
+    name: ${{ matrix.check }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        run: pipx install uv
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Run ${{ matrix.check }}
+        run: uv run ${{ matrix.check }}
 
   pytest:
     needs: dependency-audit
