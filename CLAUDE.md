@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PDF → structured fields + clean text for German legal/administrative documents (letters, e-mails, Drucksachen/synopses, plenary protocols, statutes, court decisions, contracts), born-digital and scanned. Library (`pazufa_pdf_parser`) plus CLI (`pazufa-pdf-parser`). Python ≥3.14, managed with `uv`. Runtime deps are only `pypdfium2` and `pillow`; tesseract is optional and called via subprocess (TSV output). Don't add PyMuPDF (AGPL, deliberately avoided).
+PDF → structured fields + clean text for German legal/administrative documents (letters, e-mails, Drucksachen/synopses, plenary protocols, statutes, court decisions, contracts), born-digital and scanned. Library (`pazufa_pdf_parser`) plus CLI (`pazufa-pdf-parser`). Python ≥3.12, managed with `uv`. Runtime deps are only `pypdfium2` and `pillow`; tesseract is optional and called via subprocess (TSV output). Don't add PyMuPDF (AGPL, deliberately avoided).
 
 ## Commands
 

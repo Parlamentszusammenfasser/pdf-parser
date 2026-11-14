@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Benedikt Schäfer", email = "benedikt-schaefer@posteo.de" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "pillow>=13.0.0",
     "pypdfium2>=5.14.0",

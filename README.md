@@ -17,7 +17,7 @@ uv add git+https://github.com/Parlamentszusammenfasser/pdf-parser
 The repo is `pdf-parser`; the package is `pazufa-pdf-parser`
 (`import pazufa_pdf_parser`), and the CLI command is `pazufa-pdf-parser`.
 
-Requires Python ≥ 3.14. Optional, for scans: `tesseract` with German data
+Requires Python ≥ 3.12. Optional, for scans: `tesseract` with German data
 (`apt install tesseract-ocr tesseract-ocr-deu`).
 
 ## Library
