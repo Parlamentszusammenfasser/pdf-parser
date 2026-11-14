@@ -1,0 +1,72 @@
+name: CI
+
+# Gates: trivy audit of uv.lock → pytest on every supported Python version.
+# ruff + mypy jobs join once the lint config lands (#4).
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Scan uv.lock for packages with known advisories before anything is
+  # installed. Results also go to the GitHub Security tab.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: uv.lock
+          scanners: vuln
+          exit-code: '1'
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload results to Security tab
+        if: always()
+        continue-on-error: true  # non-fatal on repos without code scanning enabled
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-results.sarif
+
+  pytest:
+    needs: dependency-audit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # a failure on one version shouldn't hide the others
+      matrix:
+        python: ['3.12', '3.13', '3.14']
+    name: pytest (${{ matrix.python }})
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # tesseract + deu so the ocr tests run instead of skipping; qpdf for the
+      # encrypted-PDF test; DejaVu is the font the fake scans are drawn with.
+      - name: Install system packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr tesseract-ocr-deu qpdf fonts-dejavu-core
+
+      - name: Install uv
+        run: pipx install uv
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # -rs lists skip reasons; only the samples tests may skip (no real PDFs in CI).
+      - name: Run tests
+        run: uv run pytest -rs
