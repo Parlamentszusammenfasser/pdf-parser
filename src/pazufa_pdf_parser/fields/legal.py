@@ -36,12 +36,14 @@ SUBITEM_RE = re.compile(r"^([a-z])\1\)\s*(.*)$", re.S)
 SUBSUBITEM_RE = re.compile(r"^([a-z])\1\1\)\s*(.*)$", re.S)
 
 EXPLANATION_RE = re.compile(r"^(Begründung|Begründung\s*:|B\.\s*Besonderer Teil|Zu (Artikel|§)\s*\d+)", re.I)
-OPEN_Q = "„\"»"
-CLOSE_Q = "“\"«”"
+OPEN_Q = '„"»'
+CLOSE_Q = '“"«”'
 
 
 # "§ 3 Abs. 2 wird ..." is a reference in running text, not a structural heading
-_REF_CONT = re.compile(r"^\s*(?:Abs\.|Absatz\b|Satz\b|S\.\s*\d|Nr\.|Nummer\b|des\b|der\b|wird\b|werden\b|ist\b|erhält\b|und\b|bis\b|,)")
+_REF_CONT = re.compile(
+    r"^\s*(?:Abs\.|Absatz\b|Satz\b|S\.\s*\d|Nr\.|Nummer\b|des\b|der\b|wird\b|werden\b|ist\b|erhält\b|und\b|bis\b|,)"
+)
 
 
 @dataclass
@@ -131,7 +133,12 @@ def parse_legal_texts(items: list[tuple[str, bool]]) -> list[LegalNode]:
             continue
         m = match_structure(t, heading_like)
         if m is None:
-            if pending_heading_for is not None and len(t) <= 160 and "\n" not in t.strip() and not t.endswith((".", ";", ",", ":")):
+            if (
+                pending_heading_for is not None
+                and len(t) <= 160
+                and "\n" not in t.strip()
+                and not t.endswith((".", ";", ",", ":"))
+            ):
                 pending_heading_for.heading = t
                 pending_heading_for = None
                 continue
@@ -211,7 +218,11 @@ def synopsis_columns(doc: Document) -> list[dict]:
         for side in ("left", "right"):
             blocks = syn[f"{side}_blocks"]
             label = ""
-            if blocks and (blocks[0].text or blocks[0].raw_text).strip().endswith(":") and len((blocks[0].text or "").strip()) < 140:
+            if (
+                blocks
+                and (blocks[0].text or blocks[0].raw_text).strip().endswith(":")
+                and len((blocks[0].text or "").strip()) < 140
+            ):
                 label = " ".join((blocks[0].text or blocks[0].raw_text).split()).rstrip(":")
                 blocks = blocks[1:]
             syn[f"{side}_label"] = label

@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Keeps the SHA-pinned actions and their version comments current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14  # let a compromised release be caught before we take it
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # uv.lock (dev tools included).
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]  # majors come as their own PRs
+    commit-message:
+      prefix: chore  # "chore(deps):" cuts no release
+      include: scope

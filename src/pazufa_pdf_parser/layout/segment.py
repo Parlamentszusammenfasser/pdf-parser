@@ -274,7 +274,16 @@ def detect_synopsis(region: Region, text_of) -> None:
         if not lw or not rw:
             continue
         overlap = len(lw & rw) / min(len(lw), len(rw))
-        markers = ("unverändert", "ausschussvorschlag", "geltende fassung", "neue fassung", "synopse", "beschlüsse des", "entwurf", "gesetzentwurf")
+        markers = (
+            "unverändert",
+            "ausschussvorschlag",
+            "geltende fassung",
+            "neue fassung",
+            "synopse",
+            "beschlüsse des",
+            "entwurf",
+            "gesetzentwurf",
+        )
         has_marker = any(m in (lt + rt).lower() for m in markers)
         if overlap >= 0.45 or (has_marker and overlap >= 0.2):
             r.synopsis = True

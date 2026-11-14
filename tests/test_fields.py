@@ -61,7 +61,9 @@ class TestEmail:
         assert f["attachments"] == ["image001.png", "Anschreiben.pdf"]
 
     def test_address_splitting(self):
-        addrs = _split_addresses("Referat-V3 (StMAS) <Referat-V3@stmas.bayern.de> Hilger Uhlenbrock <h.u@gew.de>; x@y.de")
+        addrs = _split_addresses(
+            "Referat-V3 (StMAS) <Referat-V3@stmas.bayern.de> Hilger Uhlenbrock <h.u@gew.de>; x@y.de"
+        )
         assert [a["email"] for a in addrs] == ["Referat-V3@stmas.bayern.de", "h.u@gew.de", "x@y.de"]
         assert addrs[1]["name"] == "Hilger Uhlenbrock"
         assert _split_addresses("Referat BII6 (StK)") == [{"name": "Referat BII6 (StK)"}]

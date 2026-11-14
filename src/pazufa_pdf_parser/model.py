@@ -11,7 +11,6 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from enum import StrEnum
 from typing import Any, Iterable, Iterator
 
-
 # --------------------------------------------------------------------------- geometry
 
 

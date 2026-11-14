@@ -105,7 +105,10 @@ def test_generic_for_unrelated_text():
 
 
 def test_footer_mentioning_plenarprotokolle_is_not_a_protocol():
-    text = PRINT.replace("A) Problem", "Beschlussempfehlung") + "\nDrucksachen, Plenarprotokolle sowie die Tagesordnungen sind im Internet abrufbar. 25. Sitzung"
+    text = (
+        PRINT.replace("A) Problem", "Beschlussempfehlung")
+        + "\nDrucksachen, Plenarprotokolle sowie die Tagesordnungen sind im Internet abrufbar. 25. Sitzung"
+    )
     assert Classifier().classify_input(inp(text)).doc_type is DocType.PARLIAMENTARY_PRINT
 
 

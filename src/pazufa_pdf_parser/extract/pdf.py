@@ -171,7 +171,9 @@ def _read_chars(textpage: pdfium.PdfTextPage, affine: Affine) -> list[_Char]:
             ch = "\x00" + ch  # marked as garbage, stripped later
         if R.FPDFText_GetLooseCharBox(tp, i, rect):
             box = affine.box(rect.left, rect.bottom, rect.right, rect.top)
-        elif R.FPDFText_GetCharBox(tp, i, ctypes.byref(left), ctypes.byref(right), ctypes.byref(bottom), ctypes.byref(top)):
+        elif R.FPDFText_GetCharBox(
+            tp, i, ctypes.byref(left), ctypes.byref(right), ctypes.byref(bottom), ctypes.byref(top)
+        ):
             box = affine.box(left.value, bottom.value, right.value, top.value)
         else:
             continue
@@ -271,8 +273,8 @@ def image_coverage(page: pdfium.PdfPage) -> float:
     total = 0.0
     try:
         for obj in page.get_objects(filter=[R.FPDF_PAGEOBJ_IMAGE], max_depth=4):
-            l, b, r, t = obj.get_bounds()
-            total += max(0.0, r - l) * max(0.0, t - b)
+            left, bottom, right, top = obj.get_bounds()
+            total += max(0.0, right - left) * max(0.0, top - bottom)
     except Exception:
         return 0.0
     return min(total / (w * h), 1.0)

@@ -11,8 +11,12 @@ and entities.
 ## Install
 
 ```sh
-uv add git+https://github.com/Parlamentszusammenfasser/pdf-parser
+uv add git+https://github.com/Parlamentszusammenfasser/pdf-parser --tag 0.1.0
 ```
+
+Pin a [release](https://github.com/Parlamentszusammenfasser/pdf-parser/releases)
+tag. Each release also carries the wheel and sdist with a build-provenance
+attestation (`gh attestation verify <file> -R Parlamentszusammenfasser/pdf-parser`).
 
 The repo is `pdf-parser`; the package is `pazufa-pdf-parser`
 (`import pazufa_pdf_parser`), and the CLI command is `pazufa-pdf-parser`.

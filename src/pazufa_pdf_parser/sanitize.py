@@ -36,7 +36,11 @@ _JUNK_LINE_RE = re.compile(r"^[\W_]{1,}$")
 # compound continuation: keep hyphen ("Aus- und Fortbildung")
 _KEEP_HYPHEN_NEXT = {"und", "oder", "bzw", "bzw.", "sowie", "als", "bis", "noch", "wie", "&", "u.", "or", "and"}
 
-_FIELD_LINE_RE = re.compile(r"^(Von|An|Cc|CC|Bcc|Betreff|Gesendet( am)?|Datum|Anlagen?|From|To|Subject|Sent|Date|Tel(efon)?\.?|Fax|Mobil|E-?Mail|eMail|Web|Internet|www|Az\.?|Ihr Zeichen|Unser Zeichen|Aktenzeichen)\s*:", re.I)
+_FIELD_LINE_RE = re.compile(
+    r"^(Von|An|Cc|CC|Bcc|Betreff|Gesendet( am)?|Datum|Anlagen?|From|To|Subject|Sent|Date"
+    r"|Tel(efon)?\.?|Fax|Mobil|E-?Mail|eMail|Web|Internet|www|Az\.?|Ihr Zeichen|Unser Zeichen|Aktenzeichen)\s*:",
+    re.I,
+)
 
 # "CSU: Ablehnung", "Berichterstatter: Name" - consecutive label lines form a table
 _LABEL_LINE_RE = re.compile(r"^[\w ÄÖÜäöüß/.\-()]{1,40}:\s+\S")
@@ -165,7 +169,12 @@ _OCR_FIXES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?<=\b[Zz]u )8 (\d{1,3}[a-z]?)\b"), r"§ \1"),
     (re.compile(r"(?<=\b[Zz]u )8(\d{1,3}[a-z]?) (?=(Abs\.|Absatz|Satz|Nr\.)\s)"), r"§ \1 "),
     (re.compile(r"\b8 (\d{1,3}[a-z]?) (?=(Abs\.|Absatz|Satz|Nr\.|S\.)\s)"), r"§ \1 "),
-    (re.compile(r"\b(nach|gemäß|gem\.|des|dem|den|vgl\.|siehe|i\.V\.m\.) 8 (\d{1,3}[a-z]?)(?= (Abs|Satz|Nr|S)\.?\b)"), r"\1 § \2"),
+    (
+        re.compile(
+            r"\b(nach|gemäß|gem\.|des|dem|den|vgl\.|siehe|i\.V\.m\.) 8 (\d{1,3}[a-z]?)(?= (Abs|Satz|Nr|S)\.?\b)"
+        ),
+        r"\1 § \2",
+    ),
     (re.compile(r"\b88 (\d{1,3}[a-z]?)( (und|bis|,) \d)"), r"§§ \1\2"),
     # superscript ² read as "?"
     (re.compile(r"(\d) ?m\?(?=[\s.,;)]|$)"), r"\1 m²"),

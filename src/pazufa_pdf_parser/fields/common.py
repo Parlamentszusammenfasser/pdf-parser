@@ -24,7 +24,10 @@ IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})
 BIC_RE = re.compile(r"\bBIC:?\s*([A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b")
 POSTAL_RE = re.compile(r"^(?:D-?\s?)?(\d{5})\s+([A-ZÄÖÜ][\wäöüß.\- ]{1,40}?)\s*$")
 DRUCKSACHE_RE = re.compile(r"\b(?:Drucksache|Drs\.|BT-Drs\.|BR-Drs\.|LT-Drs\.)\s*(\d{1,2})\s*/\s*(\d{1,6})\b")
-FILE_NUMBER_RE = re.compile(r"\b(?:Az\.?|Aktenzeichen|Gz\.?|Geschäftszeichen|Unser Zeichen|Ihr Zeichen)\s*:?\s*([A-Z0-9][\w\-–/. ]{1,60}?)\s*(?:$|\n|\s{2,}|,\s|;)", re.M)
+FILE_NUMBER_RE = re.compile(
+    r"\b(?:Az\.?|Aktenzeichen|Gz\.?|Geschäftszeichen|Unser Zeichen|Ihr Zeichen)\s*:?\s*([A-Z0-9][\w\-–/. ]{1,60}?)\s*(?:$|\n|\s{2,}|,\s|;)",
+    re.M,
+)
 
 # legal references: "§ 3 Abs. 2 Satz 1 Nr. 4 BayBO", "§§ 1, 2 BGB", "Art. 57 Abs. 1 Nr. 18 BayBO", "Artikel 1 § 9 Absatz 3"
 _LAW_ABBR = r"(?:[A-ZÄÖÜ][A-Za-zÄÖÜäöü]*[A-Z][A-Za-zÄÖÜäöü]*|GG|BGB|HGB|StGB|ZPO|StPO|VwGO|VwVfG|SGB\s?[IVX]+)"
@@ -107,7 +110,13 @@ def extract_entities(text: str) -> dict[str, list]:
     phones = []
     for m in PHONE_RE.finditer(text):
         label = m.group(1).lower()
-        kind = "fax" if label.startswith(("fax", "telefax")) or label == "f" else "mobile" if label in ("mobil", "handy") else "phone"
+        kind = (
+            "fax"
+            if label.startswith(("fax", "telefax")) or label == "f"
+            else "mobile"
+            if label in ("mobil", "handy")
+            else "phone"
+        )
         number = " ".join(m.group(2).split())
         if sum(c.isdigit() for c in number) >= 6:
             phones.append({"type": kind, "number": number})

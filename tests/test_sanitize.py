@@ -87,7 +87,11 @@ def test_reflow_keeps_label_lines():
 
 
 def test_reflow_keeps_mail_header_lines():
-    lines = ["Von: Thomas Schmid <t@example.org>", "An: Referat B6 <r@example.org>", "Betreff: Verbandsanhörung zum Gesetzentwurf der Staatsregierung"]
+    lines = [
+        "Von: Thomas Schmid <t@example.org>",
+        "An: Referat B6 <r@example.org>",
+        "Betreff: Verbandsanhörung zum Gesetzentwurf der Staatsregierung",
+    ]
     assert reflow_lines(lines, [300, 280, 420], 420).count("\n") == 2
 
 
@@ -95,7 +99,9 @@ def test_normalize_spaces():
     assert normalize_spaces("a\t\tb   c ,d ( e )") == "a b c,d (e)"
 
 
-@pytest.mark.parametrize("line,junk", [("___________", True), ("- . ' ,", True), ("§", False), ("Text", False), ("", True)])
+@pytest.mark.parametrize(
+    "line,junk", [("___________", True), ("- . ' ,", True), ("§", False), ("Text", False), ("", True)]
+)
 def test_is_junk_line(line, junk):
     assert is_junk_line(line) is junk
 

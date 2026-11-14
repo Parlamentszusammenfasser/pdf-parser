@@ -98,7 +98,8 @@ def step(
 
 @step("extract", critical=True)
 def extract_step(ctx: Context) -> None:
-    assert ctx.opened is not None
+    if ctx.opened is None:
+        raise RuntimeError("extract needs an opened PDF; run the pipeline via Pipeline.run")
     ctx.doc.pages = extract_pages(ctx.opened, ctx.options, ctx.doc)
 
 
@@ -107,7 +108,7 @@ def layout_step(ctx: Context) -> None:
     analyze_layout(ctx.doc.pages, ctx.options, ctx.doc)
 
 
-_SENTENCE_END = tuple(".!?:;)“\"»…")
+_SENTENCE_END = tuple('.!?:;)“"»…')
 _SALUTATION_RE = re.compile(r"^\s*(Sehr geehrte[rs]?|Liebe[rs]?|Hallo|Guten Tag|Dear)\b", re.I)
 
 
@@ -153,7 +154,9 @@ def merge_flow(doc: Document) -> int:
                 if not same_region:
                     joined = join_hyphenated(prev.text, b.text)
                 # inside one region only prose continues ("- Kläger -" / "gegen" must stay apart)
-                prose = not same_region or (prev.bbox.width >= 0.5 * page_w and not is_line_structured(prev.text.split("\n")))
+                prose = not same_region or (
+                    prev.bbox.width >= 0.5 * page_w and not is_line_structured(prev.text.split("\n"))
+                )
                 if joined is None and prose and not prev.text.rstrip().endswith(_SENTENCE_END) and b.text[:1].islower():
                     joined = prev.text.rstrip() + " " + b.text.lstrip()
             if joined is not None:
@@ -198,7 +201,9 @@ def classify_step(ctx: Context) -> None:
 
 @step("entities")
 def entities_step(ctx: Context) -> None:
-    text = "\n".join(b.text for p in ctx.doc.pages for b in p.all_blocks if b.text and (b.kind.is_body or b.kind.is_furniture))
+    text = "\n".join(
+        b.text for p in ctx.doc.pages for b in p.all_blocks if b.text and (b.kind.is_body or b.kind.is_furniture)
+    )
     ctx.doc.entities = extract_entities(text)
 
 
@@ -248,7 +253,13 @@ def _has_synopsis(ctx: Context) -> bool:
 def synopsis_step(ctx: Context) -> None:
     syn = synopsis_columns(ctx.doc)
     ctx.doc.synopsis = [
-        {"pages": s["pages"], "left_label": s["left_label"], "right_label": s["right_label"], "left": s["left"], "right": s["right"]}
+        {
+            "pages": s["pages"],
+            "left_label": s["left_label"],
+            "right_label": s["right_label"],
+            "left": s["left"],
+            "right": s["right"],
+        }
         for s in syn
     ]
 
@@ -279,7 +290,14 @@ def summary_step(ctx: Context) -> None:
     f = doc.fields
     cls = doc.classification
     title = None
-    for key, sub in (("print", "title"), ("email", "subject_clean"), ("letter", "subject"), ("protocol", "topic"), ("contract", "title"), ("court", "subject")):
+    for key, sub in (
+        ("print", "title"),
+        ("email", "subject_clean"),
+        ("letter", "subject"),
+        ("protocol", "topic"),
+        ("contract", "title"),
+        ("court", "subject"),
+    ):
         v = f.get(key, {}).get(sub) if isinstance(f.get(key), dict) else None
         if v:
             title = v
@@ -327,7 +345,9 @@ def summary_step(ctx: Context) -> None:
     doc.stats.update(
         pages=len(doc.pages),
         ocr_pages=cls.features.get("ocr_pages", 0),
-        columns_regions=sum(1 for p in doc.pages if p.layout for r in p.layout.iter_regions() if r.kind is RegionKind.COLUMNS),
+        columns_regions=sum(
+            1 for p in doc.pages if p.layout for r in p.layout.iter_regions() if r.kind is RegionKind.COLUMNS
+        ),
         body_blocks=len(doc.body_blocks),
         furniture_blocks=sum(len(p.furniture) for p in doc.pages),
     )

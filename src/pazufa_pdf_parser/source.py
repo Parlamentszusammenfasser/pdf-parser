@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import threading
@@ -31,10 +32,8 @@ class OpenedPdf:
 
     def close(self) -> None:
         with PDFIUM_LOCK:
-            try:
+            with contextlib.suppress(Exception):  # pragma: no cover - best effort
                 self.pdf.close()
-            except Exception:  # pragma: no cover - best effort
-                pass
 
     def __enter__(self) -> OpenedPdf:
         return self
@@ -80,16 +79,13 @@ def open_pdf(src: Source, password: str | None = None) -> OpenedPdf:
                 raise PdfOpenError(f"{name or 'input'} is encrypted; a (correct) password is required") from e
             raise PdfOpenError(f"{name or 'input'} could not be parsed: {msg}") from e
         info: dict[str, Any] = {}
-        try:
+        # broken metadata or version info must not reject an otherwise readable PDF
+        with contextlib.suppress(Exception):
             meta = pdf.get_metadata_dict(skip_empty=True)
             info = {k: v for k, v in meta.items() if k in _INFO_KEYS}
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             info["page_count"] = len(pdf)
             info["pdf_version"] = pdf.get_version()
-        except Exception:
-            pass
         if info.get("page_count", 0) == 0:
             pdf.close()
             raise PdfOpenError(f"{name or 'input'} has no pages")

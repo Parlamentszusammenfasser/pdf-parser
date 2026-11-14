@@ -86,10 +86,25 @@ def detect_rotation(img: Image.Image, dpi: int, cmd: str = "tesseract", timeout:
     return int(m_rot.group(1)) % 360, float(m_conf.group(1)) if m_conf else 0.0
 
 
-def run_tesseract_tsv(img: Image.Image, lang: str, dpi: int, cmd: str = "tesseract", psm: int = 3, timeout: float = 180) -> str:
+def run_tesseract_tsv(
+    img: Image.Image, lang: str, dpi: int, cmd: str = "tesseract", psm: int = 3, timeout: float = 180
+) -> str:
     try:
         r = subprocess.run(
-            [cmd, "stdin", "stdout", "-l", lang, "--psm", str(psm), "--dpi", str(dpi), "-c", "preserve_interword_spaces=0", "tsv"],
+            [
+                cmd,
+                "stdin",
+                "stdout",
+                "-l",
+                lang,
+                "--psm",
+                str(psm),
+                "--dpi",
+                str(dpi),
+                "-c",
+                "preserve_interword_spaces=0",
+                "tsv",
+            ],
             input=_png(img),
             capture_output=True,
             timeout=timeout,
@@ -121,7 +136,12 @@ def parse_tsv(tsv: str, scale: float) -> list[Word]:
             conf = float(row[idx["conf"]])
             left, top = int(row[idx["left"]]), int(row[idx["top"]])
             width, height = int(row[idx["width"]]), int(row[idx["height"]])
-            key = (int(row[idx["page_num"]]), int(row[idx["block_num"]]), int(row[idx["par_num"]]), int(row[idx["line_num"]]))
+            key = (
+                int(row[idx["page_num"]]),
+                int(row[idx["block_num"]]),
+                int(row[idx["par_num"]]),
+                int(row[idx["line_num"]]),
+            )
         except ValueError:
             continue
         text = row[idx["text"]].strip()

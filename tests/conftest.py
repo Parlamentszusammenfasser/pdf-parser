@@ -68,9 +68,33 @@ def letter_pages() -> list[list[T]]:
     p1: list[T] = []
     p1 += [T(330, 40, "Verband der Testbetriebe e.V.", 16, True)]
     p1 += [T(70, 140, "Verband der Testbetriebe e.V. | Musterweg 5 | 80331 München", 7)]
-    p1 += paragraph(70, 160, ["Bayerisches Staatsministerium", "für Testangelegenheiten", "Frau Ministerialrätin Erika Muster", "Postfach 22 00 11", "80535 München"], 11)
+    p1 += paragraph(
+        70,
+        160,
+        [
+            "Bayerisches Staatsministerium",
+            "für Testangelegenheiten",
+            "Frau Ministerialrätin Erika Muster",
+            "Postfach 22 00 11",
+            "80535 München",
+        ],
+        11,
+    )
     # sidebar
-    p1 += paragraph(420, 140, ["Verband der Testbetriebe e.V.", "Musterweg 5", "80331 München", "Tel. 089 123456-0", "Fax 089 123456-99", "info@testverband.de"], 8, 1.4)
+    p1 += paragraph(
+        420,
+        140,
+        [
+            "Verband der Testbetriebe e.V.",
+            "Musterweg 5",
+            "80331 München",
+            "Tel. 089 123456-0",
+            "Fax 089 123456-99",
+            "info@testverband.de",
+        ],
+        8,
+        1.4,
+    )
     p1 += paragraph(420, 225, ["Bankverbindung", "IBAN DE89 3704 0044 0532 0130 00", "BIC COBADEFFXXX"], 8, 1.4)
     p1 += [T(420, 280, "München, 16.07.2024", 11)]
     p1 += [T(70, 320, "Stellungnahme zum Entwurf eines Testgesetzes", 11, True)]
@@ -80,7 +104,12 @@ def letter_pages() -> list[list[T]]:
     p1 += [T(70, 800, "Verband der Testbetriebe e.V. · Registergericht München VR 12345", 7)]
     p2: list[T] = []
     p2 += [T(290, 40, "- 2 -", 10)]
-    p2 += paragraph(70, 80, ["Wir würden uns freuen, wenn unsere Anregungen im weiteren Verfahren be-", "rücksichtigt werden könnten."], 11)
+    p2 += paragraph(
+        70,
+        80,
+        ["Wir würden uns freuen, wenn unsere Anregungen im weiteren Verfahren be-", "rücksichtigt werden könnten."],
+        11,
+    )
     p2 += [T(70, 130, "Mit freundlichen Grüßen", 11)]
     p2 += [T(70, 175, "Dr. Max Mustermann", 11), T(70, 190, "Hauptgeschäftsführer", 11)]
     p2 += [T(70, 800, "Verband der Testbetriebe e.V. · Registergericht München VR 12345", 7)]
@@ -99,24 +128,53 @@ def bill_pages() -> list[list[T]]:
         T(70, 165, "zur Änderung des Bayerischen Testgesetzes", 12, True),
         T(70, 210, "A) Problem", 11, True),
     ]
-    p1 += paragraph(70, 230, ["Das geltende Testgesetz enthält veraltete Regelungen, die den Vollzug", "unnötig erschweren und angepasst werden müssen."], 11)
+    p1 += paragraph(
+        70,
+        230,
+        [
+            "Das geltende Testgesetz enthält veraltete Regelungen, die den Vollzug",
+            "unnötig erschweren und angepasst werden müssen.",
+        ],
+        11,
+    )
     p1 += [T(70, 280, "B) Lösung", 11, True)]
     p1 += paragraph(70, 300, ["Die Regelungen werden vereinfacht."], 11)
     p1 += [T(70, 340, "C) Alternativen", 11, True), T(70, 360, "Keine", 11)]
     pages.append(p1)
-    hdr = lambda n: [T(70, 30, "Drucksache 19/1234", 9), T(250, 30, "Bayerischer Landtag – 19. Wahlperiode", 9), T(500, 30, f"Seite {n}", 9)]  # noqa: E731
+
+    def hdr(n):
+        return [
+            T(70, 30, "Drucksache 19/1234", 9),
+            T(250, 30, "Bayerischer Landtag – 19. Wahlperiode", 9),
+            T(500, 30, f"Seite {n}", 9),
+        ]
+
     p2 = hdr(2) + [
         T(170, 80, "Gesetz zur Änderung des Bayerischen Testgesetzes", 12, True),
         T(70, 120, "§ 1", 11, True),
         T(70, 136, "Änderung des Testgesetzes", 11, True),
     ]
-    p2 += paragraph(70, 160, ["Das Bayerische Testgesetz (BayTestG) vom 1. Januar 2000 (GVBl. S. 1) wird", "wie folgt geändert:"], 11)
+    p2 += paragraph(
+        70,
+        160,
+        ["Das Bayerische Testgesetz (BayTestG) vom 1. Januar 2000 (GVBl. S. 1) wird", "wie folgt geändert:"],
+        11,
+    )
     p2 += paragraph(70, 200, ["1. Art. 1 wird wie folgt geändert:"], 11)
     p2 += paragraph(85, 220, ["a) Abs. 1 wird aufgehoben.", "b) In Abs. 2 werden die Wörter „bis zu“ gestrichen."], 11)
     p2 += paragraph(70, 265, ["2. Art. 2 erhält folgende Fassung:"], 11)
     p2 += paragraph(85, 285, ["„Art. 2", "Zuständigkeit", "(1) Zuständig ist das Landesamt.“"], 11)
     p2 += [T(70, 360, "§ 2", 11, True), T(70, 376, "Inkrafttreten", 11, True)]
-    p2 += paragraph(70, 400, ["(1) Dieses Gesetz tritt am 1. Januar 2026 in Kraft.", "(2) Mit Ablauf des 31. Dezember 2025 tritt das Altgesetz außer Kraft."], 11, 1.8)
+    p2 += paragraph(
+        70,
+        400,
+        [
+            "(1) Dieses Gesetz tritt am 1. Januar 2026 in Kraft.",
+            "(2) Mit Ablauf des 31. Dezember 2025 tritt das Altgesetz außer Kraft.",
+        ],
+        11,
+        1.8,
+    )
     p2 += [T(70, 470, "Begründung:", 11, True)]
     p2 += paragraph(70, 490, ["A) Allgemeiner Teil", "Die Änderungen dienen der Entbürokratisierung."], 11)
     pages.append(p2)
@@ -125,16 +183,32 @@ def bill_pages() -> list[list[T]]:
 
 def email_pages() -> list[list[T]]:
     p = [
-        T(70, 60, "Von:", 10, True), T(170, 60, "Thomas Schmid <t.schmid@example.org>", 10),
-        T(70, 74, "An:", 10, True), T(170, 74, "Referat B6 <referat@stk.example.de>; Anna Bauer <a.bauer@example.de>", 10),
-        T(70, 88, "Cc:", 10, True), T(170, 88, "info@example.org", 10),
-        T(70, 102, "Betreff:", 10, True), T(170, 102, "WG: Verbandsanhörung - Drittes Modernisierungsgesetz", 10),
-        T(70, 116, "Datum:", 10, True), T(170, 116, "Donnerstag, 6. März 2025 08:39:54", 10),
-        T(70, 130, "Anlagen:", 10, True), T(170, 130, "Stellungnahme.pdf", 10), T(170, 144, "Gesetzentwurf.pdf", 10),
+        T(70, 60, "Von:", 10, True),
+        T(170, 60, "Thomas Schmid <t.schmid@example.org>", 10),
+        T(70, 74, "An:", 10, True),
+        T(170, 74, "Referat B6 <referat@stk.example.de>; Anna Bauer <a.bauer@example.de>", 10),
+        T(70, 88, "Cc:", 10, True),
+        T(170, 88, "info@example.org", 10),
+        T(70, 102, "Betreff:", 10, True),
+        T(170, 102, "WG: Verbandsanhörung - Drittes Modernisierungsgesetz", 10),
+        T(70, 116, "Datum:", 10, True),
+        T(170, 116, "Donnerstag, 6. März 2025 08:39:54", 10),
+        T(70, 130, "Anlagen:", 10, True),
+        T(170, 130, "Stellungnahme.pdf", 10),
+        T(170, 144, "Gesetzentwurf.pdf", 10),
         T(70, 190, "Sehr geehrter Herr Dr. Hirschberg,", 11),
     ]
-    p += paragraph(70, 220, ["anbei übersenden wir Ihnen unsere Anmerkungen zum Gesetzentwurf.", "Wir bitten um Berücksichtigung."], 11)
-    p += [T(70, 280, "Mit freundlichen Grüßen", 11), T(70, 296, "Thomas Schmid", 11), T(70, 312, "Hauptgeschäftsführer", 11)]
+    p += paragraph(
+        70,
+        220,
+        ["anbei übersenden wir Ihnen unsere Anmerkungen zum Gesetzentwurf.", "Wir bitten um Berücksichtigung."],
+        11,
+    )
+    p += [
+        T(70, 280, "Mit freundlichen Grüßen", 11),
+        T(70, 296, "Thomas Schmid", 11),
+        T(70, 312, "Hauptgeschäftsführer", 11),
+    ]
     p += [
         T(70, 360, "Von: Vertretung <vertretung@stk.example.de>", 10),
         T(70, 374, "Gesendet: Freitag, 21. Februar 2025 12:14", 10),
@@ -149,16 +223,40 @@ def email_pages() -> list[list[T]]:
 def protocol_pages() -> list[list[T]]:
     pages = []
     for n in range(1, 3):
-        p = [T(70, 30, "Plenarprotokoll 19/41", 9), T(300, 30, "Bayerischer Landtag – 19. Wahlperiode", 9), T(520, 30, str(n), 9)]
+        p = [
+            T(70, 30, "Plenarprotokoll 19/41", 9),
+            T(300, 30, "Bayerischer Landtag – 19. Wahlperiode", 9),
+            T(520, 30, str(n), 9),
+        ]
         if n == 1:
             p += [T(70, 70, "41. Plenum, 04.02.2025", 11)]
-            p += [T(70, 100, "Präsidentin Ilse Aigner:", 11, True), T(205, 100, "Ich rufe den Tagesordnungspunkt 3 b auf:", 11)]
+            p += [
+                T(70, 100, "Präsidentin Ilse Aigner:", 11, True),
+                T(205, 100, "Ich rufe den Tagesordnungspunkt 3 b auf:", 11),
+            ]
             p += [T(70, 125, "Gesetzentwurf der Staatsregierung zur Änderung des Testgesetzes (Drs. 19/4721)", 11)]
-            p += [T(70, 155, "Staatsminister Albert Füracker (Finanzen und Heimat):", 11, True), T(375, 155, "Herr Präsident, liebe", 11)]
-            p += paragraph(70, 170, ["Kolleginnen und Kollegen! Wir debattieren heute über ein Gesetz, das sehr", "technisch klingt, aber wichtige Folgen hat."], 11)
+            p += [
+                T(70, 155, "Staatsminister Albert Füracker (Finanzen und Heimat):", 11, True),
+                T(375, 155, "Herr Präsident, liebe", 11),
+            ]
+            p += paragraph(
+                70,
+                170,
+                [
+                    "Kolleginnen und Kollegen! Wir debattieren heute über ein Gesetz, das sehr",
+                    "technisch klingt, aber wichtige Folgen hat.",
+                ],
+                11,
+            )
             p += [T(70, 215, "(Beifall bei der CSU)", 11)]
-            p += [T(70, 240, "Präsidentin Ilse Aigner:", 11, True), T(205, 240, "Vielen Dank. – Nächster Redner ist Herr Winhart.", 11)]
-            p += [T(70, 265, "Andreas Winhart (AfD):", 11, True), T(200, 265, "Sehr geehrte Frau Präsidentin! Dieser Entwurf", 11)]
+            p += [
+                T(70, 240, "Präsidentin Ilse Aigner:", 11, True),
+                T(205, 240, "Vielen Dank. – Nächster Redner ist Herr Winhart.", 11),
+            ]
+            p += [
+                T(70, 265, "Andreas Winhart (AfD):", 11, True),
+                T(200, 265, "Sehr geehrte Frau Präsidentin! Dieser Entwurf", 11),
+            ]
             p += paragraph(70, 280, ["greift zu kurz und wird den Problemen der Krankenhäuser nicht gerecht."], 11)
         else:
             p += paragraph(70, 70, ["Wir lehnen ihn daher ab."], 11)
@@ -282,7 +380,9 @@ def two_column_pages() -> list[list[T]]:
     p = [T(70, 50, "Mitteilungsblatt der Testgemeinde", 16, True)]
     p += paragraph(70, 100, COL_LEFT, 10, 1.4)
     p += paragraph(320, 100, COL_RIGHT, 10, 1.4)
-    p += paragraph(70, 220, ["Ein abschließender Absatz über die volle Breite der Seite schließt diesen Artikel ab."], 10)
+    p += paragraph(
+        70, 220, ["Ein abschließender Absatz über die volle Breite der Seite schließt diesen Artikel ab."], 10
+    )
     return [p]
 
 

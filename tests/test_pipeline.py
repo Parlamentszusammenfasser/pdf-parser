@@ -4,9 +4,8 @@ import io
 import subprocess
 
 import pytest
-from conftest import HAS_QPDF
-from pdfgen import T, make_pdf, paragraph
 
+from conftest import HAS_QPDF
 from pazufa_pdf_parser import (
     BlockKind,
     DocType,
@@ -21,6 +20,7 @@ from pazufa_pdf_parser import (
     render,
     step,
 )
+from pdfgen import T, make_pdf, paragraph
 
 
 class TestDispatch:
@@ -191,7 +191,10 @@ class TestRobustness:
         assert d.doc_type is DocType.GENERIC
 
     def test_rotated_page(self):
-        pdf = make_pdf([paragraph(70, 100, ["Sehr geehrte Damen und Herren,", "dies ist ein Test mit gedrehter Seite."])], rotate=90)
+        pdf = make_pdf(
+            [paragraph(70, 100, ["Sehr geehrte Damen und Herren,", "dies ist ein Test mit gedrehter Seite."])],
+            rotate=90,
+        )
         d = parse(pdf, ocr="never")
         # /Rotate 90 shows the text sideways; the page frame is turned back upright
         assert d.pages[0].rotation == 90
@@ -216,7 +219,9 @@ class TestRobustness:
         assert any(b.kind is BlockKind.MARGINAL for b in d.pages[0].extras)
 
     def test_invisible_text_layer_is_used(self):
-        items = [T(70, 100 + i * 14, f"Unsichtbare OCR-Zeile Nummer {i} mit Inhalt", 11, invisible=True) for i in range(4)]
+        items = [
+            T(70, 100 + i * 14, f"Unsichtbare OCR-Zeile Nummer {i} mit Inhalt", 11, invisible=True) for i in range(4)
+        ]
         d = parse(make_pdf([items]), ocr="auto")
         assert d.pages[0].source is PageSource.TEXT
         assert "Unsichtbare OCR-Zeile Nummer 3" in render(d, "txt")
@@ -251,7 +256,9 @@ class TestPipelineCustomisation:
 
     def test_doc_type_restricted_step_is_dispatched_only_for_type(self, letter_pdf, bill_pdf):
         calls = []
-        s = FuncStep("only_bills", lambda ctx: calls.append(ctx.doc.doc_type), doc_types=frozenset({DocType.PARLIAMENTARY_PRINT}))
+        s = FuncStep(
+            "only_bills", lambda ctx: calls.append(ctx.doc.doc_type), doc_types=frozenset({DocType.PARLIAMENTARY_PRINT})
+        )
         pipe = Pipeline().append(s)
         pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
         pipe.run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))
@@ -273,7 +280,11 @@ class TestPipelineCustomisation:
         assert ei.value.step == "boom"
 
     def test_replace_and_remove(self, letter_pdf):
-        pipe = Pipeline().remove("entities").replace("letter", FuncStep("letter", lambda ctx: ctx.doc.fields.update(letter="custom")))
+        pipe = (
+            Pipeline()
+            .remove("entities")
+            .replace("letter", FuncStep("letter", lambda ctx: ctx.doc.fields.update(letter="custom")))
+        )
         d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
         assert d.entities == {} and d.fields["letter"] == "custom"
         with pytest.raises(KeyError):

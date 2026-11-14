@@ -16,12 +16,20 @@ KIND_RE = re.compile(
     r"^\s*(Gesetzentwurf|Antrag|Dringlichkeitsantrag|Änderungsantrag|Entschließungsantrag|Beschlussempfehlung und Bericht|Bericht und Beschlussempfehlung|Beschlussempfehlung|Bericht|Kleine Anfrage|Große Anfrage|Schriftliche Anfrage|Anfragen zum Plenum|Antwort|Unterrichtung|Mitteilung)\b",
     re.M,
 )
-ORIGINATOR_RE = re.compile(r"^\s*(?:Gesetzentwurf|Antrag|Dringlichkeitsantrag|Änderungsantrag|Kleine Anfrage|Schriftliche Anfrage|Antwort)\s+(der|des)\s+(.+?)(?:\n|$)", re.M)
+ORIGINATOR_RE = re.compile(
+    r"^\s*(?:Gesetzentwurf|Antrag|Dringlichkeitsantrag|Änderungsantrag|Kleine Anfrage|Schriftliche Anfrage|Antwort)\s+(der|des)\s+(.+?)(?:\n|$)",
+    re.M,
+)
 COMMITTEE_RE = re.compile(r"\b(?:des|der)\s+((?:Innen-\s+und\s+)?(?:[\wäöüß\-]+)?[Aa]usschuss(?:es)?\b[^\n]*)")
 RECOMMENDATION_RE = re.compile(r"Beschlussempfehlung\s*:?\s*\n?\s*([A-ZÄÖÜ][^\n]{2,60})")
 RAPPORTEUR_RE = re.compile(r"^\s*(Mitberichterstatter(?:in)?|Berichterstatter(?:in)?)\s*:\s*(.+)$", re.M)
-VOTE_RE = re.compile(r"^[ \t]*([A-ZÄÖÜ][\wÄÖÜäöü/ .\-]{1,30}?)[ \t]*:[ \t]*(Zustimmung|Ablehnung|Enthaltung|Annahme|Zustimmung mit Änderungen)[ \t]*$", re.M)
-CHAIR_RE = re.compile(r"^\s*([A-ZÄÖÜ][\wäöüß.\- ]{3,60})\s*\n\s*(Vorsitzende[r]?|Präsident(?:in)?|Stellv\. Vorsitzende[r]?)\s*$", re.M)
+VOTE_RE = re.compile(
+    r"^[ \t]*([A-ZÄÖÜ][\wÄÖÜäöü/ .\-]{1,30}?)[ \t]*:[ \t]*(Zustimmung|Ablehnung|Enthaltung|Annahme|Zustimmung mit Änderungen)[ \t]*$",
+    re.M,
+)
+CHAIR_RE = re.compile(
+    r"^\s*([A-ZÄÖÜ][\wäöüß.\- ]{3,60})\s*\n\s*(Vorsitzende[r]?|Präsident(?:in)?|Stellv\. Vorsitzende[r]?)\s*$", re.M
+)
 
 SESSION_RE = re.compile(r"(\d+)\.\s*(Plenum|Sitzung|Plenarsitzung)\b")
 AGENDA_RE = re.compile(r"Tagesordnungspunkt(?:e)?\s+(\d+(?:\s?[a-z]\b)?(?:\s*(?:und|bis)\s*\d+(?:\s?[a-z]\b)?)?)", re.I)
@@ -48,7 +56,22 @@ ROLE_WORDS = (
 )
 SPEAKER_RE = re.compile(r"^\s*(?P<head>[^:()\n]{3,90}?)(?:\s\((?P<paren>[^)]{1,80})\))?\s*:\s+(?P<rest>.*)$", re.S)
 INTERJECTION_RE = re.compile(r"^\s*\((?:[^()]|\([^()]*\))+\)\s*$", re.S)
-PARTIES = ("CSU", "CDU", "SPD", "AfD", "GRÜNE", "BÜNDNIS 90/DIE GRÜNEN", "FREIE WÄHLER", "FDP", "DIE LINKE", "Die Linke", "BSW", "SSW", "fraktionslos", "CDU/CSU")
+PARTIES = (
+    "CSU",
+    "CDU",
+    "SPD",
+    "AfD",
+    "GRÜNE",
+    "BÜNDNIS 90/DIE GRÜNEN",
+    "FREIE WÄHLER",
+    "FDP",
+    "DIE LINKE",
+    "Die Linke",
+    "BSW",
+    "SSW",
+    "fraktionslos",
+    "CDU/CSU",
+)
 
 
 def _text(b: Block) -> str:
@@ -56,7 +79,9 @@ def _text(b: Block) -> str:
 
 
 def _title_case(s: str) -> str:
-    return " ".join(w if not w.isupper() or len(w) <= 3 else "-".join(p.capitalize() for p in w.split("-")) for w in s.split())
+    return " ".join(
+        w if not w.isupper() or len(w) <= 3 else "-".join(p.capitalize() for p in w.split("-")) for w in s.split()
+    )
 
 
 def extract_print_fields(doc: Document) -> dict:

@@ -99,12 +99,22 @@ def guess_language(text: str) -> str:
     return "de" if de >= en else "en"
 
 
-_EMAIL_KEYS = re.compile(r"^(Von|From|An|To|Cc|CC|Bcc|Betreff|Subject|Gesendet|Sent|Datum|Date|Anlagen|Attachments|Wichtigkeit|Importance)\s*:", _M)
+_EMAIL_KEYS = re.compile(
+    r"^(Von|From|An|To|Cc|CC|Bcc|Betreff|Subject|Gesendet|Sent|Datum|Date|Anlagen|Attachments|Wichtigkeit|Importance)\s*:",
+    _M,
+)
 
 
 def _email_header_count(inp: ClassifierInput) -> int:
     keys = {m.group(1).lower() for m in _EMAIL_KEYS.finditer(inp.first_lines)}
-    groups = [{"von", "from"}, {"an", "to"}, {"betreff", "subject"}, {"gesendet", "sent", "datum", "date"}, {"cc", "bcc"}, {"anlagen", "attachments"}]
+    groups = [
+        {"von", "from"},
+        {"an", "to"},
+        {"betreff", "subject"},
+        {"gesendet", "sent", "datum", "date"},
+        {"cc", "bcc"},
+        {"anlagen", "attachments"},
+    ]
     return sum(1 for g in groups if keys & g)
 
 
@@ -118,23 +128,82 @@ DEFAULT_RULES: list[Rule] = [
     Rule(T.EMAIL, "original message", 1.0, re.compile(r"-{3,}\s*(Ursprüngliche Nachricht|Original Message)", _MI)),
     # ---- letters
     Rule(T.LETTER, "salutation", 3.0, re.compile(r"^\s*(Sehr geehrte[rs]?|Liebe[rs]?|Guten Tag|Dear)\b", _MI)),
-    Rule(T.LETTER, "closing", 2.5, re.compile(r"(Mit freundlichen Grüßen|Freundliche Grüße|Mit besten Grüßen|Hochachtungsvoll|Viele Grüße|Kind regards|Yours sincerely|Best regards)", re.I)),
+    Rule(
+        T.LETTER,
+        "closing",
+        2.5,
+        re.compile(
+            r"(Mit freundlichen Grüßen|Freundliche Grüße|Mit besten Grüßen|Hochachtungsvoll|Viele Grüße|Kind regards|Yours sincerely|Best regards)",
+            re.I,
+        ),
+    ),
     Rule(T.LETTER, "postal code line", 1.5, re.compile(r"^\s*(D-?\s?)?\d{5}\s+[A-ZÄÖÜ][\wäöüß\-. ]+$", _M), "head"),
-    Rule(T.LETTER, "standalone date", 1.0, re.compile(r"^\s*([A-ZÄÖÜ][\wäöüß\- ]+,\s*(den\s*)?)?\d{1,2}\.\s?\d{1,2}\.\s?\d{2,4}\s*$", _M), "head"),
-    Rule(T.LETTER, "reference fields", 1.0, re.compile(r"(Ihr Zeichen|Unser Zeichen|Ihre Nachricht vom|Geschäftszeichen|Aktenzeichen|Az\.:?|Ansprechpartner(in)?)", re.I), "head"),
+    Rule(
+        T.LETTER,
+        "standalone date",
+        1.0,
+        re.compile(r"^\s*([A-ZÄÖÜ][\wäöüß\- ]+,\s*(den\s*)?)?\d{1,2}\.\s?\d{1,2}\.\s?\d{2,4}\s*$", _M),
+        "head",
+    ),
+    Rule(
+        T.LETTER,
+        "reference fields",
+        1.0,
+        re.compile(
+            r"(Ihr Zeichen|Unser Zeichen|Ihre Nachricht vom|Geschäftszeichen|Aktenzeichen|Az\.:?|Ansprechpartner(in)?)",
+            re.I,
+        ),
+        "head",
+    ),
     Rule(T.LETTER, "contact block", 0.6, re.compile(r"^\s*(Telefon|Tel\.?|Fax|E-Mail)\b", _MI), "head"),
-    Rule(T.LETTER, "letter layout (sidebar)", 0.5, predicate=lambda i: i.features.get("first_page_columns") and not i.features.get("has_synopsis")),
+    Rule(
+        T.LETTER,
+        "letter layout (sidebar)",
+        0.5,
+        predicate=lambda i: i.features.get("first_page_columns") and not i.features.get("has_synopsis"),
+    ),
     Rule(T.LETTER, "statement", 0.5, re.compile(r"\bStellungnahme\b"), "head"),
     # ---- parliamentary prints
     Rule(T.PARLIAMENTARY_PRINT, "Drucksache number", 4.0, re.compile(r"Drucksache\s*\d{1,2}\s*/\s*\d+", re.I), "head"),
     Rule(T.PARLIAMENTARY_PRINT, "Wahlperiode", 1.5, re.compile(r"\d{1,2}\.\s*Wahlperiode", re.I), "head"),
-    Rule(T.PARLIAMENTARY_PRINT, "parliament", 1.0, re.compile(r"(Landtag|Bundestag|Bundesrat|Bürgerschaft|Abgeordnetenhaus)", re.I), "head"),
-    Rule(T.PARLIAMENTARY_PRINT, "print kind", 1.5, re.compile(r"^\s*(Gesetzentwurf|Antrag|Dringlichkeitsantrag|Änderungsantrag|Beschlussempfehlung|Bericht und Beschlussempfehlung|Kleine Anfrage|Große Anfrage|Schriftliche Anfrage|Anfragen zum Plenum|Antwort|Unterrichtung|Entschließungsantrag)\b", _M), "head"),
+    Rule(
+        T.PARLIAMENTARY_PRINT,
+        "parliament",
+        1.0,
+        re.compile(r"(Landtag|Bundestag|Bundesrat|Bürgerschaft|Abgeordnetenhaus)", re.I),
+        "head",
+    ),
+    Rule(
+        T.PARLIAMENTARY_PRINT,
+        "print kind",
+        1.5,
+        re.compile(
+            r"^\s*(Gesetzentwurf|Antrag|Dringlichkeitsantrag|Änderungsantrag|Beschlussempfehlung|Bericht und Beschlussempfehlung|Kleine Anfrage|Große Anfrage|Schriftliche Anfrage|Anfragen zum Plenum|Antwort|Unterrichtung|Entschließungsantrag)\b",
+            _M,
+        ),
+        "head",
+    ),
     Rule(T.PARLIAMENTARY_PRINT, "A) Problem", 1.5, re.compile(r"^\s*A\)?\s*(Problem|Problem und Ziel)\b", _M)),
     Rule(T.PARLIAMENTARY_PRINT, "B) Lösung", 1.0, re.compile(r"^\s*B\)?\s*Lösung\b", _M)),
     # ---- plenary protocols
-    Rule(T.PLENARY_PROTOCOL, "protocol title", 4.0, re.compile(r"\b(Plenarprotokoll|Protokollauszug|Stenografischer Bericht|Stenographischer Bericht|Plenarsitzung)\b", re.I), "all", max_hits=1),
-    Rule(T.PLENARY_PROTOCOL, "session", 1.0, re.compile(r"\d+\.\s*(Plenum|Plenarsitzung|Sitzung des (Landtags|Bundestages|Bundesrates))\b"), "head"),
+    Rule(
+        T.PLENARY_PROTOCOL,
+        "protocol title",
+        4.0,
+        re.compile(
+            r"\b(Plenarprotokoll|Protokollauszug|Stenografischer Bericht|Stenographischer Bericht|Plenarsitzung)\b",
+            re.I,
+        ),
+        "all",
+        max_hits=1,
+    ),
+    Rule(
+        T.PLENARY_PROTOCOL,
+        "session",
+        1.0,
+        re.compile(r"\d+\.\s*(Plenum|Plenarsitzung|Sitzung des (Landtags|Bundestages|Bundesrates))\b"),
+        "head",
+    ),
     Rule(
         T.PLENARY_PROTOCOL,
         "speaker turns",
@@ -145,32 +214,132 @@ DEFAULT_RULES: list[Rule] = [
         ),
         max_hits=8,
     ),
-    Rule(T.PLENARY_PROTOCOL, "applause", 0.4, re.compile(r"\((Beifall|Zuruf|Heiterkeit|Lachen|Widerspruch)\b"), max_hits=4),
+    Rule(
+        T.PLENARY_PROTOCOL,
+        "applause",
+        0.4,
+        re.compile(r"\((Beifall|Zuruf|Heiterkeit|Lachen|Widerspruch)\b"),
+        max_hits=4,
+    ),
     Rule(T.PLENARY_PROTOCOL, "agenda item", 1.0, re.compile(r"Tagesordnungspunkt", re.I)),
     # ---- statutes / regulations
-    Rule(T.STATUTE, "§ headings", 0.8, re.compile(r"^\s*§\s*\d+[a-z]?\s*$|^\s*§\s*\d+[a-z]?\s+[A-ZÄÖÜ][^.\n]{2,80}$", _M), max_hits=6),
+    Rule(
+        T.STATUTE,
+        "§ headings",
+        0.8,
+        re.compile(r"^\s*§\s*\d+[a-z]?\s*$|^\s*§\s*\d+[a-z]?\s+[A-ZÄÖÜ][^.\n]{2,80}$", _M),
+        max_hits=6,
+    ),
     Rule(T.STATUTE, "article headings", 0.7, re.compile(r"^\s*Artikel\s+\d+[a-z]?\s*$", _M), max_hits=4),
     Rule(T.STATUTE, "entry into force", 1.0, re.compile(r"tritt\s.{0,60}\sin\s+Kraft", re.I | re.S)),
-    Rule(T.STATUTE, "law title", 1.0, re.compile(r"^\s*(Gesetz|Verordnung|Satzung|Bekanntmachung)\s+(über|zur|zum|des|der|für)\b", _M), "head"),
+    Rule(
+        T.STATUTE,
+        "law title",
+        1.0,
+        re.compile(r"^\s*(Gesetz|Verordnung|Satzung|Bekanntmachung)\s+(über|zur|zum|des|der|für)\b", _M),
+        "head",
+    ),
     Rule(T.STATUTE, "table of contents", 0.8, re.compile(r"^\s*(Inhaltsübersicht|Inhaltsverzeichnis)\s*$", _M)),
-    Rule(T.STATUTE, "gazette", 1.0, re.compile(r"(BGBl\.|GVBl\.|GVOBl\.|GBl\.|Bundesgesetzblatt|Gesetz- und Verordnungsblatt)"), "head"),
-    Rule(T.STATUTE, "enactment formula", 1.5, re.compile(r"(hat das folgende Gesetz beschlossen|verordnet:|wird verordnet|erlässt .{0,80}folgende Satzung)", re.I)),
+    Rule(
+        T.STATUTE,
+        "gazette",
+        1.0,
+        re.compile(r"(BGBl\.|GVBl\.|GVOBl\.|GBl\.|Bundesgesetzblatt|Gesetz- und Verordnungsblatt)"),
+        "head",
+    ),
+    Rule(
+        T.STATUTE,
+        "enactment formula",
+        1.5,
+        re.compile(
+            r"(hat das folgende Gesetz beschlossen|verordnet:|wird verordnet|erlässt .{0,80}folgende Satzung)", re.I
+        ),
+    ),
     # ---- court decisions
     Rule(T.COURT_DECISION, "Im Namen des Volkes", 4.0, re.compile(r"Im\s+Namen\s+des\s+Volkes", re.I)),
-    Rule(T.COURT_DECISION, "decision title", 1.5, re.compile(r"^\s*(Urteil|Beschluss|Gerichtsbescheid|Versäumnisurteil|Endurteil|Teilurteil)\s*$", _M), "head"),
+    Rule(
+        T.COURT_DECISION,
+        "decision title",
+        1.5,
+        re.compile(r"^\s*(Urteil|Beschluss|Gerichtsbescheid|Versäumnisurteil|Endurteil|Teilurteil)\s*$", _M),
+        "head",
+    ),
     Rule(T.COURT_DECISION, "Tenor", 2.0, re.compile(r"^\s*(Tenor|Leitsätze?|Leitsatz)\s*:?\s*$", _M)),
     Rule(T.COURT_DECISION, "Tatbestand", 2.0, re.compile(r"^\s*Tatbestand\s*:?\s*$", _M)),
     Rule(T.COURT_DECISION, "Entscheidungsgründe", 2.0, re.compile(r"^\s*(Entscheidungsgründe|Gründe)\s*:?\s*$", _M)),
-    Rule(T.COURT_DECISION, "court", 1.5, re.compile(r"(Verwaltungsgericht|Landgericht|Amtsgericht|Oberlandesgericht|Bundesgerichtshof|Bundesverfassungsgericht|Verfassungsgerichtshof|Sozialgericht|Landessozialgericht|Bundessozialgericht|Finanzgericht|Bundesfinanzhof|Arbeitsgericht|Landesarbeitsgericht|Bundesarbeitsgericht|Bundesverwaltungsgericht|Verwaltungsgerichtshof|Oberverwaltungsgericht|Kammergericht)"), "head"),
-    Rule(T.COURT_DECISION, "parties", 1.0, re.compile(r"(in der Verwaltungsstreitsache|in dem Rechtsstreit|in der Strafsache|in dem Verfahren|Kläger(in)?\b|Beklagte[rn]?\b|Antragsteller(in)?\b|Antragsgegner(in)?\b)", re.I), "head"),
-    Rule(T.COURT_DECISION, "Rechtsmittelbelehrung", 1.5, re.compile(r"(Rechtsmittelbelehrung|Rechtsbehelfsbelehrung)", re.I)),
-    Rule(T.COURT_DECISION, "file number", 1.0, re.compile(r"\b\d{1,2}\s?(BvR|BvL|BvF|BvE|C|K|KR|S|O|U|W|ZR|StR|AZR|B|L|N|Ws|Ss)\s?\d+/\d{2}\b"), "head"),
+    Rule(
+        T.COURT_DECISION,
+        "court",
+        1.5,
+        re.compile(
+            r"(Verwaltungsgericht|Landgericht|Amtsgericht|Oberlandesgericht|Bundesgerichtshof|Bundesverfassungsgericht|Verfassungsgerichtshof|Sozialgericht|Landessozialgericht|Bundessozialgericht|Finanzgericht|Bundesfinanzhof|Arbeitsgericht|Landesarbeitsgericht|Bundesarbeitsgericht|Bundesverwaltungsgericht|Verwaltungsgerichtshof|Oberverwaltungsgericht|Kammergericht)"
+        ),
+        "head",
+    ),
+    Rule(
+        T.COURT_DECISION,
+        "parties",
+        1.0,
+        re.compile(
+            r"(in der Verwaltungsstreitsache|in dem Rechtsstreit|in der Strafsache|in dem Verfahren|Kläger(in)?\b|Beklagte[rn]?\b|Antragsteller(in)?\b|Antragsgegner(in)?\b)",
+            re.I,
+        ),
+        "head",
+    ),
+    Rule(
+        T.COURT_DECISION,
+        "Rechtsmittelbelehrung",
+        1.5,
+        re.compile(r"(Rechtsmittelbelehrung|Rechtsbehelfsbelehrung)", re.I),
+    ),
+    Rule(
+        T.COURT_DECISION,
+        "file number",
+        1.0,
+        re.compile(r"\b\d{1,2}\s?(BvR|BvL|BvF|BvE|C|K|KR|S|O|U|W|ZR|StR|AZR|B|L|N|Ws|Ss)\s?\d+/\d{2}\b"),
+        "head",
+    ),
     # ---- contracts
-    Rule(T.CONTRACT, "contract title", 1.5, re.compile(r"^\s*([\wäöüß\-]*vertrag|Vereinbarung|Vertrag|Kooperationsvereinbarung|Rahmenvereinbarung)\b", _MI), "head"),
-    Rule(T.CONTRACT, "between ... and", 1.0, re.compile(r"^\s*zwischen\s*$|\bzwischen\b.{0,200}\bund\b", _MI | re.S), "head"),
-    Rule(T.CONTRACT, "party designation", 2.0, re.compile(r"(nachfolgend|im Folgenden|nachstehend)\s+[„\"»]?[\wäöüß\- ]{2,40}[“\"«]?\s+genannt", re.I)),
-    Rule(T.CONTRACT, "contract parties", 1.0, re.compile(r"(Vertragsparteien|Vertragspartner|Auftraggeber|Auftragnehmer|Vermieter|Mieter|Arbeitgeber|Arbeitnehmer)", re.I), max_hits=2),
-    Rule(T.CONTRACT, "contract clauses", 1.5, re.compile(r"§\s*\d+\s+(Vertragsgegenstand|Gegenstand des Vertrages|Laufzeit|Kündigung|Vergütung|Vertragsdauer|Gewährleistung|Haftung|Schlussbestimmungen)", re.I), max_hits=3),
+    Rule(
+        T.CONTRACT,
+        "contract title",
+        1.5,
+        re.compile(r"^\s*([\wäöüß\-]*vertrag|Vereinbarung|Vertrag|Kooperationsvereinbarung|Rahmenvereinbarung)\b", _MI),
+        "head",
+    ),
+    Rule(
+        T.CONTRACT,
+        "between ... and",
+        1.0,
+        re.compile(r"^\s*zwischen\s*$|\bzwischen\b.{0,200}\bund\b", _MI | re.S),
+        "head",
+    ),
+    Rule(
+        T.CONTRACT,
+        "party designation",
+        2.0,
+        re.compile(r"(nachfolgend|im Folgenden|nachstehend)\s+[„\"»]?[\wäöüß\- ]{2,40}[“\"«]?\s+genannt", re.I),
+    ),
+    Rule(
+        T.CONTRACT,
+        "contract parties",
+        1.0,
+        re.compile(
+            r"(Vertragsparteien|Vertragspartner|Auftraggeber|Auftragnehmer|Vermieter|Mieter|Arbeitgeber|Arbeitnehmer)",
+            re.I,
+        ),
+        max_hits=2,
+    ),
+    Rule(
+        T.CONTRACT,
+        "contract clauses",
+        1.5,
+        re.compile(
+            r"§\s*\d+\s+(Vertragsgegenstand|Gegenstand des Vertrages|Laufzeit|Kündigung|Vergütung|Vertragsdauer|Gewährleistung|Haftung|Schlussbestimmungen)",
+            re.I,
+        ),
+        max_hits=3,
+    ),
     Rule(T.CONTRACT, "signature place", 1.0, re.compile(r"(Ort,\s*Datum|Unterschrift)", re.I), "tail"),
 ]
 

@@ -31,7 +31,9 @@ def _marginal_blocks(page: Page, words: list[Word]) -> list[Block]:
         rotate_words(copies, page.width, page.height, (360 - angle) % 360)
         lines = build_lines(copies)
         if lines:
-            out.append(Block(lines=lines, bbox=BBox.enclosing(w.bbox for w in ws), page=page.number, kind=BlockKind.MARGINAL))
+            out.append(
+                Block(lines=lines, bbox=BBox.enclosing(w.bbox for w in ws), page=page.number, kind=BlockKind.MARGINAL)
+            )
     return out
 
 
@@ -57,7 +59,12 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
             low_ids = {id(w) for w in lowconf}
             upright = [w for w in upright if id(w) not in low_ids]
             page.extras.append(
-                Block(lines=build_lines(lowconf), bbox=BBox.enclosing(w.bbox for w in lowconf), page=page.number, kind=BlockKind.NOISE)
+                Block(
+                    lines=build_lines(lowconf),
+                    bbox=BBox.enclosing(w.bbox for w in lowconf),
+                    page=page.number,
+                    kind=BlockKind.NOISE,
+                )
             )
         page.extras[:0] = _marginal_blocks(page, rotated)
         page.lines = build_lines(upright)

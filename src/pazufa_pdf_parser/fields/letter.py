@@ -14,9 +14,13 @@ CLOSING_RE = re.compile(
 )
 SUBJECT_PREFIX_RE = re.compile(r"^\s*(Betreff|Betr\.|Subject|Re|Az\.)\s*:\s*", re.I)
 RETURN_ADDRESS_SEP_RE = re.compile(r"\s*[|·•∙]\s*|\s+[-–]\s+(?=\S)")
-DATE_LINE_RE = re.compile(r"^\s*(?:(Datum|Date)\s*:?\s*)?(?:([A-ZÄÖÜ][\wäöüß\-. ]{1,30}),\s*(?:den\s+)?)?(\d{1,2}\.\s?(\d{1,2}\.|[A-Za-zäÄ]+)\s?\d{2,4})\s*$")
+DATE_LINE_RE = re.compile(
+    r"^\s*(?:(Datum|Date)\s*:?\s*)?(?:([A-ZÄÖÜ][\wäöüß\-. ]{1,30}),\s*(?:den\s+)?)?(\d{1,2}\.\s?(\d{1,2}\.|[A-Za-zäÄ]+)\s?\d{2,4})\s*$"
+)
 SIGN_PREFIX_RE = re.compile(r"^(i\.\s?A\.|i\.\s?V\.|gez\.|p\.\s?p\.|ppa\.)\s*", re.I)
-ATTACHMENT_RE = re.compile(r"^\s*(Anlagen?|Anhang|Attachments?)\s*:?\s*$|^\s*(Anlagen?|Anhang)\s*:\s*(.+)$", re.I | re.M)
+ATTACHMENT_RE = re.compile(
+    r"^\s*(Anlagen?|Anhang|Attachments?)\s*:?\s*$|^\s*(Anlagen?|Anhang)\s*:\s*(.+)$", re.I | re.M
+)
 
 
 _CLOSINGS = ("Mit freundlichen Grüßen", "Freundliche Grüße", "Mit besten Grüßen", "Hochachtungsvoll", "Viele Grüße")
@@ -142,7 +146,9 @@ def extract_letter_fields(doc: Document, blocks: list[Block] | None = None, *, c
             nb.labels.add("signature")
             j += 1
         sig_lines = [SIGN_PREFIX_RE.sub("", ln).strip() for ln in sig_lines]
-        sig_lines = [ln for ln in sig_lines if len(ln) > 1 and not _is_scribble(ln) and not re.search(r"www\.|https?://|@", ln)]
+        sig_lines = [
+            ln for ln in sig_lines if len(ln) > 1 and not _is_scribble(ln) and not re.search(r"www\.|https?://|@", ln)
+        ]
         sig_lines = list(dict.fromkeys(sig_lines))
         if sig_lines:
             fields["signatory"] = {"name": sig_lines[0], "lines": sig_lines[:5]}
@@ -181,7 +187,12 @@ def extract_letter_fields(doc: Document, blocks: list[Block] | None = None, *, c
         while k >= 0 and len(recipient) < 9:
             prev = main[k]
             pl = _lines(prev)
-            if "return_address" in prev.labels or len(pl) > 4 or any(len(x) > 60 for x in pl) or DATE_LINE_RE.match(pl[0]):
+            if (
+                "return_address" in prev.labels
+                or len(pl) > 4
+                or any(len(x) > 60 for x in pl)
+                or DATE_LINE_RE.match(pl[0])
+            ):
                 break
             if prev.bbox.y1 < b.bbox.y0 - 6 * max(b.size, 8):
                 break
