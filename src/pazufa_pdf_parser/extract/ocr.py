@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import functools
 import io
+import os
 import re
 import shutil
 import subprocess
@@ -66,6 +67,11 @@ def _png(img: Image.Image) -> bytes:
     return buf.getvalue()
 
 
+def _tesseract_env() -> dict[str, str]:
+    # we already run pages in parallel; Debian/Ubuntu tesseract's OpenMP threads on top made CI 30x slower
+    return {"OMP_THREAD_LIMIT": "1", **os.environ}
+
+
 def detect_rotation(img: Image.Image, dpi: int, cmd: str = "tesseract", timeout: float = 60) -> tuple[int, float]:
     """Clockwise rotation needed to make the image upright, and its confidence."""
     try:
@@ -75,6 +81,7 @@ def detect_rotation(img: Image.Image, dpi: int, cmd: str = "tesseract", timeout:
             capture_output=True,
             timeout=timeout,
             check=False,
+            env=_tesseract_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return 0, 0.0
@@ -109,6 +116,7 @@ def run_tesseract_tsv(
             capture_output=True,
             timeout=timeout,
             check=False,
+            env=_tesseract_env(),
         )
     except FileNotFoundError as e:
         raise OcrUnavailableError(f"tesseract executable {cmd!r} not found") from e
