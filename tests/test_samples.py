@@ -2,7 +2,7 @@
 
 ``tests/samples/by`` holds one Bavarian PDF per layout case, ``tests/samples/bw`` the
 Baden-Württemberg PDFs that broke scraper-bw (see their READMEs). The older
-problem PDFs in ``EXPECTED`` are not in the repository; point
+problem PDFs in ``PROBLEM_PDFS`` are not in the repository; point
 ``PAZUFA_SAMPLES_DIR`` at them to run those too::
 
     PAZUFA_SAMPLES_DIR=~/Nextcloud/projekte/pazufa/problempdfs-by uv run pytest -m samples
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import DocType, parse, render
+from pazufa_pdf_parser import parse, render
 
 pytestmark = pytest.mark.samples
 
@@ -50,17 +50,17 @@ def _params(directory, ocr, slow=frozenset()):
 BY_SAMPLES = _params(BY_DIR, BY_OCR)
 BW_SAMPLES = _params(BW_DIR, BW_OCR, BW_SLOW)
 
-EXPECTED = {
-    "0000000003.pdf": (DocType.LETTER, "statement"),
-    "0000000041.pdf": (DocType.LETTER, None),
-    "0000005048.pdf": (DocType.PARLIAMENTARY_PRINT, "report"),
-    "0000010143.pdf": (DocType.LETTER, "statement"),
-    "0000010184.pdf": (DocType.LETTER, None),
-    "0000010201.pdf": (DocType.EMAIL, None),
-    "0000010446.pdf": (DocType.EMAIL, None),
-    "041_PL_004_gesetzentwurf-4721.pdf": (DocType.PLENARY_PROTOCOL, "excerpt"),
-    "drucksache-20-03769.pdf": (DocType.PARLIAMENTARY_PRINT, "report"),
-}
+PROBLEM_PDFS = [
+    "0000000003.pdf",
+    "0000000041.pdf",
+    "0000005048.pdf",
+    "0000010143.pdf",
+    "0000010184.pdf",
+    "0000010201.pdf",
+    "0000010446.pdf",
+    "041_PL_004_gesetzentwurf-4721.pdf",
+    "drucksache-20-03769.pdf",
+]
 
 _cache: dict[str, object] = {}
 
@@ -77,22 +77,12 @@ def sample(name):
     return _cache[name]
 
 
-@pytest.mark.parametrize("name,expected", EXPECTED.items())
-def test_classification(name, expected):
-    d = sample(name)
-    assert (d.doc_type, d.classification.subtype) == expected
-    assert not [i for i in d.issues if i.severity == "error"]
-
-
-@pytest.mark.parametrize("name", [*EXPECTED, *BY_SAMPLES, *BW_SAMPLES])
-def test_all_formats_render(name, akn_schema):
-    from lxml import etree
-
+@pytest.mark.parametrize("name", [*PROBLEM_PDFS, *BY_SAMPLES, *BW_SAMPLES])
+def test_all_formats_render(name):
     d = sample(name)
     assert not [i for i in d.issues if i.severity == "error"]
     for fmt in ("raw", "txt", "html", "json"):
         assert render(d, fmt).strip()
-    assert akn_schema.validate(etree.fromstring(render(d, "legalxml").encode()))
 
 
 def test_clean_drucksache():
@@ -200,51 +190,25 @@ def test_bw_gesetzblatt_page_2():
 
 
 def test_bavarian_report():
-    d = sample("0000005048.pdf")
-    f = d.fields["print"]
-    assert f["number"] == "19/7613" and f["date"] == "2025-07-17"
-    assert f["title"] == "zur Änderung des Bayerischen Wassergesetzes"
-    assert f["recommendation"] == "Ablehnung"
-    assert [r["name"] for r in f["rapporteurs"]] == ["Christian Hierneis", "Thomas Holz"]
-    assert f["votes"][0]["results"]["SPD"] == "Zustimmung"
-    txt = render(d, "txt")
+    txt = _txt("0000005048.pdf")
     assert "Ablehnung empfohlen." in txt  # letter-spaced "A b l e h n u n g" collapsed
     assert "Parlamentsfragen" in txt  # soft hyphen at line end
 
 
 def test_synopsis_report():
     d = sample("drucksache-20-03769.pdf")
-    assert d.fields["print"]["parliament"] == "Schleswig-Holsteinischer Landtag"
-    assert d.synopsis and d.synopsis[0]["right_label"] == "Ausschussvorschlag"
+    assert any(r.synopsis for p in d.pages if p.layout for r in p.layout.iter_regions())
     txt = render(d, "txt")
     assert "Schleswig-Holsteinischer Landtag – 20.Wahlperiode" not in txt  # running header removed
 
 
-def test_protocol():
-    d = sample("041_PL_004_gesetzentwurf-4721.pdf")
-    p = d.fields["protocol"]
-    assert p["session"] == 41 and p["date"] == "2025-02-04"
-    names = {s["name"] for s in p["speakers"]}
-    assert {"Tobias Reiß", "Albert Füracker", "Andreas Winhart", "Ruth Waldmann"} <= names
-    assert "Protokollauszug" not in render(d, "txt")
+def test_protocol_header_removed():
+    assert "Protokollauszug" not in _txt("041_PL_004_gesetzentwurf-4721.pdf")
 
 
-def test_email_with_attached_letter():
-    d = sample("0000010446.pdf")
-    e = d.fields["email"]
-    assert e["subject_clean"] == "Stellungnahme der GEW - BayKiBiG"
-    assert e["from"]["email"] == "mario.schwandt@gew-bayern.de"
-    assert "attached_letter" in e
-    txt = render(d, "txt")
+def test_email_ligatures_kept():
+    txt = _txt("0000010446.pdf")
     assert "künftig" in txt and "Schritte" in txt  # ligature components kept
-
-
-def test_scanned_letter_fields():
-    d = sample("0000000003.pdf")
-    f = d.fields["letter"]
-    assert f["recipient"]["postal_code"] == "81602"
-    assert f["date"] == "2023-08-16"
-    assert f["subject"] == "Gesetz zur Änderung des Pflegendenvereinigungsgesetzes"
 
 
 def _txt(name):

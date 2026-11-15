@@ -113,11 +113,4 @@ def test_scoring_helpers():
 
 
 def test_step_order():
-    names = Pipeline().names()
-    assert (
-        names.index("layout")
-        < names.index("furniture")
-        < names.index("sanitize")
-        < names.index("flow")
-        < names.index("classify")
-    )
+    assert Pipeline().names() == ["extract", "layout", "furniture", "sanitize", "flow"]

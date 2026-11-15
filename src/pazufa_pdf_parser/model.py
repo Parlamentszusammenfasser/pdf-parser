@@ -113,17 +113,6 @@ class RegionKind(StrEnum):
     LEAF = "leaf"  # holds blocks
 
 
-class DocType(StrEnum):
-    LETTER = "letter"
-    EMAIL = "email"
-    PARLIAMENTARY_PRINT = "parliamentary_print"
-    PLENARY_PROTOCOL = "plenary_protocol"
-    STATUTE = "statute"
-    COURT_DECISION = "court_decision"
-    CONTRACT = "contract"
-    GENERIC = "generic"
-
-
 class Severity(StrEnum):
     INFO = "info"
     WARNING = "warning"
@@ -182,7 +171,7 @@ class Block:
     region: str = ""  # id of the layout region holding the block
     column: int = 0  # column index inside a COLUMNS region (0 = left / single)
     text: str = ""  # sanitized text, set by the sanitize step
-    labels: set[str] = field(default_factory=set)  # semantic labels set by field extractors
+    labels: set[str] = field(default_factory=set)  # set by layout steps, e.g. footer:zone, merged_into_previous
 
     @property
     def raw_text(self) -> str:
@@ -263,44 +252,6 @@ class Page:
         return top + self.blocks + bottom + self.extras
 
 
-# --------------------------------------------------------------------------- semantics
-
-
-@dataclass(slots=True)
-class Classification:
-    doc_type: DocType = DocType.GENERIC
-    subtype: str | None = None
-    confidence: float = 0.0
-    scores: dict[str, float] = field(default_factory=dict)
-    evidence: dict[str, list[str]] = field(default_factory=dict)
-    features: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(slots=True)
-class LegalNode:
-    """A node of the legal structure tree (Artikel, §, Absatz, Nummer, Buchstabe ...)."""
-
-    kind: str  # part | article | section | paragraph | point | item | subitem | text
-    num: str = ""
-    heading: str = ""
-    text: list[str] = field(default_factory=list)  # paragraphs belonging directly to this node
-    children: list[LegalNode] = field(default_factory=list)
-
-    def walk(self) -> Iterator[LegalNode]:
-        yield self
-        for c in self.children:
-            yield from c.walk()
-
-
-@dataclass(slots=True)
-class Speech:
-    speaker: str
-    role: str = ""
-    party: str = ""
-    paragraphs: list[str] = field(default_factory=list)
-    page: int = 0
-
-
 @dataclass(slots=True)
 class Issue:
     severity: Severity
@@ -315,19 +266,9 @@ class Document:
     sha256: str = ""
     pdf_info: dict[str, Any] = field(default_factory=dict)
     pages: list[Page] = field(default_factory=list)
-    classification: Classification = field(default_factory=Classification)
-    fields: dict[str, Any] = field(default_factory=dict)  # structured information
-    entities: dict[str, list[Any]] = field(default_factory=dict)
-    legal: list[LegalNode] = field(default_factory=list)
-    synopsis: list[dict[str, Any]] = field(default_factory=list)  # [{"left": [...], "right": [...]}]
-    speeches: list[Speech] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
     timings: dict[str, float] = field(default_factory=dict)
-
-    @property
-    def doc_type(self) -> DocType:
-        return self.classification.doc_type
 
     @property
     def body_blocks(self) -> list[Block]:

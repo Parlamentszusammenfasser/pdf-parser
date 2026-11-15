@@ -1,24 +1,11 @@
-"""JSON renderer (structured information)."""
+"""JSON renderer: pages, blocks and layout."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
-from ..model import Document, LegalNode, Region, RegionKind, plain
-
-
-def legal_to_dict(node: LegalNode) -> dict[str, Any]:
-    d: dict[str, Any] = {"kind": node.kind}
-    if node.num:
-        d["num"] = node.num
-    if node.heading:
-        d["heading"] = node.heading
-    if node.text:
-        d["text"] = node.text
-    if node.children:
-        d["children"] = [legal_to_dict(c) for c in node.children]
-    return d
+from ..model import Document, Region, RegionKind, plain
 
 
 def _region_to_dict(r: Region) -> dict[str, Any]:
@@ -33,40 +20,14 @@ def _region_to_dict(r: Region) -> dict[str, Any]:
 
 
 def document_to_dict(doc: Document, *, include_layout: bool = False) -> dict[str, Any]:
-    cls = doc.classification
     out: dict[str, Any] = {
         "source": doc.source,
         "sha256": doc.sha256,
         "pdf_info": plain(doc.pdf_info),
-        "classification": {
-            "doc_type": str(cls.doc_type),
-            "subtype": cls.subtype,
-            "confidence": cls.confidence,
-            "scores": cls.scores,
-            "evidence": cls.evidence,
-            "features": plain(cls.features),
-        },
-        "fields": plain(doc.fields),
-        "entities": plain(doc.entities),
+        "stats": plain(doc.stats),
+        "issues": [plain(i) for i in doc.issues],
+        "timings": doc.timings,
     }
-    if doc.legal:
-        out["legal_structure"] = [legal_to_dict(n) for n in doc.legal]
-    if doc.synopsis:
-        out["synopsis"] = [
-            {
-                "pages": s["pages"],
-                "left_label": s["left_label"],
-                "right_label": s["right_label"],
-                "left": [legal_to_dict(n) for n in s["left"]],
-                "right": [legal_to_dict(n) for n in s["right"]],
-            }
-            for s in doc.synopsis
-        ]
-    if doc.speeches:
-        out["speeches"] = [plain(s) for s in doc.speeches]
-    out["stats"] = plain(doc.stats)
-    out["issues"] = [plain(i) for i in doc.issues]
-    out["timings"] = doc.timings
     pages = []
     for p in doc.pages:
         pd: dict[str, Any] = {

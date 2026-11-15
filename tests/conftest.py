@@ -10,8 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from pdfgen import T, make_pdf, paragraph  # noqa: E402
 
-SCHEMA_DIR = Path(__file__).parent / "schemas"
-
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "ocr: needs a working tesseract installation with German data")
@@ -37,12 +35,6 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "ocr" in item.keywords and not HAS_TESSERACT:
             item.add_marker(skip_ocr)
-
-
-@pytest.fixture(scope="session")
-def akn_schema():
-    lxml = pytest.importorskip("lxml.etree")
-    return lxml.XMLSchema(lxml.parse(str(SCHEMA_DIR / "akomantoso30.xsd")))
 
 
 # --------------------------------------------------------------------------- synthetic documents

@@ -9,15 +9,11 @@ from ..model import Block, BlockKind, Document, Region, RegionKind
 CSS = """
 :root{color-scheme:light dark}
 body{font:16px/1.5 Georgia,'Times New Roman',serif;max-width:60rem;margin:2rem auto;padding:0 1rem}
-header.meta{font:14px/1.4 system-ui,sans-serif;border-bottom:1px solid #8884;margin-bottom:1.5rem;padding-bottom:.5rem}
-header.meta dl{display:grid;grid-template-columns:max-content 1fr;gap:.15rem 1rem;margin:.5rem 0}
-header.meta dt{font-weight:600}
 section.page{position:relative}
 section.page+section.page{border-top:1px dashed #8886;margin-top:1.5rem;padding-top:1rem}
 .pno{position:absolute;right:0;top:.2rem;font:12px system-ui,sans-serif;opacity:.5}
 .cols{display:grid;gap:1.5rem;align-items:start}
 .synopsis{display:grid;grid-template-columns:1fr 1fr;gap:.2rem 1.5rem}
-.synopsis>.lbl{font-weight:600;border-bottom:1px solid #8884}
 p.item{margin-left:1.5rem;text-indent:-1.5rem}
 p.footnote{font-size:.85em;opacity:.8}
 p{margin:.5rem 0;white-space:pre-line}
@@ -77,39 +73,7 @@ def _region_html(r: Region) -> str:
     return "\n".join(h for c in r.children if (h := _region_html(c)))
 
 
-def _meta_rows(doc: Document) -> list[tuple[str, str]]:
-    cls = doc.classification
-    rows = [("Typ", f"{cls.doc_type}" + (f" / {cls.subtype}" if cls.subtype else "") + f" ({cls.confidence:.0%})")]
-    f = doc.fields
-    for key, label in (("title", "Titel"), ("date", "Datum")):
-        if f.get(key):
-            rows.append((label, str(f[key])))
-    sub = f.get("print") or {}
-    if sub.get("number"):
-        rows.append(("Drucksache", sub["number"]))
-    if sub.get("parliament"):
-        rows.append(("Parlament", sub["parliament"]))
-    letter = f.get("letter") or {}
-    if letter.get("sender", {}).get("name"):
-        rows.append(("Absender", letter["sender"]["name"]))
-    if letter.get("recipient", {}).get("lines"):
-        rows.append(("Empfänger", ", ".join(letter["recipient"]["lines"])))
-    email = f.get("email") or {}
-    if email.get("from"):
-        fr = email["from"]
-        rows.append(
-            ("Von", " ".join(x for x in (fr.get("name"), f"<{fr['email']}>" if fr.get("email") else None) if x))
-        )
-    if email.get("to"):
-        rows.append(("An", "; ".join(a.get("name") or a.get("email", "") for a in email["to"])))
-    return rows
-
-
 def render_html(doc: Document) -> str:
-    lang = doc.fields.get("language", "de")
-    lang = lang if lang in ("de", "en") else "de"
-    title = doc.fields.get("title") or (doc.source or "Dokument")
-    meta = "\n".join(f"<dt>{escape(k)}</dt><dd>{escape(v)}</dd>" for k, v in _meta_rows(doc))
     pages = []
     for p in doc.pages:
         body = _region_html(p.layout) if p.layout else ""
@@ -118,13 +82,10 @@ def render_html(doc: Document) -> str:
         pages.append(
             f'<section class="page" data-page="{p.number}"><span class="pno">{p.number}</span>\n{body}\n</section>'
         )
-    cls = doc.classification
     return (
         "<!DOCTYPE html>\n"
-        f'<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
-        f"<title>{escape(str(title))}</title>\n"
+        '<html lang="de">\n<head>\n<meta charset="utf-8">\n'
+        f"<title>{escape(doc.source or 'Dokument')}</title>\n"
         '<meta name="generator" content="pazufa-parser">\n'
-        f'<meta name="document-type" content="{escape(str(cls.doc_type))}">\n'
-        f"<style>{CSS}</style>\n</head>\n<body>\n<article>\n"
-        f'<header class="meta"><dl>\n{meta}\n</dl></header>\n' + "\n".join(pages) + "\n</article>\n</body>\n</html>\n"
+        f"<style>{CSS}</style>\n</head>\n<body>\n<article>\n" + "\n".join(pages) + "\n</article>\n</body>\n</html>\n"
     )

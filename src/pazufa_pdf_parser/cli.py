@@ -1,14 +1,12 @@
 """Command line interface.
 
 pazufa-pdf-parser [extract] INPUT... [-f FORMAT[,FORMAT]] [-o OUTDIR|-] [options]
-pazufa-pdf-parser classify INPUT... [--json]
 pazufa-pdf-parser formats
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -16,28 +14,12 @@ from pathlib import Path
 from . import __version__
 from .api import parse
 from .errors import PazufaError
+from .model import PageSource
 from .options import OcrMode, ParseOptions
 from .render import available_formats, get_renderer
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
-SUBCOMMANDS = ("extract", "classify", "formats")
-
-CLASSIFY_HEADER = ("file", "type", "confidence", "title")
-CLASSIFY_COLUMNS_HELP = """output columns (tab-separated):
-  file        path of the input PDF
-  type        document type, optionally followed by /subtype:
-                letter[/statement|administrative_decision|objection|invoice|reminder|termination]
-                email
-                parliamentary_print[/bill|report|amendment|motion|inquiry|answer|notice]
-                plenary_protocol[/excerpt|full]
-                statute[/act|regulation|bylaw]
-                court_decision[/judgment|order]
-                contract
-                generic   (no type scored high enough)
-  confidence  0.00-1.00; combines how strongly the winning type scored and how far
-              it is ahead of the runner-up (use --json to see all scores)
-  title       best-guess title: subject of a letter/e-mail, title of a print,
-              agenda topic of a protocol, PDF metadata title or first heading"""
+SUBCOMMANDS = ("extract", "formats")
 
 
 def _page_range(value: str) -> tuple[int | None, int | None]:
@@ -113,7 +95,7 @@ def _collect(inputs: list[str], recursive: bool) -> tuple[list[Path], list[str]]
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        prog="pazufa-pdf-parser", description="Extract structured information and clean text from PDF documents."
+        prog="pazufa-pdf-parser", description="Extract clean text and layout from PDF documents."
     )
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = ap.add_subparsers(dest="command")
@@ -138,21 +120,6 @@ def build_parser() -> argparse.ArgumentParser:
     ex.add_argument("-v", "--verbose", action="store_true", help="print issues recorded during processing")
     _add_parse_options(ex)
 
-    cl = sub.add_parser(
-        "classify",
-        help="only print the document classification",
-        description="Classify documents. Prints one tab-separated row per input file (after a header row).",
-        epilog=CLASSIFY_COLUMNS_HELP,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    cl.add_argument("inputs", nargs="+")
-    cl.add_argument("-r", "--recursive", action="store_true")
-    cl.add_argument(
-        "--json", action="store_true", help="JSON lines output (one object per file, includes all type scores)"
-    )
-    cl.add_argument("--no-header", action="store_true", help="omit the header row of the tab-separated output")
-    _add_parse_options(cl)
-
     sub.add_parser("formats", help="list output formats")
     return ap
 
@@ -176,47 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             r = get_renderer(name)
             print(f"{name:10} .{r.extension:10} {r.description}")
         return EXIT_OK
-    if args.command == "classify":
-        return _cmd_classify(args)
     return _cmd_extract(args, ap)
-
-
-def _cmd_classify(args: argparse.Namespace) -> int:
-    files, missing = _collect(args.inputs, args.recursive)
-    status = EXIT_OK
-    for m in missing:
-        print(f"{m}: no such file or directory", file=sys.stderr)
-        status = EXIT_FAILED
-    opts = _options(args)
-    if not args.json and not args.no_header:
-        print("\t".join(CLASSIFY_HEADER))
-    for f in files:
-        try:
-            doc = parse(f, opts)
-        except PazufaError as e:
-            print(f"{f}: error: {e}", file=sys.stderr)
-            status = EXIT_FAILED
-            continue
-        c = doc.classification
-        if args.json:
-            print(
-                json.dumps(
-                    {
-                        "file": str(f),
-                        "doc_type": str(c.doc_type),
-                        "subtype": c.subtype,
-                        "confidence": c.confidence,
-                        "scores": c.scores,
-                        "title": doc.fields.get("title"),
-                    },
-                    ensure_ascii=False,
-                )
-            )
-        else:
-            sub = f"/{c.subtype}" if c.subtype else ""
-            title = " ".join(str(doc.fields.get("title", "")).split())  # no tabs/newlines inside a cell
-            print(f"{f}\t{c.doc_type}{sub}\t{c.confidence:.2f}\t{title}")
-    return status
 
 
 def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
@@ -286,12 +213,8 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             tmp.replace(target)
             written.append(str(target))
         if not args.quiet:
-            c = doc.classification
-            sub = f"/{c.subtype}" if c.subtype else ""
-            ocr = c.features.get("ocr_pages", 0)
-            info = f"{f}: {c.doc_type}{sub} ({c.confidence:.2f}), {len(doc.pages)} page(s)" + (
-                f", {ocr} OCR" if ocr else ""
-            )
+            ocr = sum(p.source is PageSource.OCR for p in doc.pages)
+            info = f"{f}: {len(doc.pages)} page(s)" + (f", {ocr} OCR" if ocr else "")
             info += f", {time.perf_counter() - t0:.1f}s"
             errors = [i for i in doc.issues if i.severity == "error"]
             if errors:

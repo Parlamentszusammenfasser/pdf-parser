@@ -1,10 +1,8 @@
-"""Pipeline of steps with classification-based dispatch.
+"""Pipeline of steps: extract -> layout -> furniture -> sanitize -> flow.
 
-A pipeline is an ordered list of :class:`Step` objects. Each step decides via
-``applies(ctx)`` whether it runs; logical steps typically declare the document
-types they handle, so after the ``classify`` step only the relevant
-extractors are dispatched. Steps never see each other directly: they
-communicate through the :class:`Document` held by the :class:`Context`.
+A pipeline is an ordered list of :class:`Step` objects. Steps never see each
+other directly: they communicate through the :class:`Document` held by the
+:class:`Context`.
 
 Failures of non-critical steps are recorded as issues on the document and the
 pipeline continues; with ``ParseOptions(strict=True)`` they are re-raised.
@@ -14,28 +12,14 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Callable, Iterable, Protocol, runtime_checkable
 
-from .classify import Classifier
 from .errors import StepError
 from .extract import extract_pages
-from .fields import (
-    extract_contract_fields,
-    extract_court_fields,
-    extract_email_fields,
-    extract_entities,
-    extract_legal_structure,
-    extract_letter_fields,
-    extract_print_fields,
-    extract_protocol,
-    find_dates,
-    synopsis_columns,
-)
-from .fields.legal import find_law_span
 from .layout import analyze_layout
 from .layout.footers import refine_footers
-from .model import Block, BlockKind, DocType, Document, RegionKind, Severity
+from .model import Block, BlockKind, Document, Severity
 from .options import ParseOptions
 from .sanitize import is_line_structured, join_hyphenated, sanitize_block
 from .source import OpenedPdf, Source, open_pdf
@@ -46,54 +30,34 @@ class Context:
     doc: Document
     options: ParseOptions
     opened: OpenedPdf | None = None
-    classifier: Classifier = field(default_factory=Classifier)
-    scratch: dict[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable
 class Step(Protocol):
     name: str
 
-    def applies(self, ctx: Context) -> bool: ...
-
     def run(self, ctx: Context) -> None: ...
 
 
 @dataclass
 class FuncStep:
-    """A step wrapping a function, optionally restricted to document types."""
+    """A step wrapping a function."""
 
     name: str
     func: Callable[[Context], None]
-    doc_types: frozenset[DocType] | None = None
-    when: Callable[[Context], bool] | None = None
     critical: bool = False  # failure aborts the pipeline (the document is unusable)
-
-    def applies(self, ctx: Context) -> bool:
-        if self.doc_types is not None and ctx.doc.doc_type not in self.doc_types:
-            return False
-        return self.when is None or bool(self.when(ctx))
 
     def run(self, ctx: Context) -> None:
         self.func(ctx)
 
 
-def step(
-    name: str,
-    *,
-    doc_types: Iterable[DocType] | None = None,
-    when: Callable[[Context], bool] | None = None,
-    critical: bool = False,
-) -> Callable[[Callable[[Context], None]], FuncStep]:
+def step(name: str, *, critical: bool = False) -> Callable[[Callable[[Context], None]], FuncStep]:
     """Decorator turning a function into a :class:`FuncStep`."""
 
     def wrap(fn: Callable[[Context], None]) -> FuncStep:
-        return FuncStep(name, fn, frozenset(doc_types) if doc_types is not None else None, when, critical)
+        return FuncStep(name, fn, critical)
 
     return wrap
-
-
-# --------------------------------------------------------------------------- physical stage
 
 
 @step("extract", critical=True)
@@ -191,192 +155,18 @@ def flow_step(ctx: Context) -> None:
     ctx.doc.stats["flow_joins"] = merge_flow(ctx.doc)
 
 
-# --------------------------------------------------------------------------- logical stage
-
-
-@step("classify")
-def classify_step(ctx: Context) -> None:
-    ctx.doc.classification = ctx.classifier.classify(ctx.doc)
-
-
-@step("entities")
-def entities_step(ctx: Context) -> None:
-    text = "\n".join(
-        b.text for p in ctx.doc.pages for b in p.all_blocks if b.text and (b.kind.is_body or b.kind.is_furniture)
-    )
-    ctx.doc.entities = extract_entities(text)
-
-
-@step("email", doc_types=[DocType.EMAIL])
-def email_step(ctx: Context) -> None:
-    fields = extract_email_fields(ctx.doc)
-    body = [b for b in ctx.doc.body_blocks if "email_header" not in b.labels]
-    letter = extract_letter_fields(ctx.doc, body, closing="first")
-    for k in ("salutation", "closing", "signatory", "attachments", "attached_letter"):
-        if k in letter and k not in fields:
-            fields[k] = letter[k]
-    ctx.doc.fields["email"] = fields
-
-
-@step("letter", doc_types=[DocType.LETTER])
-def letter_step(ctx: Context) -> None:
-    ctx.doc.fields["letter"] = extract_letter_fields(ctx.doc)
-
-
-@step("parliamentary_print", doc_types=[DocType.PARLIAMENTARY_PRINT])
-def print_step(ctx: Context) -> None:
-    ctx.doc.fields["print"] = extract_print_fields(ctx.doc)
-
-
-@step("plenary_protocol", doc_types=[DocType.PLENARY_PROTOCOL])
-def protocol_step(ctx: Context) -> None:
-    fields, speeches = extract_protocol(ctx.doc)
-    ctx.doc.fields["protocol"] = fields
-    ctx.doc.speeches = speeches
-
-
-@step("court_decision", doc_types=[DocType.COURT_DECISION])
-def court_step(ctx: Context) -> None:
-    ctx.doc.fields["court"] = extract_court_fields(ctx.doc)
-
-
-@step("contract", doc_types=[DocType.CONTRACT])
-def contract_step(ctx: Context) -> None:
-    ctx.doc.fields["contract"] = extract_contract_fields(ctx.doc)
-
-
-def _has_synopsis(ctx: Context) -> bool:
-    return bool(ctx.doc.classification.features.get("has_synopsis"))
-
-
-@step("synopsis", when=_has_synopsis)
-def synopsis_step(ctx: Context) -> None:
-    syn = synopsis_columns(ctx.doc)
-    ctx.doc.synopsis = [
-        {
-            "pages": s["pages"],
-            "left_label": s["left_label"],
-            "right_label": s["right_label"],
-            "left": s["left"],
-            "right": s["right"],
-        }
-        for s in syn
-    ]
-
-
-_LEGAL_TYPES = [DocType.PARLIAMENTARY_PRINT, DocType.STATUTE, DocType.CONTRACT, DocType.GENERIC]
-
-
-@step("legal_structure", doc_types=_LEGAL_TYPES)
-def legal_step(ctx: Context) -> None:
-    ctx.doc.legal = extract_legal_structure(ctx.doc)
-    if ctx.doc.legal:
-        # label the blocks of the normative text so renderers can separate them
-        syn = _synopsis_block_ids(ctx.doc)
-        blocks = [b for b in ctx.doc.body_blocks if id(b) not in syn]
-        span = find_law_span(blocks)
-        if span:
-            for b in blocks[span[0] : span[1]]:
-                b.labels.add("legal")
-
-
-_TITLE_SKIP_RE = re.compile(r"^(\d+\.\s*Wahlperiode|Drucksache|Seite\s*\d|Protokollauszug)", re.I)
-
-
-@step("summary")
-def summary_step(ctx: Context) -> None:
-    """Document-level fields: title, date, language, outline."""
-    doc = ctx.doc
-    f = doc.fields
-    cls = doc.classification
-    title = None
-    for key, sub in (
-        ("print", "title"),
-        ("email", "subject_clean"),
-        ("letter", "subject"),
-        ("protocol", "topic"),
-        ("contract", "title"),
-        ("court", "subject"),
-    ):
-        v = f.get(key, {}).get(sub) if isinstance(f.get(key), dict) else None
-        if v:
-            title = v
-            break
-    if title is None:
-        pdf_title = (doc.pdf_info.get("Title") or "").strip()
-        if len(pdf_title) > 3:
-            title = pdf_title
-    if title is None:
-        heads = [
-            b
-            for b in doc.body_blocks[:15]
-            if b.kind is BlockKind.HEADING
-            and b.text
-            and not _TITLE_SKIP_RE.match(b.text)
-            and b.bbox.y0 < doc.pages[b.page - 1].height * 0.85  # not a footer logo / slogan
-        ]
-        if heads:
-            best = min(heads, key=lambda b: (b.level, b.page, b.bbox.y0))
-            title = " ".join(best.text.split())
-    if title:
-        f["title"] = title
-    date = None
-    for key in ("print", "letter", "email", "protocol", "court"):
-        v = f.get(key, {}).get("date") if isinstance(f.get(key), dict) else None
-        if v:
-            date = v
-            break
-    if date is None:
-        first = doc.pages[0] if doc.pages else None
-        if first is not None:
-            d = find_dates("\n".join(b.text for b in first.all_blocks if b.text)[:1500])
-            if d:
-                date = d[0]["iso"]
-    if date:
-        f["date"] = date
-    f["language"] = cls.features.get("language", "und")
-    outline = [
-        {"level": b.level, "text": " ".join(b.text.split()), "page": b.page}
-        for b in doc.body_blocks
-        if b.kind is BlockKind.HEADING and b.text
-    ]
-    if outline:
-        f["outline"] = outline
-    doc.stats.update(
-        pages=len(doc.pages),
-        ocr_pages=cls.features.get("ocr_pages", 0),
-        columns_regions=sum(
-            1 for p in doc.pages if p.layout for r in p.layout.iter_regions() if r.kind is RegionKind.COLUMNS
-        ),
-        body_blocks=len(doc.body_blocks),
-        furniture_blocks=sum(len(p.furniture) for p in doc.pages),
-    )
-
-
 DEFAULT_STEPS: list[Step] = [
     extract_step,
     layout_step,
     furniture_step,
     sanitize_step,
     flow_step,
-    classify_step,
-    entities_step,
-    email_step,
-    letter_step,
-    print_step,
-    protocol_step,
-    court_step,
-    contract_step,
-    synopsis_step,
-    legal_step,
-    summary_step,
 ]
 
 
 class Pipeline:
-    def __init__(self, steps: Iterable[Step] | None = None, classifier: Classifier | None = None):
+    def __init__(self, steps: Iterable[Step] | None = None):
         self.steps: list[Step] = list(steps if steps is not None else DEFAULT_STEPS)
-        self.classifier = classifier or Classifier()
 
     @classmethod
     def default(cls) -> Pipeline:
@@ -418,7 +208,7 @@ class Pipeline:
         t0 = time.perf_counter()
         opened = open_pdf(src, options.password)
         doc = Document(source=opened.name, sha256=opened.sha256, pdf_info=dict(opened.info))
-        ctx = Context(doc=doc, options=options, opened=opened, classifier=self.classifier)
+        ctx = Context(doc=doc, options=options, opened=opened)
         try:
             self.run_context(ctx)
         finally:
@@ -429,14 +219,6 @@ class Pipeline:
 
     def run_context(self, ctx: Context) -> None:
         for s in self.steps:
-            try:
-                if not s.applies(ctx):
-                    continue
-            except Exception as e:  # noqa: BLE001
-                ctx.doc.issue(Severity.ERROR, s.name, f"applies() failed: {e!r}")
-                if ctx.options.strict:
-                    raise StepError(s.name, e) from e
-                continue
             t = time.perf_counter()
             try:
                 s.run(ctx)
