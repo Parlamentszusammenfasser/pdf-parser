@@ -16,6 +16,7 @@ SCHEMA_DIR = Path(__file__).parent / "schemas"
 def pytest_configure(config):
     config.addinivalue_line("markers", "ocr: needs a working tesseract installation with German data")
     config.addinivalue_line("markers", "samples: runs against real sample PDFs (tests/samples, PAZUFA_SAMPLES_DIR)")
+    config.addinivalue_line("markers", 'slow: takes more than ~10 s (deselect with -m "not slow")')
 
 
 def _has_tesseract() -> bool:
