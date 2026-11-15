@@ -12,13 +12,14 @@ uv run ruff format && uv run ruff check && uv run mypy   # lint + types, as in C
 uv run pytest                                   # full suite
 uv run pytest tests/test_layout.py::test_name   # single test
 uv run pytest -m "not ocr"                      # skip OCR tests
-uv run pytest -m samples                        # real-PDF regressions (tests/samples/by)
+uv run pytest -m "not slow"                     # skip the 146-page OCR sample (~30 s)
+uv run pytest -m samples                        # real-PDF regressions (tests/samples/by, tests/samples/bw)
 PAZUFA_SAMPLES_DIR=~/Nextcloud/projekte/pazufa/problempdfs-by uv run pytest -m samples   # plus the older, uncommitted problem PDFs
 uv run pazufa-pdf-parser file.pdf -f json -v        # run the CLI (-v prints recorded issues)
 uv run pazufa-pdf-parser classify in/ --json
 ```
 
-Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; tests marked `samples` run on the committed BY PDFs in `tests/samples/by/` (one per layout case, listed in its `README.md`); the older problem PDFs in `EXPECTED` skip unless `PAZUFA_SAMPLES_DIR` points at them.
+Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; tests marked `samples` run on the committed PDFs in `tests/samples/by/` (one per BY layout case) and `tests/samples/bw/` (BW PDFs that broke scraper-bw), each listed in its `README.md`; known defects there are strict `xfail` tests naming their issue; the older problem PDFs in `EXPECTED` skip unless `PAZUFA_SAMPLES_DIR` points at them.
 
 ## Architecture
 

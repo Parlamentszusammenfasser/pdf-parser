@@ -20,3 +20,6 @@ Personal-data check (body text and PDF metadata). All documents are published La
 - letter-sidebar, statement-ti-ligature-mixed-scan: staff contact name in sidebar / metadata Author. Keep.
 - scan-rotate-90, letter-image-letterhead-ocr-merge: staff contact name, phone, work e-mail. Keep.
 - Dropped fe90d97d (and its duplicate 7651b07e): letter from a local chapter with the sender's private home address; replaced by 569a98e0 (letter-image-letterhead-ocr-merge, same OCR-merge case).
+
+# BW samples in tests/samples/bw (7 files, 5.4 MB, issue #6)
+The five PDFs from #6 plus Gesetzblatt 2026 Nr. 12 (scraper-bw #27) and Drs. 17/6014 trimmed to pp. 1, 14, 19 (Latin-Extended mojibake next to the ASCII +29 shift); per-file case in `tests/samples/bw/README.md`. All public Landtag/Gesetzblatt documents; the 17/6014 annexes are association statements (functional addresses only); metadata holds no names. Defects found and filed: #22 (page-1 footer columns interleaved), #23 (Gesetzblatt page 2), #24 (protocol ToC split); #8 covers the agenda. Each has a strict `xfail` test.
