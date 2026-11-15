@@ -1,3 +1,4 @@
+import copy
 import json
 from html.parser import HTMLParser
 
@@ -174,3 +175,16 @@ def test_legalxml_strips_invalid_xml_chars(parsed):
         etree.fromstring(render(d, "legalxml").encode())
     finally:
         b.text = old
+
+
+def test_legalxml_email_header_only_when_fields_exist(parsed, akn_schema):
+    # a forwarded print may yield only the inner thread (tests/samples/by/email-forwarded-with-statement.pdf)
+    from lxml import etree
+
+    header = ".//{%s}container[@name='emailHeader']" % AKN_NS
+    assert etree.fromstring(render(parsed["email"], "legalxml").encode()).find(header) is not None
+    d = copy.deepcopy(parsed["email"])
+    d.fields["email"] = {"thread": d.fields["email"].get("thread", [])}
+    root = etree.fromstring(render(d, "legalxml").encode())
+    assert root.find(header) is None
+    assert akn_schema.validate(root)

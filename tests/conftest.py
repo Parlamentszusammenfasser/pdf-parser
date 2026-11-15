@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -16,7 +15,7 @@ SCHEMA_DIR = Path(__file__).parent / "schemas"
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "ocr: needs a working tesseract installation with German data")
-    config.addinivalue_line("markers", "samples: runs against real sample PDFs (set PAZUFA_SAMPLES_DIR)")
+    config.addinivalue_line("markers", "samples: runs against real sample PDFs (tests/samples, PAZUFA_SAMPLES_DIR)")
 
 
 def _has_tesseract() -> bool:
@@ -34,13 +33,9 @@ HAS_QPDF = shutil.which("qpdf") is not None
 
 def pytest_collection_modifyitems(config, items):
     skip_ocr = pytest.mark.skip(reason="tesseract with 'deu' not available")
-    samples = os.environ.get("PAZUFA_SAMPLES_DIR")
-    skip_samples = pytest.mark.skip(reason="PAZUFA_SAMPLES_DIR not set")
     for item in items:
         if "ocr" in item.keywords and not HAS_TESSERACT:
             item.add_marker(skip_ocr)
-        if "samples" in item.keywords and not (samples and Path(samples).is_dir()):
-            item.add_marker(skip_samples)
 
 
 @pytest.fixture(scope="session")

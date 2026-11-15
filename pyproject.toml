@@ -34,7 +34,7 @@ dev = [
 testpaths = ["tests"]
 markers = [
     "ocr: needs a working tesseract installation with German data",
-    "samples: runs against real sample PDFs (set PAZUFA_SAMPLES_DIR)",
+    "samples: runs against real sample PDFs (tests/samples, PAZUFA_SAMPLES_DIR)",
 ]
 
 [tool.coverage.run]

@@ -99,7 +99,8 @@ register_renderer("markdown", lambda d: "\n\n".join(b.text for b in d.body_block
 
 ```sh
 uv run pytest                     # synthetic PDFs; OCR tests run if tesseract + deu is installed
-PAZUFA_SAMPLES_DIR=~/path/to/problempdfs uv run pytest -m samples   # real sample PDFs
+uv run pytest -m samples          # real BY sample PDFs in tests/samples/by
+PAZUFA_SAMPLES_DIR=~/path/to/problempdfs uv run pytest -m samples   # plus uncommitted ones
 ```
 
 `tests/pdfgen.py` writes PDFs with exactly known layouts. `tests/conftest.py`
