@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from ..document import PdfDocument
-from ..errors import UnknownFormatError
+from ...document import PdfDocument
+from ...errors import UnknownFormatError
 
 RenderFunc = Callable[[PdfDocument], str]
 
@@ -44,6 +44,7 @@ def available_formats() -> list[str]:
 
 
 def render(doc: PdfDocument, fmt: str) -> str:
+    """Render a parsed document as "txt", "raw", "html" or "json"; raises UnknownFormatError otherwise."""
     return get_renderer(fmt).func(doc)
 
 

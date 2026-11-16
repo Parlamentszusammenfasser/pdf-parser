@@ -7,9 +7,9 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from ..errors import OcrUnavailableError
+from ...errors import OcrUnavailableError
+from ...options import OcrMode, ParseOptions
 from ..model import BBox, Document, Page, PageSource, Severity, Word
-from ..options import OcrMode, ParseOptions
 from ..source import PDFIUM_LOCK, OpenedPdf
 from .ocr import OcrResult, ocr_image, resolve_languages
 from .pdf import extract_page_words, image_coverage, page_has_vector_glyphs

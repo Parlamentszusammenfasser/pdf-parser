@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Iterable, Iterator
 
+from ..document import BlockKind, Issue, PageSource, Severity
+
 # --------------------------------------------------------------------------- geometry
 
 
@@ -81,42 +83,10 @@ class TextSource(StrEnum):
     OCR = "ocr"  # recognised by OCR
 
 
-class PageSource(StrEnum):
-    TEXT = "text"
-    OCR = "ocr"
-    EMPTY = "empty"
-
-
-class BlockKind(StrEnum):
-    PARAGRAPH = "paragraph"
-    HEADING = "heading"
-    LIST_ITEM = "list_item"
-    HEADER = "header"  # running page header (furniture)
-    FOOTER = "footer"  # running page footer (furniture)
-    PAGE_NUMBER = "page_number"
-    MARGINAL = "marginal"  # rotated / out-of-flow text (e.g. vertical margin notes)
-    NOISE = "noise"  # OCR garbage, scanner artifacts
-    FOOTNOTE = "footnote"  # numbered note at the page bottom (content, kept in the text)
-
-    @property
-    def is_furniture(self) -> bool:
-        return self in (BlockKind.HEADER, BlockKind.FOOTER, BlockKind.PAGE_NUMBER)
-
-    @property
-    def is_body(self) -> bool:
-        return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM, BlockKind.FOOTNOTE)
-
-
 class RegionKind(StrEnum):
     STACK = "stack"  # children stacked vertically
     COLUMNS = "columns"  # children side by side, read left to right
     LEAF = "leaf"  # holds blocks
-
-
-class Severity(StrEnum):
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
 
 
 # --------------------------------------------------------------------------- text primitives
@@ -250,14 +220,6 @@ class Page:
         top.sort(key=lambda b: (b.bbox.y0, b.bbox.x0))
         bottom.sort(key=lambda b: (b.bbox.y0, b.bbox.x0))
         return top + self.blocks + bottom + self.extras
-
-
-@dataclass(frozen=True, slots=True)
-class Issue:
-    severity: Severity
-    step: str
-    message: str
-    page: int | None = None
 
 
 @dataclass(slots=True)

@@ -1,6 +1,6 @@
 import pytest
 
-from pazufa_pdf_parser.sanitize import (
+from pazufa_pdf_parser._pipeline.sanitize import (
     clean_chars,
     collapse_letterspacing,
     fix_ocr_text,

@@ -25,7 +25,7 @@ Requires Python ≥ 3.12. Optional, for scans: `tesseract` with German data
 ## Library
 
 ```python
-from pazufa_pdf_parser import parse, render
+from pazufa_pdf_parser import OcrMode, ParseOptions, parse, render
 
 doc = parse("statement.pdf")          # path, bytes or binary file object
 doc.text()                            # clean body text
@@ -33,19 +33,18 @@ doc.text(pages=[2, 3])                # only these pages (1-based)
 render(doc, "html")                   # also "txt", "raw", "json"
 ```
 
-Options are keyword arguments (or a `ParseOptions` object):
+Options go in a `ParseOptions` object:
 
 ```python
-parse(data, ocr="never")              # "auto" (default) | "always" | "never"
-parse(data, first_page=2, last_page=5, password="…")
-parse(data, max_ocr_pages=500)        # more pages to OCR: none OCR'd, WARNING issue (ERROR if ocr="always")
+parse(data, ParseOptions(ocr=OcrMode.NEVER))     # AUTO (default) | ALWAYS | NEVER
+parse(data, ParseOptions(first_page=2, last_page=5, password="…"))
+parse(data, ParseOptions(max_ocr_pages=500))      # more pages to OCR: none OCR'd, WARNING issue (ERROR if ALWAYS)
 ```
 
 Tesseract settings live in one `Ocr` object per process. Its `max_parallel`
 caps the Tesseract processes of every `parse()` sharing it, also across
 threads, and pages get their turn in order; a PDF without pages to OCR never
-waits. By default all calls share
-`Ocr()`: German, 300 dpi, up to 4 processes.
+waits. By default all calls share `Ocr()`: German, 300 dpi, up to 4 processes.
 
 ```python
 OCR = Ocr(languages=("deu", "eng"), dpi=400, max_parallel=2)   # once per process
@@ -53,8 +52,13 @@ parse(data, ParseOptions(ocr_engine=OCR))
 ```
 
 `parse` does not raise on recoverable problems. It records them in
-`doc.report.issues` and carries on; pass `strict=True` to raise instead. Unreadable
-PDFs raise `PdfOpenError` (all errors subclass `PazufaError`).
+`doc.report.issues` and carries on; `ParseOptions(strict=True)` raises
+instead. Unreadable PDFs raise `PdfOpenError` (all errors subclass
+`PazufaError`).
+
+The public API is what `pazufa_pdf_parser` exports (`__all__`); it is typed
+(`py.typed`). `pazufa_pdf_parser._pipeline` is internal and changes without
+notice.
 
 ### What you get
 

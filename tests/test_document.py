@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from conftest import NO_OCR
 from pazufa_pdf_parser import PazufaError, PdfDocument, __version__, parse
-from pazufa_pdf_parser.document import pdf_date
+from pazufa_pdf_parser._pipeline.api import pdf_date
 from pdfgen import make_pdf, paragraph
 
 ALL_DOCS = ["letter", "bill", "email", "protocol", "judgment", "contract", "synopsis", "two_column"]
@@ -62,10 +63,10 @@ def test_pdf_date(value, expected):
 
 
 def test_metadata(bill_pdf):
-    d = parse(bill_pdf, ocr="never", first_page=2, last_page=2)
+    d = parse(bill_pdf, NO_OCR.with_(first_page=2, last_page=2))
     assert d.metadata.page_count == 2 and len(d.pages) == 1
     assert d.metadata.title is None and d.metadata.created is None  # pdfgen writes no info by default
-    assert parse(make_pdf([paragraph(70, 100, ["Text"])], title="Testbrief"), ocr="never").metadata.title == "Testbrief"
+    assert parse(make_pdf([paragraph(70, 100, ["Text"])], title="Testbrief"), NO_OCR).metadata.title == "Testbrief"
 
 
 def test_report(parsed):

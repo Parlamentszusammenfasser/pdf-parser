@@ -12,7 +12,7 @@ from typing import IO, Any
 
 import pypdfium2 as pdfium
 
-from .errors import PdfOpenError
+from ..errors import PdfOpenError
 
 Source = str | os.PathLike[str] | bytes | bytearray | memoryview | IO[bytes]
 

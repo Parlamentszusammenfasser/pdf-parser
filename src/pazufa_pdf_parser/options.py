@@ -118,6 +118,8 @@ class ParseOptions:
         # a negative limit would silently turn OCR off for every scan
         if self.max_ocr_pages is not None and (type(self.max_ocr_pages) is not int or self.max_ocr_pages < 0):
             raise ValueError(f"max_ocr_pages must be a whole number of at least 0, got {self.max_ocr_pages!r}")
+        # ParseOptions(ocr="never") would otherwise be silently treated as "auto" by the identity checks
+        object.__setattr__(self, "ocr", OcrMode(self.ocr))
 
-    def with_(self, **changes) -> ParseOptions:
+    def with_(self, **changes: Any) -> ParseOptions:
         return replace(self, **changes)

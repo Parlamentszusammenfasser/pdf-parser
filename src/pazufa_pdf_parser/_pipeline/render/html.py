@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from html import escape
 
-from ..document import Block, PdfDocument
+from ...document import Block, PdfDocument
 from ..model import BlockKind
 
 CSS = """

@@ -8,7 +8,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from pazufa_pdf_parser import OcrMode, ParseOptions  # noqa: E402
 from pdfgen import T, make_pdf, paragraph  # noqa: E402
+
+NO_OCR = ParseOptions(ocr=OcrMode.NEVER)
 
 
 def pytest_configure(config):
@@ -18,7 +21,7 @@ def pytest_configure(config):
 
 
 def _has_tesseract() -> bool:
-    from pazufa_pdf_parser.extract.ocr import tesseract_languages
+    from pazufa_pdf_parser._pipeline.extract.ocr import tesseract_languages
 
     try:
         return "deu" in tesseract_languages()
@@ -429,4 +432,4 @@ def parsed(letter_pdf, bill_pdf, email_pdf, protocol_pdf, judgment_pdf, contract
         "synopsis": synopsis_pdf,
         "two_column": two_column_pdf,
     }
-    return {k: parse(v, ocr="never") for k, v in srcs.items()}
+    return {k: parse(v, NO_OCR) for k, v in srcs.items()}

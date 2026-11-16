@@ -15,12 +15,12 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Iterable, Protocol, runtime_checkable
 
-from .errors import StepError
+from ..errors import StepError
+from ..options import ParseOptions
 from .extract import extract_pages
 from .layout import analyze_layout
 from .layout.footers import refine_footers
 from .model import Block, BlockKind, Document, Severity
-from .options import ParseOptions
 from .sanitize import is_line_structured, join_hyphenated, sanitize_block
 from .source import OpenedPdf, Source, open_pdf
 
@@ -167,10 +167,6 @@ DEFAULT_STEPS: list[Step] = [
 class Pipeline:
     def __init__(self, steps: Iterable[Step] | None = None):
         self.steps: list[Step] = list(steps if steps is not None else DEFAULT_STEPS)
-
-    @classmethod
-    def default(cls) -> Pipeline:
-        return cls()
 
     # ---- customisation
     def names(self) -> list[str]:

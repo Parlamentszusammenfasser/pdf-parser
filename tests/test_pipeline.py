@@ -11,22 +11,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from conftest import HAS_QPDF
-from pazufa_pdf_parser import (
-    BlockKind,
-    FuncStep,
-    Ocr,
-    OcrMode,
-    PageSource,
-    ParseOptions,
-    PdfOpenError,
-    Pipeline,
-    StepError,
-    parse,
-    render,
-    step,
-)
-from pazufa_pdf_parser.model import Severity
+from conftest import HAS_QPDF, NO_OCR
+from pazufa_pdf_parser import BlockKind, Ocr, OcrMode, PageSource, ParseOptions, PdfOpenError, Severity, parse, render
+from pazufa_pdf_parser._pipeline.pipeline import FuncStep, Pipeline, step
+from pazufa_pdf_parser.errors import StepError
 from pdfgen import T, make_pdf, make_scanned_pdf, paragraph
 
 
@@ -57,9 +45,9 @@ class TestRobustness:
     def test_bytes_path_and_fileobj_inputs(self, tmp_path, letter_pdf):
         p = tmp_path / "x.pdf"
         p.write_bytes(letter_pdf)
-        a = parse(p, ocr="never")
-        b = parse(str(p), ocr="never")
-        c = parse(io.BytesIO(letter_pdf), ocr="never")
+        a = parse(p, NO_OCR)
+        b = parse(str(p), NO_OCR)
+        c = parse(io.BytesIO(letter_pdf), NO_OCR)
         assert a.sha256 == b.sha256 == c.sha256
         assert render(a, "txt") == render(c, "txt")
 
@@ -78,13 +66,13 @@ class TestRobustness:
     def test_truncated_pdf(self, letter_pdf):
         # pdfium repairs many damaged files; either it parses or it raises our error type
         try:
-            d = parse(letter_pdf[: len(letter_pdf) // 2], ocr="never")
+            d = parse(letter_pdf[: len(letter_pdf) // 2], NO_OCR)
         except PdfOpenError:
             return
         assert d.pages
 
     def test_garbage_before_header(self, letter_pdf):
-        d = parse(b"X-Mailer: junk\r\n\r\n" + letter_pdf, ocr="never")
+        d = parse(b"X-Mailer: junk\r\n\r\n" + letter_pdf, NO_OCR)
         assert "Sehr geehrte Frau Muster," in render(d, "txt")
 
     @pytest.mark.skipif(not HAS_QPDF, reason="qpdf not installed")
@@ -94,12 +82,12 @@ class TestRobustness:
         src.write_bytes(letter_pdf)
         subprocess.run(["qpdf", "--encrypt", "geheim", "geheim", "256", "--", str(src), str(enc)], check=True)
         with pytest.raises(PdfOpenError, match="password"):
-            parse(enc, ocr="never")
-        d = parse(enc, ocr="never", password="geheim")
+            parse(enc, NO_OCR)
+        d = parse(enc, NO_OCR.with_(password="geheim"))
         assert "Sehr geehrte Frau Muster," in render(d, "txt")
 
     def test_blank_page_is_empty_not_ocr(self):
-        d = parse(make_pdf([[]]), ocr="auto")
+        d = parse(make_pdf([[]]))
         assert d.pages[0].source is PageSource.EMPTY
         assert render(d, "txt") == ""
 
@@ -125,7 +113,7 @@ class TestRobustness:
     def test_rotated_margin_note_goes_to_extras(self):
         items = paragraph(70, 100, ["Haupttext der Seite in normaler Ausrichtung.", "Noch eine Zeile Haupttext."])
         items.append(T(30, 600, "Randvermerk", 8, angle=90))
-        d = parse(make_pdf([items]), ocr="never")
+        d = parse(make_pdf([items]), NO_OCR)
         assert "Randvermerk" not in render(d, "txt")
         assert "Randvermerk" in render(d, "raw")
         assert any(b.kind is BlockKind.MARGINAL for b in d.blocks)
@@ -134,26 +122,26 @@ class TestRobustness:
         items = [
             T(70, 100 + i * 14, f"Unsichtbare OCR-Zeile Nummer {i} mit Inhalt", 11, invisible=True) for i in range(4)
         ]
-        d = parse(make_pdf([items]), ocr="auto")
+        d = parse(make_pdf([items]))
         assert d.pages[0].source is PageSource.TEXT
         assert "Unsichtbare OCR-Zeile Nummer 3" in render(d, "txt")
 
     def test_page_range(self, bill_pdf):
-        d = parse(bill_pdf, ocr="never", first_page=2, last_page=2)
+        d = parse(bill_pdf, NO_OCR.with_(first_page=2, last_page=2))
         assert [p.number for p in d.pages] == [2]
 
     def test_ocr_unavailable_is_reported_not_fatal(self, monkeypatch):
         from pdfgen import make_scanned_pdf
 
         pdf = make_scanned_pdf([[T(70, 100, "Text im Bild", 14)]], dpi=100)
-        d = parse(pdf, ocr="auto", ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz"))
+        d = parse(pdf, ParseOptions(ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz")))
         assert any(i.step == "ocr" for i in d.report.issues)
         assert d.pages[0].source is PageSource.EMPTY
 
     def test_text_pages_do_not_wait_for_ocr(self, letter_pdf):
         engine = Ocr(max_parallel=1)
         with ThreadPoolExecutor(1) as ex, engine._slots:  # the only OCR slot is taken
-            d = ex.submit(parse, letter_pdf, ocr_engine=engine).result(timeout=30)
+            d = ex.submit(parse, letter_pdf, ParseOptions(ocr_engine=engine)).result(timeout=30)
         assert {p.source for p in d.pages} == {PageSource.TEXT}
 
     def test_ocr_slots_are_first_come_first_served(self, tmp_path):

@@ -1,22 +1,60 @@
-"""Public parse result: an immutable PdfDocument built from the pipeline's internal Document."""
+"""Public parse result: the immutable PdfDocument that parse() returns."""
 
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+from enum import StrEnum
 from importlib.metadata import version
 from typing import Any
 
-from . import model
 from .errors import PazufaError
-from .model import BlockKind, Issue, PageSource, Severity
 
 PARSER_VERSION = version("pazufa-pdf-parser")
 # bump when to_json's layout changes; from_json reads only this version
 SCHEMA_VERSION = 1
+
+
+class PageSource(StrEnum):
+    TEXT = "text"
+    OCR = "ocr"
+    EMPTY = "empty"
+
+
+class BlockKind(StrEnum):
+    PARAGRAPH = "paragraph"
+    HEADING = "heading"
+    LIST_ITEM = "list_item"
+    HEADER = "header"  # running page header (furniture)
+    FOOTER = "footer"  # running page footer (furniture)
+    PAGE_NUMBER = "page_number"
+    MARGINAL = "marginal"  # rotated / out-of-flow text (e.g. vertical margin notes)
+    NOISE = "noise"  # OCR garbage, scanner artifacts
+    FOOTNOTE = "footnote"  # numbered note at the page bottom (content, kept in the text)
+
+    @property
+    def is_furniture(self) -> bool:
+        return self in (BlockKind.HEADER, BlockKind.FOOTER, BlockKind.PAGE_NUMBER)
+
+    @property
+    def is_body(self) -> bool:
+        return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM, BlockKind.FOOTNOTE)
+
+
+class Severity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+@dataclass(frozen=True, slots=True)
+class Issue:
+    severity: Severity
+    step: str  # pipeline step that recorded it, e.g. "ocr"
+    message: str
+    page: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,63 +165,3 @@ def _page(p: dict[str, Any]) -> Page:
 
 def _body_text(blocks: Iterable[Block]) -> str:
     return "\n\n".join(b.text for b in blocks if b.kind.is_body and b.text)
-
-
-def _block(b: model.Block) -> Block:
-    text = b.text.strip()
-    text = " ".join(text.split()) if b.kind is BlockKind.HEADING else re.sub(r"\n{3,}", "\n\n", text)
-    x0, y0, x1, y1 = b.bbox.to_list()
-    return Block(b.page, b.kind, text, (x0, y0, x1, y1), b.level)
-
-
-# D:YYYYMMDDHHmmSS+HH'mm' (PDF 1.7, 7.9.4); everything after the year is optional
-_PDF_DATE = re.compile(r"(?:D:)?(\d{4})(\d\d)?(\d\d)?(\d\d)?(\d\d)?(\d\d)?(?:([-+Z])(\d\d)?'?(\d\d)?'?)?")
-
-
-def pdf_date(value: str | None) -> datetime | None:
-    """Parse a PDF date string; None when missing or invalid. Without a zone the datetime is naive."""
-    m = _PDF_DATE.fullmatch((value or "").strip())
-    if not m:
-        return None
-    year, month, day, hour, minute, second, sign, tz_hours, tz_minutes = m.groups()
-    try:
-        tz = None
-        if sign == "Z":
-            tz = timezone.utc
-        elif sign:
-            offset = timedelta(hours=int(tz_hours or 0), minutes=int(tz_minutes or 0))
-            tz = timezone(offset if sign == "+" else -offset)
-        return datetime(
-            int(year),
-            int(month or 1),
-            int(day or 1),
-            int(hour or 0),
-            int(minute or 0),
-            int(second or 0),
-            tzinfo=tz,
-        )
-    except ValueError:  # month 13, zone offset of 24 h or more
-        return None
-
-
-def build_document(doc: model.Document) -> PdfDocument:
-    info = doc.pdf_info
-    return PdfDocument(
-        sha256=doc.sha256,
-        metadata=Metadata(
-            title=info.get("Title"),
-            author=info.get("Author"),
-            created=pdf_date(info.get("CreationDate")),
-            modified=pdf_date(info.get("ModDate")),
-            page_count=info["page_count"],
-        ),
-        pages=tuple(Page(p.number, p.source, tuple(_block(b) for b in p.all_blocks)) for p in doc.pages),
-        report=Report(
-            parser_version=PARSER_VERSION,
-            pages=tuple(
-                PageReport(p.number, p.stats.get("ocr_reason", ""), p.stats.get("ocr_mean_confidence"))
-                for p in doc.pages
-            ),
-            issues=tuple(doc.issues),
-        ),
-    )
