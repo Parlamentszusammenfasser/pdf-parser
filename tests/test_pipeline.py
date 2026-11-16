@@ -8,7 +8,6 @@ import pytest
 from conftest import HAS_QPDF
 from pazufa_pdf_parser import (
     BlockKind,
-    DocType,
     FuncStep,
     OcrMode,
     PageSource,
@@ -23,26 +22,7 @@ from pazufa_pdf_parser import (
 from pdfgen import T, make_pdf, paragraph
 
 
-class TestDispatch:
-    def test_letter(self, parsed):
-        d = parsed["letter"]
-        assert d.doc_type is DocType.LETTER
-        assert d.classification.subtype == "statement"
-        f = d.fields["letter"]
-        assert f["salutation"] == "Sehr geehrte Frau Muster,"
-        assert f["closing"] == "Mit freundlichen Grüßen"
-        assert f["signatory"]["name"] == "Dr. Max Mustermann"
-        assert f["signatory"]["role"] == "Hauptgeschäftsführer"
-        assert f["recipient"]["postal_code"] == "80535"
-        assert f["recipient"]["lines"][0] == "Bayerisches Staatsministerium"
-        assert f["return_address"][0] == "Verband der Testbetriebe e.V."
-        assert f["date"] == "2024-07-16" and f["place"] == "München"
-        assert f["subject"] == "Stellungnahme zum Entwurf eines Testgesetzes"
-        assert f["sender"]["email"] == "info@testverband.de"
-        assert d.fields["title"] == f["subject"]
-        assert "print" not in d.fields and "email" not in d.fields  # not dispatched
-        assert d.entities["ibans"][0]["valid"]
-
+class TestText:
     def test_letter_text_quality(self, parsed):
         txt = render(parsed["letter"], "txt")
         assert "Änderung des Testgesetzes" in txt  # de-hyphenated across lines
@@ -53,82 +33,9 @@ class TestDispatch:
         # paragraph continued across the page break is not glued to the closing
         assert "\n\nMit freundlichen Grüßen" in txt
 
-    def test_bill(self, parsed):
+    def test_bill_running_footer_removed(self, parsed):
         d = parsed["bill"]
-        assert d.doc_type is DocType.PARLIAMENTARY_PRINT and d.classification.subtype == "bill"
-        f = d.fields["print"]
-        assert f["number"] == "19/1234" and f["period"] == 19
-        assert f["parliament"] == "Bayerischer Landtag"
-        assert f["date"] == "2025-02-01"
-        assert f["title"] == "zur Änderung des Bayerischen Testgesetzes"
-        assert f["originator"] == "Staatsregierung"
-        secs = [n for n in d.legal if n.kind == "section"]
-        assert [s.num for s in secs] == ["1", "2"]
-        assert secs[0].heading == "Änderung des Testgesetzes"
-        assert secs[1].heading == "Inkrafttreten"
-        assert [p.num for p in secs[1].children] == ["1", "2"]
-        # the explanation (Begründung) is not part of the law text
-        assert not any("Entbürokratisierung" in t for n in d.legal for x in n.walk() for t in x.text)
         assert "Seite 2" not in render(d, "txt")
-
-    def test_email(self, parsed):
-        d = parsed["email"]
-        assert d.doc_type is DocType.EMAIL
-        e = d.fields["email"]
-        assert e["from"] == {"name": "Thomas Schmid", "email": "t.schmid@example.org"}
-        assert [a["email"] for a in e["to"]] == ["referat@stk.example.de", "a.bauer@example.de"]
-        assert e["attachments"] == ["Stellungnahme.pdf", "Gesetzentwurf.pdf"]
-        assert e["subject_clean"] == "Verbandsanhörung - Drittes Modernisierungsgesetz"
-        assert e["salutation"] == "Sehr geehrter Herr Dr. Hirschberg,"
-        assert e["signatory"]["name"] == "Thomas Schmid"
-        assert len(e["thread"]) == 1 and e["thread"][0]["from"]["email"] == "vertretung@stk.example.de"
-
-    def test_protocol(self, parsed):
-        d = parsed["protocol"]
-        assert d.doc_type is DocType.PLENARY_PROTOCOL
-        p = d.fields["protocol"]
-        assert p["session"] == 41 and p["date"] == "2025-02-04" and p["period"] == 19
-        assert p["referenced_prints"] == ["19/4721"]
-        names = [s.speaker for s in d.speeches]
-        assert names == ["Ilse Aigner", "Albert Füracker", "Ilse Aigner", "Andreas Winhart", "Ilse Aigner"]
-        assert d.speeches[1].role.startswith("Staatsminister")
-        assert d.speeches[3].party == "AfD"
-        # speech continues across the page break, interjection kept
-        assert any("lehnen ihn daher ab" in t for t in d.speeches[3].paragraphs)
-        assert "(Beifall bei der AfD)" in d.speeches[3].paragraphs
-
-    def test_judgment(self, parsed):
-        d = parsed["judgment"]
-        assert d.doc_type is DocType.COURT_DECISION and d.classification.subtype == "judgment"
-        c = d.fields["court"]
-        assert c["court"] == "Verwaltungsgericht München"
-        assert c["file_number"] == "M 8 K 20.1234"
-        assert c["date"] == "2024-03-12"
-        assert c["sections"] == ["tenor", "facts", "reasons", "remedies"]
-        assert {p["role"] for p in c["parties"]} == {"Kläger", "Beklagter"}
-        assert c["subject"] == "Baugenehmigung"
-
-    def test_contract(self, parsed):
-        d = parsed["contract"]
-        assert d.doc_type is DocType.CONTRACT
-        c = d.fields["contract"]
-        assert c["title"] == "Mietvertrag"
-        assert [p["role"] for p in c["parties"]] == ["Vermieterin", "Mieter"]
-        assert c["parties"][0]["name"].startswith("Erika Musterfrau")
-        assert [n.heading for n in d.legal if n.kind == "section"] == ["Vertragsgegenstand", "Mietzeit", "Kündigung"]
-
-    def test_synopsis(self, parsed):
-        d = parsed["synopsis"]
-        assert d.doc_type is DocType.PARLIAMENTARY_PRINT and d.classification.subtype == "report"
-        assert d.classification.features["has_synopsis"]
-        syn = d.synopsis[0]
-        assert syn["left_label"] == "Gesetzentwurf der Fraktionen"
-        assert syn["right_label"] == "Ausschussvorschlag"
-        left, right = syn["left"][0], syn["right"][0]
-        assert left.kind == right.kind == "article"
-        assert [c.num for c in left.children] == ["1", "2"] == [c.num for c in right.children]
-        assert right.children[0].children[1].text == ["unverändert"]
-        assert d.fields["print"]["parliament"] == "Schleswig-Holsteinischer Landtag"
 
     def test_two_column_reading_order(self, parsed):
         txt = render(parsed["two_column"], "txt")
@@ -171,7 +78,7 @@ class TestRobustness:
 
     def test_garbage_before_header(self, letter_pdf):
         d = parse(b"X-Mailer: junk\r\n\r\n" + letter_pdf, ocr="never")
-        assert d.doc_type is DocType.LETTER
+        assert "Sehr geehrte Frau Muster," in render(d, "txt")
 
     @pytest.mark.skipif(not HAS_QPDF, reason="qpdf not installed")
     def test_encrypted_pdf(self, tmp_path, letter_pdf):
@@ -182,13 +89,12 @@ class TestRobustness:
         with pytest.raises(PdfOpenError, match="password"):
             parse(enc, ocr="never")
         d = parse(enc, ocr="never", password="geheim")
-        assert d.doc_type is DocType.LETTER
+        assert "Sehr geehrte Frau Muster," in render(d, "txt")
 
     def test_blank_page_is_empty_not_ocr(self):
         d = parse(make_pdf([[]]), ocr="auto")
         assert d.pages[0].source is PageSource.EMPTY
         assert render(d, "txt") == ""
-        assert d.doc_type is DocType.GENERIC
 
     def test_rotated_page(self):
         pdf = make_pdf(
@@ -241,40 +147,30 @@ class TestRobustness:
     def test_timings_and_stats(self, parsed):
         d = parsed["bill"]
         assert d.timings["total"] > 0 and "layout" in d.timings
-        assert d.stats["pages"] == 2
+        assert "flow_joins" in d.stats
 
 
 class TestPipelineCustomisation:
     def test_insert_custom_step(self, letter_pdf):
         @step("count_words")
         def count_words(ctx):
-            ctx.doc.fields["word_count"] = len(ctx.doc.body_text().split())
+            ctx.doc.stats["word_count"] = len(ctx.doc.body_text().split())
 
-        pipe = Pipeline().insert_after("summary", count_words)
+        pipe = Pipeline().insert_after("flow", count_words)
         d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
-        assert d.fields["word_count"] > 50
-
-    def test_doc_type_restricted_step_is_dispatched_only_for_type(self, letter_pdf, bill_pdf):
-        calls = []
-        s = FuncStep(
-            "only_bills", lambda ctx: calls.append(ctx.doc.doc_type), doc_types=frozenset({DocType.PARLIAMENTARY_PRINT})
-        )
-        pipe = Pipeline().append(s)
-        pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
-        pipe.run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))
-        assert calls == [DocType.PARLIAMENTARY_PRINT]
+        assert d.stats["word_count"] > 50
 
     def test_failing_step_recorded(self, letter_pdf):
         def boom(ctx):
             raise RuntimeError("kaputt")
 
-        pipe = Pipeline().insert_after("classify", FuncStep("boom", boom))
+        pipe = Pipeline().insert_after("furniture", FuncStep("boom", boom))
         d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
         assert any(i.step == "boom" and "kaputt" in i.message for i in d.issues)
-        assert d.fields["letter"]["salutation"]  # later steps still ran
+        assert "flow_joins" in d.stats  # later steps still ran
 
     def test_failing_step_strict(self, letter_pdf):
-        pipe = Pipeline().insert_after("classify", FuncStep("boom", lambda ctx: 1 / 0))
+        pipe = Pipeline().insert_after("furniture", FuncStep("boom", lambda ctx: 1 / 0))
         with pytest.raises(StepError) as ei:
             pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER, strict=True))
         assert ei.value.step == "boom"
@@ -282,11 +178,11 @@ class TestPipelineCustomisation:
     def test_replace_and_remove(self, letter_pdf):
         pipe = (
             Pipeline()
-            .remove("entities")
-            .replace("letter", FuncStep("letter", lambda ctx: ctx.doc.fields.update(letter="custom")))
+            .remove("flow")
+            .replace("furniture", FuncStep("furniture", lambda ctx: ctx.doc.stats.update(furniture="custom")))
         )
         d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
-        assert d.entities == {} and d.fields["letter"] == "custom"
+        assert "flow_joins" not in d.stats and d.stats["furniture"] == "custom"
         with pytest.raises(KeyError):
             pipe.remove("does-not-exist")
 

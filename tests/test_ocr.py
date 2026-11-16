@@ -3,7 +3,7 @@
 import pytest
 from PIL import Image
 
-from pazufa_pdf_parser import DocType, PageSource, parse, render
+from pazufa_pdf_parser import PageSource, parse, render
 from pazufa_pdf_parser.extract import ocr
 from pazufa_pdf_parser.extract.ocr import parse_tsv
 from pdfgen import T, make_scanned_pdf, paragraph
@@ -49,15 +49,6 @@ def test_scan_is_ocred(scanned_letter):
         "Mit freundlichen Grüßen",
     ):
         assert phrase in txt, phrase
-
-
-def test_scan_fields(scanned_letter):
-    d = scanned_letter
-    assert d.doc_type is DocType.LETTER
-    f = d.fields["letter"]
-    assert f["recipient"]["postal_code"] == "80539"
-    assert f["date"] == "2024-07-16"
-    assert f["signatory"]["name"] == "Dr. Erika Musterfrau"
 
 
 def test_rotated_scan_is_corrected():

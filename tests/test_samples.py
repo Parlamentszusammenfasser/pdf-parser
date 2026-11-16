@@ -1,21 +1,17 @@
 """Regression tests against real-world sample PDFs.
 
 ``tests/samples/by`` holds one Bavarian PDF per layout case, ``tests/samples/bw`` the
-Baden-Württemberg PDFs that broke scraper-bw (see their READMEs). The older
-problem PDFs in ``EXPECTED`` are not in the repository; point
-``PAZUFA_SAMPLES_DIR`` at them to run those too::
-
-    PAZUFA_SAMPLES_DIR=~/Nextcloud/projekte/pazufa/problempdfs-by uv run pytest -m samples
+Baden-Württemberg PDFs that broke scraper-bw, ``tests/samples/sh`` a Schleswig-Holstein
+synopsis (see their READMEs).
 """
 
-import os
 import re
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import DocType, parse, render
+from pazufa_pdf_parser import parse, render
 
 pytestmark = pytest.mark.samples
 
@@ -25,15 +21,19 @@ BY_OCR = {
     "drs-staatsvertrag-bilingual-rotated-maps.pdf",
     "letter-image-letterhead-ocr-merge.pdf",
     "scan-garbled-font.pdf",
+    "scan-letter-continuation-page.pdf",
     "scan-letter.pdf",
     "scan-reading-order.pdf",
+    "scan-rotate-270-footer-logo.pdf",
     "scan-rotate-270.pdf",
     "scan-rotate-90.pdf",
+    "scan-statement-sidebar.pdf",
     "statement-ti-ligature-mixed-scan.pdf",
 }
 BW_DIR = Path(__file__).parent / "samples" / "bw"
 BW_OCR = {"drs-17-1104-garbled-146p.pdf", "drs-17-1201-ascii-shift.pdf", "drs-17-6014-garbled-annex.pdf"}
 BW_SLOW = {"drs-17-1104-garbled-146p.pdf"}  # 131 OCR pages, ~30 s
+SH_DIR = Path(__file__).parent / "samples" / "sh"
 
 
 def _params(directory, ocr, slow=frozenset()):
@@ -49,50 +49,23 @@ def _params(directory, ocr, slow=frozenset()):
 
 BY_SAMPLES = _params(BY_DIR, BY_OCR)
 BW_SAMPLES = _params(BW_DIR, BW_OCR, BW_SLOW)
-
-EXPECTED = {
-    "0000000003.pdf": (DocType.LETTER, "statement"),
-    "0000000041.pdf": (DocType.LETTER, None),
-    "0000005048.pdf": (DocType.PARLIAMENTARY_PRINT, "report"),
-    "0000010143.pdf": (DocType.LETTER, "statement"),
-    "0000010184.pdf": (DocType.LETTER, None),
-    "0000010201.pdf": (DocType.EMAIL, None),
-    "0000010446.pdf": (DocType.EMAIL, None),
-    "041_PL_004_gesetzentwurf-4721.pdf": (DocType.PLENARY_PROTOCOL, "excerpt"),
-    "drucksache-20-03769.pdf": (DocType.PARLIAMENTARY_PRINT, "report"),
-}
+SH_SAMPLES = _params(SH_DIR, set())
 
 _cache: dict[str, object] = {}
 
 
 def sample(name):
-    roots = [BY_DIR, BW_DIR]
-    if env := os.environ.get("PAZUFA_SAMPLES_DIR"):
-        roots.append(Path(env).expanduser())
-    path = next((r / name for r in roots if (r / name).exists()), None)
-    if path is None:
-        pytest.skip(f"{name} not in samples dir")
     if name not in _cache:
-        _cache[name] = parse(path)
+        _cache[name] = parse(next(d / name for d in (BY_DIR, BW_DIR, SH_DIR) if (d / name).exists()))
     return _cache[name]
 
 
-@pytest.mark.parametrize("name,expected", EXPECTED.items())
-def test_classification(name, expected):
-    d = sample(name)
-    assert (d.doc_type, d.classification.subtype) == expected
-    assert not [i for i in d.issues if i.severity == "error"]
-
-
-@pytest.mark.parametrize("name", [*EXPECTED, *BY_SAMPLES, *BW_SAMPLES])
-def test_all_formats_render(name, akn_schema):
-    from lxml import etree
-
+@pytest.mark.parametrize("name", [*BY_SAMPLES, *BW_SAMPLES, *SH_SAMPLES])
+def test_all_formats_render(name):
     d = sample(name)
     assert not [i for i in d.issues if i.severity == "error"]
     for fmt in ("raw", "txt", "html", "json"):
         assert render(d, fmt).strip()
-    assert akn_schema.validate(etree.fromstring(render(d, "legalxml").encode()))
 
 
 def test_clean_drucksache():
@@ -200,69 +173,44 @@ def test_bw_gesetzblatt_page_2():
 
 
 def test_bavarian_report():
-    d = sample("0000005048.pdf")
-    f = d.fields["print"]
-    assert f["number"] == "19/7613" and f["date"] == "2025-07-17"
-    assert f["title"] == "zur Änderung des Bayerischen Wassergesetzes"
-    assert f["recommendation"] == "Ablehnung"
-    assert [r["name"] for r in f["rapporteurs"]] == ["Christian Hierneis", "Thomas Holz"]
-    assert f["votes"][0]["results"]["SPD"] == "Zustimmung"
-    txt = render(d, "txt")
+    txt = _txt("drs-beschlussempfehlung-ablehnung.pdf")
     assert "Ablehnung empfohlen." in txt  # letter-spaced "A b l e h n u n g" collapsed
     assert "Parlamentsfragen" in txt  # soft hyphen at line end
 
 
 def test_synopsis_report():
-    d = sample("drucksache-20-03769.pdf")
-    assert d.fields["print"]["parliament"] == "Schleswig-Holsteinischer Landtag"
-    assert d.synopsis and d.synopsis[0]["right_label"] == "Ausschussvorschlag"
+    d = sample("drs-20-3769-synopsis.pdf")
+    assert any(r.synopsis for p in d.pages if p.layout for r in p.layout.iter_regions())
     txt = render(d, "txt")
     assert "Schleswig-Holsteinischer Landtag – 20.Wahlperiode" not in txt  # running header removed
 
 
-def test_protocol():
-    d = sample("041_PL_004_gesetzentwurf-4721.pdf")
-    p = d.fields["protocol"]
-    assert p["session"] == 41 and p["date"] == "2025-02-04"
-    names = {s["name"] for s in p["speakers"]}
-    assert {"Tobias Reiß", "Albert Füracker", "Andreas Winhart", "Ruth Waldmann"} <= names
-    assert "Protokollauszug" not in render(d, "txt")
+def test_protocol_header_removed():
+    assert "Protokollauszug" not in _txt("protokollauszug-24p.pdf")
 
 
-def test_email_with_attached_letter():
-    d = sample("0000010446.pdf")
-    e = d.fields["email"]
-    assert e["subject_clean"] == "Stellungnahme der GEW - BayKiBiG"
-    assert e["from"]["email"] == "mario.schwandt@gew-bayern.de"
-    assert "attached_letter" in e
-    txt = render(d, "txt")
+def test_email_ligatures_kept():
+    txt = _txt("email-attached-letter-ligatures.pdf")
     assert "künftig" in txt and "Schritte" in txt  # ligature components kept
-
-
-def test_scanned_letter_fields():
-    d = sample("0000000003.pdf")
-    f = d.fields["letter"]
-    assert f["recipient"]["postal_code"] == "81602"
-    assert f["date"] == "2023-08-16"
-    assert f["subject"] == "Gesetz zur Änderung des Pflegendenvereinigungsgesetzes"
 
 
 def _txt(name):
     return render(sample(name), "txt")
 
 
+@pytest.mark.ocr  # four of the five are scans; without OCR their text is empty and the test proves nothing
 def test_footers_removed_from_samples():
-    assert "WIRTSCHAFTSMACHT" not in _txt("0000000041.pdf")
-    assert "WIRTSCHAFTSMACHT" not in _txt("0000010184.pdf")
-    assert "Landesvorstand" not in _txt("0000010143.pdf")
-    assert "Tagesordnungen der Vollversammlung" not in _txt("0000005048.pdf")
-    assert "www.freie-wohlfahrtspflege-bayern.de" not in _txt("0000000003.pdf")
+    assert "WIRTSCHAFTSMACHT" not in _txt("scan-rotate-270-footer-logo.pdf")
+    assert "WIRTSCHAFTSMACHT" not in _txt("scan-letter-continuation-page.pdf")
+    assert "Landesvorstand" not in _txt("scan-reading-order.pdf")
+    assert "Tagesordnungen der Vollversammlung" not in _txt("drs-beschlussempfehlung-ablehnung.pdf")
+    assert "www.freie-wohlfahrtspflege-bayern.de" not in _txt("scan-statement-sidebar.pdf")
 
 
 def test_bottom_of_page_content_kept():
-    assert "Pfad der Vernunft" in _txt("041_PL_004_gesetzentwurf-4721.pdf")
-    assert "Sie streuen den Leuten Sand in die Augen" in _txt("041_PL_004_gesetzentwurf-4721.pdf")
-    assert "cc) Nummer 3 wird gestrichen." in _txt("drucksache-20-03769.pdf")
-    assert "Sehr geehrte Damen und Herren," in _txt("0000010201.pdf")
-    d = sample("0000010446.pdf")
+    assert "Pfad der Vernunft" in _txt("protokollauszug-24p.pdf")
+    assert "Sie streuen den Leuten Sand in die Augen" in _txt("protokollauszug-24p.pdf")
+    assert "cc) Nummer 3 wird gestrichen." in _txt("drs-20-3769-synopsis.pdf")
+    assert "Sehr geehrte Damen und Herren," in _txt("email-outlook-forwarded.pdf")
+    d = sample("email-attached-letter-ligatures.pdf")
     assert sum(1 for b in d.body_blocks if b.kind.value == "footnote") >= 2

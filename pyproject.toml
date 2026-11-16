@@ -1,7 +1,7 @@
 [project]
 name = "pazufa-pdf-parser"
 version = "0.1.2"
-description = "Robust extraction of structured information and sanitized text from PDF documents (letters, legal and parliamentary documents)"
+description = "Robust extraction of sanitized text and layout from PDF documents (letters, legal and parliamentary documents)"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
@@ -23,7 +23,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "lxml>=6.1.3",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
@@ -34,7 +33,7 @@ dev = [
 testpaths = ["tests"]
 markers = [
     "ocr: needs a working tesseract installation with German data",
-    "samples: runs against real sample PDFs (tests/samples, PAZUFA_SAMPLES_DIR)",
+    "samples: runs against real sample PDFs in tests/samples",
     "slow: takes more than ~10 s (deselect with -m \"not slow\")",
 ]
 
@@ -82,17 +81,8 @@ select = ["E", "F", "I", "S"]
 "tests/**" = ["S101", "S106", "S311", "S603", "S607"]
 # tesseract runs from an argv list, never through a shell
 "src/pazufa_pdf_parser/extract/ocr.py" = ["S603"]
-# Removed by #14 (classification and field extraction); not worth fixing first.
-"src/pazufa_pdf_parser/classify.py" = ["E501", "S101"]
-"src/pazufa_pdf_parser/fields/**" = ["E501"]
-"tests/test_classify.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 files = ["src"]
 ignore_missing_imports = true
-
-# Removed by #14 (classification and field extraction); not worth fixing first.
-[[tool.mypy.overrides]]
-module = ["pazufa_pdf_parser.classify", "pazufa_pdf_parser.fields.*", "pazufa_pdf_parser.render.legalxml"]
-ignore_errors = true

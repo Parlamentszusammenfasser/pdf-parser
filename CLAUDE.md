@@ -2,39 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PDF → structured fields + clean text for German legal/administrative documents (letters, e-mails, Drucksachen/synopses, plenary protocols, statutes, court decisions, contracts), born-digital and scanned. Library (`pazufa_pdf_parser`) plus CLI (`pazufa-pdf-parser`). Python ≥3.12, managed with `uv`. Runtime deps are only `pypdfium2` and `pillow`; tesseract is optional and called via subprocess (TSV output). Don't add PyMuPDF (AGPL, deliberately avoided).
+PDF → clean text and layout for German legal/administrative documents (letters, e-mails, Drucksachen/synopses, plenary protocols, statutes, court decisions, contracts), born-digital and scanned. Library (`pazufa_pdf_parser`) plus CLI (`pazufa-pdf-parser`). Python ≥3.12, managed with `uv`. Runtime deps are only `pypdfium2` and `pillow`; tesseract is optional and called via subprocess (TSV output). Don't add PyMuPDF (AGPL, deliberately avoided).
 
 ## Commands
 
 ```sh
-uv sync                                         # install (dev group: pytest, lxml, ruff, mypy)
+uv sync                                         # install (dev group: pytest, ruff, mypy)
 uv run ruff format && uv run ruff check && uv run mypy   # lint + types, as in CI
 uv run pytest                                   # full suite
 uv run pytest tests/test_layout.py::test_name   # single test
 uv run pytest -m "not ocr"                      # skip OCR tests
 uv run pytest -m "not slow"                     # skip the 146-page OCR sample (~30 s)
-uv run pytest -m samples                        # real-PDF regressions (tests/samples/by, tests/samples/bw)
-PAZUFA_SAMPLES_DIR=~/Nextcloud/projekte/pazufa/problempdfs-by uv run pytest -m samples   # plus the older, uncommitted problem PDFs
+uv run pytest -m samples                        # real-PDF regressions (tests/samples/{by,bw,sh})
 uv run pazufa-pdf-parser file.pdf -f json -v        # run the CLI (-v prints recorded issues)
-uv run pazufa-pdf-parser classify in/ --json
 ```
 
-Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; tests marked `samples` run on the committed PDFs in `tests/samples/by/` (one per BY layout case) and `tests/samples/bw/` (BW PDFs that broke scraper-bw), each listed in its `README.md`; known defects there are strict `xfail` tests naming their issue; the older problem PDFs in `EXPECTED` skip unless `PAZUFA_SAMPLES_DIR` points at them.
+Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; tests marked `samples` run on the committed PDFs in `tests/samples/by/` (one per BY layout case), `tests/samples/bw/` (BW PDFs that broke scraper-bw) and `tests/samples/sh/` (a synopsis), each listed in its `README.md`; known defects there are strict `xfail` tests naming their issue.
 
 ## Architecture
 
-Everything runs through `pipeline.py`: an ordered list of `Step`s (`DEFAULT_STEPS`) sharing a `Context` (`doc`, `options`, `classifier`, `scratch`). Steps never call each other; they communicate only by mutating the `Document` (`model.py`).
+Everything runs through `pipeline.py`: an ordered list of `Step`s (`DEFAULT_STEPS`) sharing a `Context` (`doc`, `options`). Steps never call each other; they communicate only by mutating the `Document` (`model.py`).
 
-- **Physical stage** (always runs): `extract` → `layout` → `furniture` → `sanitize` → `flow`. `extract` and `layout` are `critical=True` (failure aborts); every other step's exception is recorded as an `Issue` on the document and the pipeline continues, unless `ParseOptions(strict=True)`.
-- **Logical stage**: `classify` sets `doc.classification`; type-specific steps (`email`, `letter`, `parliamentary_print`, `plenary_protocol`, `court_decision`, `contract`, `legal_structure`) declare `doc_types=[...]` and are dispatched only when the type matches. `synopsis` runs via a `when=` predicate. `summary` fills document-level `fields["title"]`/`["date"]`.
-- Order matters: footers are removed (`furniture`) and paragraphs re-joined across page/column breaks (`flow`) *before* `classify`, so page furniture doesn't skew classification or entities.
+- Steps: `extract` → `layout` → `furniture` → `sanitize` → `flow`. `extract` and `layout` are `critical=True` (failure aborts); every other step's exception is recorded as an `Issue` on the document and the pipeline continues, unless `ParseOptions(strict=True)`.
 - New behaviour = new `@step(...)` inserted with `Pipeline.insert_after/before/replace`, not a call from inside another step.
 
 Coordinates everywhere are view space: points, top-left origin, after applying `/Rotate`. pdfium reports char angles clockwise (negated before mapping).
 
-Packages: `extract/` (pdfium chars → words, per-page text-layer vs OCR decision, threaded tesseract), `layout/` (lines, repetition-based header/footer detection in `furniture.py`, recursive XY-cut segmentation in `segment.py`, blocks/headings, bottom-zone footer scoring in `footers.py`), `sanitize.py`, `classify.py` (transparent weighted `Rule`s, every decision carries evidence), `fields/` (one module per document family plus `common.py` entities), `render/` (registry via `register_renderer`; formats `raw`, `txt`, `html`, `legalxml`, `json`).
-
-`legalxml` emits Akoma Ntoso 3.0; tests validate every output against the vendored OASIS XSD in `tests/schemas/`, so keep renderer changes schema-valid.
+Packages: `extract/` (pdfium chars → words, per-page text-layer vs OCR decision, threaded tesseract), `layout/` (lines, repetition-based header/footer detection in `furniture.py`, recursive XY-cut segmentation in `segment.py`, blocks/headings, bottom-zone footer scoring in `footers.py`), `sanitize.py`, `render/` (registry via `register_renderer`; formats `raw`, `txt`, `html`, `json`).
 
 ## Tests
 
@@ -60,7 +54,7 @@ Before adding a test, look for an existing one covering the same behaviour and e
 Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`.
 - **Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `ci`, `build`. On `main`, `feat` cuts a minor release, `fix`/`perf` a patch (CI, python-semantic-release); the rest release nothing.
 - **PR titles** follow the same format (CI checks it): PRs are squash-merged, so the title becomes the commit that decides the release.
-- **Scope:** the package or step touched: `extract`, `layout`, `footers`, `sanitize`, `classify`, `fields`, `render`, `cli`, `pipeline`.
+- **Scope:** the package or step touched: `extract`, `layout`, `footers`, `sanitize`, `render`, `cli`, `pipeline`.
 - **Subject:** imperative, lower case, no period, ≤ 72 chars.
 
 Write the subject and the optional body for a human reader. Say what changed for the document output and why (e.g. `fix(footers): keep last paragraph when page ends without gap`), not a list of edited functions.
@@ -69,4 +63,4 @@ Write the subject and the optional body for a human reader. Say what changed for
 
 ## Planning notes
 
-`plan/02-tasks.md` is the task ledger (`[x]` done, `[ ]` open, e.g. T16: type-aware `letter_footer` step after `classify`) plus open issues; `plan/00-findings.md` describes each real sample PDF and what makes it hard. Update the ledger when finishing a planned task.
+`plan/02-tasks.md` is the task ledger (`[x]` done, `[ ]` open) plus open issues; `plan/00-findings.md` describes each real sample PDF and what makes it hard. Update the ledger when finishing a planned task.

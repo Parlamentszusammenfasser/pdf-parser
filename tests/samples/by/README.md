@@ -30,5 +30,19 @@ Source = sha256 file name in the full corpus.
 | scan-rotate-90.pdf | scan with `/Rotate 90` | OK | 24b86a86 |
 | letter-image-letterhead-ocr-merge.pdf | image letterhead + sparse text layer (OCR merge path) | OCR errors in letterhead ("Barn", "Telefan") | 569a98e0 |
 
+## Problem PDFs from initial development
+
+The PDFs the parser was first built against (formerly `PAZUFA_SAMPLES_DIR`, `problempdfs-by`), matched to the corpus by sha256 and the old field tests. Their regression tests are in `tests/test_samples.py`; `0000010143.pdf` is `scan-reading-order.pdf` above.
+
+| File | Former name | Case | Source |
+|---|---|---|---|
+| scan-statement-sidebar.pdf | 0000000003.pdf | Canon scan, 2 p, DIN 5008 statement (Freie Wohlfahrtspflege), sidebar right, footer on p. 2 | 095e923f |
+| scan-rotate-270-footer-logo.pdf | 0000000041.pdf | scan, 3 p, `/Rotate 270` (landscape MediaBox, portrait view), Handwerkstag letter, footer logo | 5737c4cb |
+| scan-letter-continuation-page.pdf | 0000010184.pdf | scan, 3 p, `/Rotate 270`, Handwerkstag letter; OCR fixes in `test_sanitize.py` ("Zu 8 3", "m?") come from here | 8284b0ba |
+| drs-beschlussempfehlung-ablehnung.pdf | 0000005048.pdf | Word, 1 p, Drs. 19/7613 Beschlussempfehlung und Bericht; letter-spaced "A b l e h n u n g", key-value "Berichterstatter:", footer note | aea0b408 |
+| email-outlook-forwarded.pdf | 0000010201.pdf | Outlook print (PDFMaker), 2 p, Von/An/Betreff/Datum/Anlagen, forwarded e-mail inline, signature block | 07c368a3 |
+| email-attached-letter-ligatures.pdf | 0000010446.pdf | e-mail print (Qt), 10 p, attached letter, ligature fonts, footnotes | d5fca5ee |
+| protokollauszug-24p.pdf | 041_PL_004_gesetzentwurf-4721.pdf | Antenna House, 24 p, Protokollauszug; speaker list p. 1, header "Protokollauszug / 41. Plenum, 04.02.2025" on every page, hyphenation | 7dcb2c08 |
+
 ## Personal data
 Checked per file in `plan/00-findings.md`.

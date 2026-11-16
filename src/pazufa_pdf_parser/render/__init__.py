@@ -49,7 +49,6 @@ def render(doc: Document, fmt: str) -> str:
 
 from .html import render_html  # noqa: E402
 from .json_ import render_json  # noqa: E402
-from .legalxml import render_legalxml  # noqa: E402
 from .text import render_raw, render_txt  # noqa: E402
 
 register_renderer(
@@ -63,15 +62,6 @@ register_renderer("txt", render_txt, "txt", "text/plain", "sanitized full text w
 register_renderer(
     "html", render_html, "html", "text/html", "lightweight structured HTML preserving columns and headings"
 )
-register_renderer(
-    "legalxml", render_legalxml, "akn.xml", "application/akn+xml", "Akoma Ntoso 3.0 (OASIS LegalDocML) XML"
-)
-register_renderer(
-    "json",
-    render_json,
-    "json",
-    "application/json",
-    "structured information (classification, fields, entities, structure)",
-)
+register_renderer("json", render_json, "json", "application/json", "pages, blocks with layout, stats and issues")
 
 __all__ = ["Renderer", "register_renderer", "get_renderer", "available_formats", "render"]
