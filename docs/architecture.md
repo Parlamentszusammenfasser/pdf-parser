@@ -44,7 +44,8 @@ and OCR junk, collapses letter-spacing, de-hyphenates, then re-joins
 paragraphs across page and column breaks.
 
 **Result** (`document.py`). `parse()` turns the internal `Document` into the
-immutable `PdfDocument` (pages, blocks, metadata, report). Renderers
+immutable `PdfDocument` (pages, blocks, metadata, report), which round-trips
+through JSON (`to_json`/`from_json`, `SCHEMA_VERSION`). Renderers
 (`render/`) read only `PdfDocument`; formats register via `register_renderer`:
 `raw`, `txt`, `html`, `json`.
 

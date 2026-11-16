@@ -1,9 +1,8 @@
-import json
 from html.parser import HTMLParser
 
 import pytest
 
-from pazufa_pdf_parser import UnknownFormatError, available_formats, register_renderer, render
+from pazufa_pdf_parser import PdfDocument, UnknownFormatError, available_formats, register_renderer, render
 
 ALL_DOCS = ["letter", "bill", "email", "protocol", "judgment", "contract", "synopsis", "two_column"]
 
@@ -48,9 +47,7 @@ def test_txt_is_clean(parsed, name):
 
 @pytest.mark.parametrize("name", ALL_DOCS)
 def test_json_roundtrip(parsed, name):
-    data = json.loads(render(parsed[name], "json"))
-    assert data["pages"] and all("blocks" in p for p in data["pages"])
-    assert data["sha256"] == parsed[name].sha256
+    assert PdfDocument.from_json(render(parsed[name], "json")) == parsed[name]
 
 
 class _Checker(HTMLParser):
