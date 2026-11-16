@@ -21,7 +21,8 @@ rotation applied.
 angle. They are rebuilt into words (ligatures kept, fake-bold duplicates
 dropped, sideways pages turned upright). Per page, the text layer is used
 unless it is missing, garbled, or a large image with sparse text; then the
-page is OCRed with tesseract (TSV output, several threads). Orientation
+page is OCRed with tesseract (TSV output; the shared `Ocr` object caps how many
+run at once across all parses). Orientation
 detection only runs when the first pass looks bad.
 
 **Layout** (`layout/`). Words become lines. Running headers, footers and page

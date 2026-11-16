@@ -2,6 +2,7 @@
 
 import io
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -9,6 +10,7 @@ from conftest import HAS_QPDF
 from pazufa_pdf_parser import (
     BlockKind,
     FuncStep,
+    Ocr,
     OcrMode,
     PageSource,
     ParseOptions,
@@ -138,9 +140,20 @@ class TestRobustness:
         from pdfgen import make_scanned_pdf
 
         pdf = make_scanned_pdf([[T(70, 100, "Text im Bild", 14)]], dpi=100)
-        d = parse(pdf, ocr="auto", tesseract_cmd="definitely-not-tesseract-xyz")
+        d = parse(pdf, ocr="auto", ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz"))
         assert any(i.step == "ocr" for i in d.report.issues)
         assert d.pages[0].source is PageSource.EMPTY
+
+    def test_text_pages_do_not_wait_for_ocr(self, letter_pdf):
+        engine = Ocr(max_parallel=1)
+        with ThreadPoolExecutor(1) as ex, engine._slots:  # the only OCR slot is taken
+            d = ex.submit(parse, letter_pdf, ocr_engine=engine).result(timeout=30)
+        assert {p.source for p in d.pages} == {PageSource.TEXT}
+
+    def test_ocr_engine_settings(self):
+        assert ParseOptions().ocr_engine is ParseOptions().ocr_engine  # parses share one limit by default
+        with pytest.raises(ValueError, match="max_parallel"):
+            Ocr(max_parallel=0)
 
     def test_timings_and_stats(self, bill_pdf):
         d = Pipeline().run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))

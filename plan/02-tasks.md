@@ -21,4 +21,5 @@
 [x] T15 footer pass: step `furniture` (layout/footers.py) between layout and sanitize; `flow` split out of sanitize;
      BlockKind.FOOTNOTE; plausible_size() fixes "1 Tf"+matrix sizes (Outlook). Sample leaks fixed: 041/10184/10143 p1, 5048, 0003 p2
 [x] T17 public immutable `PdfDocument` (#11); renderers read it, html linear, raw = all blocks sanitized (#15)
+[x] T19 shared `Ocr` engine object in `ParseOptions(ocr_engine=…)`, process-wide `max_parallel` (#9)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

@@ -37,7 +37,17 @@ Options are keyword arguments (or a `ParseOptions` object):
 
 ```python
 parse(data, ocr="never")              # "auto" (default) | "always" | "never"
-parse(data, languages="deu+eng", dpi=400, first_page=2, last_page=5, password="…")
+parse(data, first_page=2, last_page=5, password="…")
+```
+
+Tesseract settings live in one `Ocr` object per process. Its `max_parallel`
+caps the Tesseract processes of every `parse()` sharing it, also across
+threads; pages with a text layer never wait. By default all calls share
+`Ocr()`: German, 300 dpi, up to 4 processes.
+
+```python
+OCR = Ocr(languages=("deu", "eng"), dpi=400, max_parallel=2)   # once per process
+parse(data, ParseOptions(ocr_engine=OCR))
 ```
 
 `parse` does not raise on recoverable problems. It records them in
