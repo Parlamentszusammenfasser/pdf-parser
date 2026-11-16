@@ -84,7 +84,11 @@ class PdfDocument:
 
     @classmethod
     def from_json(cls, s: str | bytes) -> PdfDocument:
-        """Load what :meth:`to_json` wrote. Raises PazufaError for another schema version or malformed input."""
+        """Load what :meth:`to_json` wrote.
+
+        Raises PazufaError for another schema version, invalid JSON or missing fields. Value types are
+        not checked: hand-edited JSON with e.g. a number as text loads and fails later.
+        """
         try:
             data = json.loads(s)
             found = data["schema_version"]
@@ -107,7 +111,8 @@ class PdfDocument:
                     tuple(Issue(**i | {"severity": Severity(i["severity"])}) for i in report["issues"]),
                 ),
             )
-        except (ValueError, TypeError, KeyError) as e:  # cache files can be truncated or come from other tools
+        # truncated cache files, other tools' JSON, absurd nesting
+        except (ValueError, TypeError, KeyError, RecursionError) as e:
             raise PazufaError(f"not a PdfDocument JSON: {e!r}") from e
 
 

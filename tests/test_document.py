@@ -86,8 +86,9 @@ def test_report(parsed):
         ("", "not a PdfDocument"),
         ("[]", "not a PdfDocument"),
         ('{"schema_version": 1}', "not a PdfDocument"),
+        ("[" * 100_000, "not a PdfDocument"),
     ],
-    ids=["other-schema", "empty", "not-an-object", "missing-fields"],
+    ids=["other-schema", "empty", "not-an-object", "missing-fields", "deeply-nested"],
 )
 def test_from_json_rejects(s, match):
     with pytest.raises(PazufaError, match=match):
