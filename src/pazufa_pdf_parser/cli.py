@@ -216,14 +216,14 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             ocr = sum(p.source is PageSource.OCR for p in doc.pages)
             info = f"{f}: {len(doc.pages)} page(s)" + (f", {ocr} OCR" if ocr else "")
             info += f", {time.perf_counter() - t0:.1f}s"
-            errors = [i for i in doc.issues if i.severity == "error"]
+            errors = [i for i in doc.report.issues if i.severity == "error"]
             if errors:
                 info += f", {len(errors)} error(s)"
             if written:
                 info += " -> " + ", ".join(written)
             print(info, file=sys.stderr)
         if args.verbose:
-            for i in doc.issues:
+            for i in doc.report.issues:
                 where = f" p{i.page}" if i.page else ""
                 print(f"  [{i.severity}] {i.step}{where}: {i.message}", file=sys.stderr)
     return status

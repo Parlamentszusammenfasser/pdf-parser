@@ -23,6 +23,7 @@ Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; test
 
 Everything runs through `pipeline.py`: an ordered list of `Step`s (`DEFAULT_STEPS`) sharing a `Context` (`doc`, `options`). Steps never call each other; they communicate only by mutating the `Document` (`model.py`).
 
+- `parse()` converts the internal `Document` into the immutable public `PdfDocument` (`document.py`); renderers read only `PdfDocument`.
 - Steps: `extract` → `layout` → `furniture` → `sanitize` → `flow`. `extract` and `layout` are `critical=True` (failure aborts); every other step's exception is recorded as an `Issue` on the document and the pipeline continues, unless `ParseOptions(strict=True)`.
 - New behaviour = new `@step(...)` inserted with `Pipeline.insert_after/before/replace`, not a call from inside another step.
 

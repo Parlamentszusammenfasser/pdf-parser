@@ -7,11 +7,12 @@ synopsis (see their READMEs).
 
 import re
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import parse, render
+from pazufa_pdf_parser import Pipeline, parse, render
 
 pytestmark = pytest.mark.samples
 
@@ -63,7 +64,7 @@ def sample(name):
 @pytest.mark.parametrize("name", [*BY_SAMPLES, *BW_SAMPLES, *SH_SAMPLES])
 def test_all_formats_render(name):
     d = sample(name)
-    assert not [i for i in d.issues if i.severity == "error"]
+    assert not [i for i in d.report.issues if i.severity == "error"]
     for fmt in ("raw", "txt", "html", "json"):
         assert render(d, fmt).strip()
 
@@ -76,6 +77,8 @@ def test_clean_drucksache():
     assert "Drucksachen, Plenarprotokolle" not in txt  # page-1 footer removed
     assert txt.rstrip().endswith("I. Vizepräsident")
     assert "Dieses Gesetz tritt am 1. Januar 2026 in Kraft." in txt
+    created = datetime(2025, 12, 11, 12, 48, 19, tzinfo=timezone(timedelta(hours=1)))
+    assert sample("drs-clean.pdf").metadata.created == created
 
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
@@ -125,7 +128,7 @@ def test_bw_ascii_shift_pages_keep_their_number():
     assert d.pages[0].source.value == "text"
     for p in d.pages[1:]:
         assert p.source.value == "ocr"
-        assert f"17/1201-{p.number - 1}" in "\n".join(b.text for b in p.blocks)
+        assert set(re.findall(r"17/1201-\d+", d.text(pages=[p.number]))) == {f"17/1201-{p.number - 1}"}
 
 
 @pytest.mark.xfail(strict=True, reason="#22: two-column page-1 footer read line by line")
@@ -136,7 +139,7 @@ def test_bw_drucksache_footer():
 
 def test_bw_protocol_page_numbers():
     d = sample("plpr-18-10.pdf")
-    numbers = [[b.text for b in p.furniture if b.kind.value == "page_number"] for p in d.pages]
+    numbers = [[b.text for b in p.blocks if b.kind.value == "page_number"] for p in d.pages]
     assert numbers[2:] == [[str(n)] for n in range(259, 306)]
     assert "Präsident Thomas Strobl: Guten Morgen" in render(d, "txt")
 
@@ -179,9 +182,9 @@ def test_bavarian_report():
 
 
 def test_synopsis_report():
-    d = sample("drs-20-3769-synopsis.pdf")
+    d = Pipeline().run(SH_DIR / "drs-20-3769-synopsis.pdf")
     assert any(r.synopsis for p in d.pages if p.layout for r in p.layout.iter_regions())
-    txt = render(d, "txt")
+    txt = _txt("drs-20-3769-synopsis.pdf")
     assert "Schleswig-Holsteinischer Landtag – 20.Wahlperiode" not in txt  # running header removed
 
 
@@ -213,4 +216,4 @@ def test_bottom_of_page_content_kept():
     assert "cc) Nummer 3 wird gestrichen." in _txt("drs-20-3769-synopsis.pdf")
     assert "Sehr geehrte Damen und Herren," in _txt("email-outlook-forwarded.pdf")
     d = sample("email-attached-letter-ligatures.pdf")
-    assert sum(1 for b in d.body_blocks if b.kind.value == "footnote") >= 2
+    assert sum(1 for b in d.blocks if b.kind.value == "footnote") >= 2

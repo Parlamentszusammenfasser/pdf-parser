@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from ..document import PdfDocument
 from ..errors import UnknownFormatError
-from ..model import Document
 
-RenderFunc = Callable[[Document], str]
+RenderFunc = Callable[[PdfDocument], str]
 
 
 @dataclass(frozen=True)
@@ -43,12 +43,11 @@ def available_formats() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def render(doc: Document, fmt: str) -> str:
+def render(doc: PdfDocument, fmt: str) -> str:
     return get_renderer(fmt).func(doc)
 
 
 from .html import render_html  # noqa: E402
-from .json_ import render_json  # noqa: E402
 from .text import render_raw, render_txt  # noqa: E402
 
 register_renderer(
@@ -56,12 +55,12 @@ register_renderer(
     render_raw,
     "raw.txt",
     "text/plain",
-    "every extracted text piece in reading order, unsanitized, incl. headers/footers",
+    "every block in reading order incl. headers, footers and margin notes; text sanitized like txt",
 )
 register_renderer("txt", render_txt, "txt", "text/plain", "sanitized full text without page furniture and artifacts")
+register_renderer("html", render_html, "html", "text/html", "headings, paragraphs and lists in reading order")
 register_renderer(
-    "html", render_html, "html", "text/html", "lightweight structured HTML preserving columns and headings"
+    "json", lambda d: d.to_json() + "\n", "json", "application/json", "pages and blocks with geometry, metadata, report"
 )
-register_renderer("json", render_json, "json", "application/json", "pages, blocks with layout, stats and issues")
 
 __all__ = ["Renderer", "register_renderer", "get_renderer", "available_formats", "render"]

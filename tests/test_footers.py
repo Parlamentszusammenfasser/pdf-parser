@@ -1,6 +1,6 @@
 """Second-pass footer detection (layout.footers) and the furniture/flow steps."""
 
-from pazufa_pdf_parser import BlockKind, Pipeline, parse, render
+from pazufa_pdf_parser import BlockKind, OcrMode, ParseOptions, Pipeline, parse, render
 from pazufa_pdf_parser.extract.pdf import plausible_size
 from pazufa_pdf_parser.layout.footers import footer_score, lexicon_hits
 from pazufa_pdf_parser.model import BBox
@@ -17,14 +17,15 @@ def body(y=100):
     return paragraph(70, y, PROSE, 11)
 
 
-def footer_kinds(doc):
-    return [(p.number, b.raw_text.split("\n")[0]) for p in doc.pages for b in p.furniture if "footer:zone" in b.labels]
+def footer_lines(doc):
+    """(page, first line) of every footer block."""
+    return [(b.page, b.text.split("\n")[0]) for b in doc.blocks if b.kind is BlockKind.FOOTER]
 
 
 def test_single_page_small_footer_note_removed():
     pdf = make_pdf([body() + [T(70, 790, "Drucksachen sind im Internet unter www.landtag.example abrufbar.", 8)]])
     d = parse(pdf, ocr="never")
-    assert footer_kinds(d) == [(1, "Drucksachen sind im Internet unter www.landtag.example abrufbar.")]
+    assert footer_lines(d) == [(1, "Drucksachen sind im Internet unter www.landtag.example abrufbar.")]
     assert "abrufbar" not in render(d, "txt")
     assert "abrufbar" in render(d, "raw")
 
@@ -36,7 +37,7 @@ def test_first_page_only_letter_footer_removed():
     ]
     p2 = body() + [T(70, 300, "Mit freundlichen Grüßen", 11)]
     d = parse(make_pdf([p1, p2]), ocr="never")
-    assert {n for n, _ in footer_kinds(d)} == {1}
+    assert {n for n, _ in footer_lines(d)} == {1}
     txt = render(d, "txt")
     assert "Registergericht" not in txt and "IBAN" not in txt
     assert "Mit freundlichen Grüßen" in txt
@@ -48,8 +49,8 @@ def test_varying_logo_text_is_detected_by_tolerant_repetition():
     d = parse(make_pdf(pages), ocr="never")
     # pages 1/2 are similar enough for the repetition pass in `layout`; page 3 ("DAS")
     # is only caught by the token-tolerant second pass
-    assert all(any(b.kind is BlockKind.FOOTER for b in p.furniture) for p in d.pages)
-    assert (3, "DAS") in footer_kinds(d)
+    assert all(any(b.kind is BlockKind.FOOTER for b in p.blocks) for p in d.pages)
+    assert (3, "DAS") in footer_lines(d)
     assert "DAS" not in render(d, "txt")
 
 
@@ -58,7 +59,7 @@ def test_text_running_to_page_bottom_is_kept():
         f"Zeile {i} eines langen Redebeitrags, der bis an den Seitenrand reicht und weitergeht." for i in range(50)
     ]
     d = parse(make_pdf([paragraph(70, 60, lines, 11, 1.3)]), ocr="never")
-    assert footer_kinds(d) == []
+    assert footer_lines(d) == []
     assert "Zeile 49" in render(d, "txt")
 
 
@@ -70,7 +71,7 @@ def test_normal_body_paragraph_after_gap_is_kept():
         ]
     )
     d = parse(pdf, ocr="never")
-    assert footer_kinds(d) == []
+    assert footer_lines(d) == []
     assert "Kenntnisnahme" in render(d, "txt")
 
 
@@ -79,16 +80,17 @@ def test_footnotes_are_kept_and_do_not_break_the_flow():
     p1 += [T(70, 780, "1 Bertelsmann Stiftung (Hrsg.) (2026): Die Personalausstattungsquote in Kitas.", 8)]
     p2 = paragraph(70, 60, ["nur bei voller Belegung ausreichend finanziert werden."], 11)
     d = parse(make_pdf([p1, p2]), ocr="never")
-    notes = [b for b in d.body_blocks if b.kind is BlockKind.FOOTNOTE]
+    notes = [b for b in d.blocks if b.kind is BlockKind.FOOTNOTE]
     assert len(notes) == 1 and notes[0].text.startswith("1 Bertelsmann")
     txt = render(d, "txt")
     assert "dass die Träger nur bei voller Belegung" in txt  # joined across the page break
+    assert "nur bei voller Belegung" in d.text(pages=[1]) and d.text(pages=[2]) == ""  # owned by its first page
     assert "1 Bertelsmann Stiftung" in txt
 
 
 def test_scaled_text_matrix_font_size():
     items = [T(70, 100 + i * 15, f"Zeile {i} mit skalierter Textmatrix", 11, tf_one=True) for i in range(3)]
-    d = parse(make_pdf([items]), ocr="never")
+    d = Pipeline().run(make_pdf([items]), ParseOptions(ocr=OcrMode.NEVER))
     sizes = {round(w.size) for w in d.pages[0].words}
     assert sizes == {11}
 

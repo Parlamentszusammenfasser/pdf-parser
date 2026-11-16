@@ -3,7 +3,7 @@
 import pytest
 from PIL import Image
 
-from pazufa_pdf_parser import PageSource, parse, render
+from pazufa_pdf_parser import PageSource, Pipeline, parse, render
 from pazufa_pdf_parser.extract import ocr
 from pazufa_pdf_parser.extract.ocr import parse_tsv
 from pdfgen import T, make_scanned_pdf, paragraph
@@ -39,7 +39,7 @@ def scanned_letter():
 def test_scan_is_ocred(scanned_letter):
     d = scanned_letter
     assert d.pages[0].source is PageSource.OCR
-    assert d.pages[0].stats["ocr_mean_confidence"] > 70
+    assert d.report.pages[0].ocr_confidence > 70
     txt = render(d, "txt")
     for phrase in (
         "Bayerische Staatskanzlei",
@@ -52,9 +52,9 @@ def test_scan_is_ocred(scanned_letter):
 
 
 def test_rotated_scan_is_corrected():
-    d = parse(make_scanned_pdf([LETTER_LINES], rotate_image=90), languages=("deu",))
+    d = Pipeline().run(make_scanned_pdf([LETTER_LINES], rotate_image=90))
     assert d.pages[0].stats.get("orientation_corrected") in (90, 270)
-    assert "Sehr geehrte Frau Gernbauer," in render(d, "txt")
+    assert "Sehr geehrte Frau Gernbauer," in d.body_text()
 
 
 def test_ocr_always_overrides_text_layer(letter_pdf):

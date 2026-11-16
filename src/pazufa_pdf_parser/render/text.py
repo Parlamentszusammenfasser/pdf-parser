@@ -2,35 +2,21 @@
 
 from __future__ import annotations
 
-import re
-
-from ..model import BlockKind, Document
+from ..document import PdfDocument
 
 
-def render_raw(doc: Document) -> str:
-    """Every piece of extracted text, page by page, in reading order.
+def render_raw(doc: PdfDocument) -> str:
+    """Every block, page by page, in reading order, including what ``txt`` leaves out.
 
-    Nothing is dropped or corrected: running headers/footers, page numbers,
-    rotated margin text and low-confidence OCR output are included. Large
-    horizontal gaps are kept as tabs; pages are separated by form feeds.
+    Running headers, footers, page numbers, rotated margin notes and OCR noise
+    are kept. The text of each block is sanitized like in ``txt`` (de-hyphenated,
+    paragraphs re-joined); pages are separated by form feeds.
     """
-    pages = []
-    for page in doc.pages:
-        parts = [b.raw_text for b in page.all_blocks if b.raw_text.strip()]
-        pages.append("\n\n".join(parts))
+    pages = ["\n\n".join(b.text for b in page.blocks if b.text) for page in doc.pages]
     return "\n\f".join(pages).rstrip() + "\n"
 
 
-def render_txt(doc: Document) -> str:
+def render_txt(doc: PdfDocument) -> str:
     """Sanitized running text of the document body."""
-    out: list[str] = []
-    for b in doc.body_blocks:
-        text = b.text.strip()
-        if not text:
-            continue
-        if b.kind is BlockKind.HEADING:
-            text = " ".join(text.split())
-        out.append(text)
-    txt = "\n\n".join(out)
-    txt = re.sub(r"\n{3,}", "\n\n", txt)
-    return txt.strip() + "\n" if txt.strip() else ""
+    txt = doc.text()
+    return txt + "\n" if txt else ""
