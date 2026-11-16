@@ -31,8 +31,6 @@ def parse(
             from .options import OcrMode
 
             option_overrides["ocr"] = OcrMode(option_overrides["ocr"])
-        if "languages" in option_overrides and isinstance(option_overrides["languages"], str):
-            option_overrides["languages"] = tuple(option_overrides["languages"].replace(",", "+").split("+"))
         opts = opts.with_(**option_overrides)
     return build_document((pipeline or _pipeline()).run(src, opts))
 

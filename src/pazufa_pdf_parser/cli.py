@@ -15,7 +15,7 @@ from . import __version__
 from .api import parse
 from .errors import PazufaError
 from .model import PageSource
-from .options import OcrMode, ParseOptions
+from .options import Ocr, OcrMode, ParseOptions
 from .render import available_formats, get_renderer
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
@@ -53,7 +53,7 @@ def _add_parse_options(p: argparse.ArgumentParser) -> None:
     )
     g.add_argument("--lang", default="deu", help="tesseract languages, e.g. deu or deu+eng (default: deu)")
     g.add_argument("--dpi", type=int, default=300, help="render resolution for OCR (default: 300)")
-    g.add_argument("--jobs", "-j", type=int, default=None, help="parallel OCR workers")
+    g.add_argument("--jobs", "-j", type=int, default=None, help="tesseract processes at a time")
     g.add_argument("--no-osd", action="store_true", help="disable orientation detection for scans")
     g.add_argument("--password", default=None, help="password for encrypted PDFs")
     g.add_argument("--pages", type=_page_range, default=None, metavar="RANGE", help="page range, e.g. 1-3")
@@ -62,17 +62,15 @@ def _add_parse_options(p: argparse.ArgumentParser) -> None:
 
 
 def _options(args: argparse.Namespace) -> ParseOptions:
-    kw = dict(
-        ocr=OcrMode(args.ocr),
-        languages=tuple(x for x in args.lang.replace(",", "+").split("+") if x),
+    engine = dict(
+        languages=args.lang,
         dpi=args.dpi,
         detect_orientation=not args.no_osd,
-        strict=args.strict,
-        password=args.password,
         tesseract_cmd=args.tesseract,
     )
     if args.jobs:
-        kw["jobs"] = max(1, args.jobs)
+        engine["max_parallel"] = max(1, args.jobs)
+    kw = dict(ocr=OcrMode(args.ocr), ocr_engine=Ocr(**engine), strict=args.strict, password=args.password)
     if args.pages:
         kw["first_page"], kw["last_page"] = args.pages
     return ParseOptions(**kw)

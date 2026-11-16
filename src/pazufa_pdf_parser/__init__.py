@@ -21,7 +21,7 @@ from .model import (
     RegionKind,
     Word,
 )
-from .options import OcrMode, ParseOptions
+from .options import Ocr, OcrMode, ParseOptions
 from .pipeline import Context, FuncStep, Pipeline, Step, step
 from .render import available_formats, register_renderer
 
@@ -35,6 +35,7 @@ __all__ = [
     "register_renderer",
     "ParseOptions",
     "OcrMode",
+    "Ocr",
     "Pipeline",
     "Step",
     "FuncStep",

@@ -1,7 +1,13 @@
 """End-to-end behaviour on synthetic PDFs (text layer)."""
 
+import copy
 import io
+import pickle
 import subprocess
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -9,6 +15,7 @@ from conftest import HAS_QPDF
 from pazufa_pdf_parser import (
     BlockKind,
     FuncStep,
+    Ocr,
     OcrMode,
     PageSource,
     ParseOptions,
@@ -19,7 +26,7 @@ from pazufa_pdf_parser import (
     render,
     step,
 )
-from pdfgen import T, make_pdf, paragraph
+from pdfgen import T, make_pdf, make_scanned_pdf, paragraph
 
 
 class TestText:
@@ -138,9 +145,54 @@ class TestRobustness:
         from pdfgen import make_scanned_pdf
 
         pdf = make_scanned_pdf([[T(70, 100, "Text im Bild", 14)]], dpi=100)
-        d = parse(pdf, ocr="auto", tesseract_cmd="definitely-not-tesseract-xyz")
+        d = parse(pdf, ocr="auto", ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz"))
         assert any(i.step == "ocr" for i in d.report.issues)
         assert d.pages[0].source is PageSource.EMPTY
+
+    def test_text_pages_do_not_wait_for_ocr(self, letter_pdf):
+        engine = Ocr(max_parallel=1)
+        with ThreadPoolExecutor(1) as ex, engine._slots:  # the only OCR slot is taken
+            d = ex.submit(parse, letter_pdf, ocr_engine=engine).result(timeout=30)
+        assert {p.source for p in d.pages} == {PageSource.TEXT}
+
+    def test_ocr_slots_are_first_come_first_served(self, tmp_path):
+        # a one-page scan queued during a long scan's first page must not wait for all of its pages
+        log = tmp_path / "runs"
+        engine = Ocr(max_parallel=1, dpi=72, detect_orientation=False, tesseract_cmd=fake_tesseract(tmp_path, log))
+        options = ParseOptions(ocr_engine=engine)
+        finished = []
+
+        def run(name, pages):
+            parse(make_scanned_pdf([[T(70, 100, name, 14)]] * pages, dpi=72), options)
+            finished.append(name)
+
+        long_scan = threading.Thread(target=run, args=("lang", 5))
+        long_scan.start()
+        while not log.exists():
+            time.sleep(0.01)
+        run("kurz", 1)
+        long_scan.join()
+        assert finished == ["kurz", "lang"]
+
+    def test_strict_ocr_failure_cancels_queued_pages(self, tmp_path):
+        # Executor.map drops the queued pages once the loop raises; they must not keep the shared slots busy
+        log = tmp_path / "runs"
+        engine = Ocr(max_parallel=1, dpi=72, detect_orientation=False, tesseract_cmd=fake_tesseract(tmp_path, log, 1))
+        with pytest.raises(StepError):
+            parse(
+                make_scanned_pdf([[T(70, 100, "Seite", 14)]] * 6, dpi=72), ParseOptions(ocr_engine=engine, strict=True)
+            )
+        assert len(log.read_text().split()) < 6
+
+    def test_ocr_engine_settings(self):
+        opts = ParseOptions()
+        assert opts.ocr_engine is ParseOptions().ocr_engine  # parses share one limit by default
+        assert copy.deepcopy(opts).ocr_engine is opts.ocr_engine  # copies keep sharing it
+        assert pickle.loads(pickle.dumps(opts)).ocr_engine.dpi == 300  # noqa: S301 - e.g. sent to a process pool
+        assert Ocr(languages="deu+eng").languages == ("deu", "eng")  # as on the tesseract command line
+        for bad in (0, 1.5):
+            with pytest.raises(ValueError, match="max_parallel"):
+                Ocr(max_parallel=bad)
 
     def test_timings_and_stats(self, bill_pdf):
         d = Pipeline().run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))
@@ -189,3 +241,24 @@ def test_structured_lines_are_not_glued_by_flow_merge(parsed):
     txt = render(parsed["judgment"], "txt")
     assert "- Kläger - gegen" not in txt
     assert "- Kläger -" in txt
+
+
+def fake_tesseract(tmp_path, log, exit_code=0):
+    """A tesseract stand-in that takes 0.3 s per page, finds no words and logs each run to ``log``."""
+    script = tmp_path / "tesseract"
+    script.write_text(
+        f"""#!{sys.executable}
+import sys, time
+if "--list-langs" in sys.argv:
+    print("List of available languages (1):\\ndeu")
+    sys.exit(0)
+with open({str(log)!r}, "a") as f:
+    f.write("run\\n")
+sys.stdin.buffer.read()
+time.sleep(0.3)
+print("level\\tpage_num\\tblock_num\\tpar_num\\tline_num\\tword_num\\tleft\\ttop\\twidth\\theight\\tconf\\ttext")
+sys.exit({exit_code})
+"""
+    )
+    script.chmod(0o755)
+    return str(script)

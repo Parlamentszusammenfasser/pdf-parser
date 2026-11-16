@@ -1,9 +1,12 @@
 """OCR path (requires tesseract with German language data)."""
 
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from PIL import Image
 
-from pazufa_pdf_parser import PageSource, Pipeline, parse, render
+from pazufa_pdf_parser import Ocr, PageSource, Pipeline, parse, render
 from pazufa_pdf_parser.extract import ocr
 from pazufa_pdf_parser.extract.ocr import parse_tsv
 from pdfgen import T, make_scanned_pdf, paragraph
@@ -33,7 +36,7 @@ LETTER_LINES = [
 
 @pytest.fixture(scope="module")
 def scanned_letter():
-    return parse(make_scanned_pdf([LETTER_LINES]), languages=("deu",))
+    return parse(make_scanned_pdf([LETTER_LINES]))
 
 
 def test_scan_is_ocred(scanned_letter):
@@ -58,13 +61,13 @@ def test_rotated_scan_is_corrected():
 
 
 def test_ocr_always_overrides_text_layer(letter_pdf):
-    d = parse(letter_pdf, ocr="always", dpi=200, first_page=1, last_page=1)
+    d = parse(letter_pdf, ocr="always", ocr_engine=Ocr(dpi=200), first_page=1, last_page=1)
     assert d.pages[0].source is PageSource.OCR
     assert "Sehr geehrte Frau Muster" in render(d, "txt")
 
 
 def test_noise_is_not_in_txt_but_in_raw():
-    d = parse(make_scanned_pdf([LETTER_LINES], noise=True), languages=("deu",))
+    d = parse(make_scanned_pdf([LETTER_LINES], noise=True))
     txt = render(d, "txt")
     assert "Sehr geehrte Frau Gernbauer," in txt
     assert len(render(d, "raw")) >= len(txt) - 5
@@ -106,3 +109,37 @@ def test_tesseract_runs_single_threaded(monkeypatch, user_limit, expected):
     ocr.detect_rotation(img, 300)
     ocr.run_tesseract_tsv(img, "deu", 300)
     assert [e["OMP_THREAD_LIMIT"] for e in envs] == [expected, expected]
+
+
+# counts the OCR runs alive when one starts; `--list-langs` probes are not OCR runs
+COUNTING_TESSERACT = """#!{python}
+import os, subprocess, sys, time
+from pathlib import Path
+
+if "--list-langs" in sys.argv:
+    sys.exit(subprocess.call(["tesseract", *sys.argv[1:]]))
+running = Path({dir!r}) / "running"
+running.mkdir(exist_ok=True)
+me = running / str(os.getpid())
+me.touch()
+try:
+    with open(Path({dir!r}) / "counts", "a") as f:
+        f.write(f"{{len(list(running.iterdir()))}}\\n")
+    time.sleep(0.2)  # long enough for runs of other parses to overlap, if the cap lets them
+    sys.exit(subprocess.call(["tesseract", *sys.argv[1:]]))
+finally:
+    me.unlink()
+"""
+
+
+def test_shared_ocr_caps_tesseract_runs_across_parses(tmp_path):
+    wrapper = tmp_path / "tesseract"
+    wrapper.write_text(COUNTING_TESSERACT.format(python=sys.executable, dir=str(tmp_path)))
+    wrapper.chmod(0o755)
+    engine = Ocr(max_parallel=2, dpi=100, detect_orientation=False, tesseract_cmd=str(wrapper))
+    scan = make_scanned_pdf([LETTER_LINES] * 4, dpi=100)
+    with ThreadPoolExecutor(3) as ex:
+        list(ex.map(lambda _: parse(scan, ocr_engine=engine), range(3)))
+    counts = [int(n) for n in (tmp_path / "counts").read_text().split()]
+    assert len(counts) == 12  # one run per page, 3 x 4 pages
+    assert max(counts) == 2

@@ -133,8 +133,9 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
 
 
 def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list[_Probe]) -> None:
+    engine = options.ocr_engine
     try:
-        lang, missing = resolve_languages(options.languages, options.tesseract_cmd)
+        lang, missing = resolve_languages(engine.languages, engine.tesseract_cmd)
     except OcrUnavailableError as e:
         doc.issue(
             Severity.WARNING if options.ocr is not OcrMode.ALWAYS else Severity.ERROR,
@@ -152,26 +153,25 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
 
     def work(p: _Probe) -> tuple[_Probe, OcrResult | None, Exception | None]:
         try:
-            with PDFIUM_LOCK:
-                pg = opened.pdf[p.index]
-                img = pg.render(scale=options.dpi / 72.0, may_draw_forms=True).to_pil()
-                pg.close()
-            return (
-                p,
-                ocr_image(
+            # the slot also covers rendering: a 300 dpi page image is ~25 MB, so waiting pages stay unrendered
+            with engine._slots:
+                with PDFIUM_LOCK:
+                    pg = opened.pdf[p.index]
+                    img = pg.render(scale=engine.dpi / 72.0, may_draw_forms=True).to_pil()
+                    pg.close()
+                result = ocr_image(
                     img,
-                    options.dpi,
+                    engine.dpi,
                     lang,
-                    detect_orientation=options.detect_orientation,
-                    cmd=options.tesseract_cmd,
-                    timeout=options.ocr_timeout,
-                ),
-                None,
-            )
+                    detect_orientation=engine.detect_orientation,
+                    cmd=engine.tesseract_cmd,
+                    timeout=engine.timeout,
+                )
+            return p, result, None
         except Exception as e:  # noqa: BLE001 - recorded as issue
             return p, None, e
 
-    with ThreadPoolExecutor(max_workers=max(1, options.jobs)) as ex:
+    with ThreadPoolExecutor(max_workers=engine.max_parallel) as ex:
         for p, res, err in ex.map(work, todo):
             page = p.page
             if err is not None or res is None:
