@@ -43,8 +43,10 @@ that stay in the text.
 and OCR junk, collapses letter-spacing, de-hyphenates, then re-joins
 paragraphs across page and column breaks.
 
-**Render** (`render/`). Formats register via `register_renderer`: `raw`,
-`txt`, `html`, `json`.
+**Result** (`document.py`). `parse()` turns the internal `Document` into the
+immutable `PdfDocument` (pages, blocks, metadata, report). Renderers
+(`render/`) read only `PdfDocument`; formats register via `register_renderer`:
+`raw`, `txt`, `html`, `json`.
 
 ## Extending
 
@@ -58,9 +60,9 @@ def word_count(ctx):
     ctx.doc.stats["words"] = len(ctx.doc.body_text().split())
 
 pipe = Pipeline().insert_after("flow", word_count)   # also insert_before / replace / remove / append
-doc = pipe.run("file.pdf")
+doc = pipe.run("file.pdf")                           # the internal Document
 
-register_renderer("markdown", lambda d: "\n\n".join(b.text for b in d.body_blocks), "md")
+register_renderer("upper", lambda d: d.text().upper(), "up.txt")   # d is a PdfDocument
 ```
 
 ## Tests

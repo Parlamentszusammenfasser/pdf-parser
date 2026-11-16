@@ -5,18 +5,17 @@ Quick start::
     from pazufa_pdf_parser import parse, render
 
     doc = parse("letter.pdf")   # OCR is used automatically for scans
-    print(render(doc, "txt"))   # sanitized text; also: raw, html, json
+    print(doc.text())           # sanitized body text; render(doc, "html") for other formats
 """
 
 from .api import convert, parse, render
+from .document import PARSER_VERSION, Block, Page, PdfDocument
 from .errors import OcrUnavailableError, PazufaError, PdfOpenError, StepError, UnknownFormatError
 from .model import (
     BBox,
-    Block,
     BlockKind,
     Document,
     Line,
-    Page,
     PageSource,
     Region,
     RegionKind,
@@ -26,7 +25,7 @@ from .options import OcrMode, ParseOptions
 from .pipeline import Context, FuncStep, Pipeline, Step, step
 from .render import available_formats, register_renderer
 
-__version__ = "0.1.0"
+__version__ = PARSER_VERSION
 
 __all__ = [
     "parse",
@@ -42,6 +41,7 @@ __all__ = [
     "step",
     "Context",
     "Document",
+    "PdfDocument",
     "Page",
     "Block",
     "BlockKind",

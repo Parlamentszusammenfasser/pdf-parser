@@ -28,7 +28,9 @@ Requires Python â‰¥ 3.12. Optional, for scans: `tesseract` with German data
 from pazufa_pdf_parser import parse, render
 
 doc = parse("statement.pdf")          # path, bytes or binary file object
-render(doc, "txt")                    # clean text; also "raw", "html", "json"
+doc.text()                            # clean body text
+doc.text(pages=[2, 3])                # only these pages (1-based)
+render(doc, "html")                   # also "txt", "raw", "json"
 ```
 
 Options are keyword arguments (or a `ParseOptions` object):
@@ -39,20 +41,23 @@ parse(data, languages="deu+eng", dpi=400, first_page=2, last_page=5, password="â
 ```
 
 `parse` does not raise on recoverable problems. It records them in
-`doc.issues` and carries on; pass `strict=True` to raise instead. Unreadable
+`doc.report.issues` and carries on; pass `strict=True` to raise instead. Unreadable
 PDFs raise `PdfOpenError` (all errors subclass `PazufaError`).
 
 ### What you get
 
+`parse` returns an immutable `PdfDocument`:
+
 | attribute | content |
 |---|---|
-| `doc.pages` | per page: `source` (`text`/`ocr`/`empty`), `blocks` (body in reading order), `furniture` (headers, footers, page numbers), `extras` (margin notes, noise), `layout` tree |
-| `doc.body_blocks` | all body blocks in reading order, each with `kind`, `text`, `bbox` |
-| `doc.pdf_info`, `doc.sha256` | PDF metadata and content hash |
-| `doc.issues` | warnings and errors recorded while parsing |
+| `doc.pages` | per page: `number`, `source` (`text`/`ocr`/`empty`), `text` (body text), `blocks` |
+| `doc.blocks` | every block of every page with `page`, `kind`, `text`, `bbox` (points, top-left origin), `level` (headings). `paragraph`, `heading`, `list_item` and `footnote` make up the text; `header`, `footer`, `page_number`, `marginal` and `noise` are left out of it |
+| `doc.metadata` | `title`, `author`, `created`, `modified` (`datetime` or `None`), `page_count` |
+| `doc.sha256` | content hash of the PDF |
+| `doc.report` | `parser_version`; per page why it was or was not OCRed and the OCR confidence; `issues` |
 
-`doc.to_dict()` returns this as JSON-friendly data; the `json` format is
-`to_dict(include_layout=True)`.
+A paragraph that continues across a page break belongs to the page it starts
+on. `doc.to_json()` serialises the whole result (the `json` format).
 
 ## Command line
 
@@ -71,9 +76,9 @@ stops a batch; exit code is `1` if any input failed.
 | format | content |
 |---|---|
 | `txt` | clean running text: no headers/footers/page numbers, de-hyphenated, paragraphs re-joined across page and column breaks |
-| `raw` | everything extracted, unsanitized, pages separated by form feeds |
-| `html` | headings, paragraphs, lists, columns and synopses |
-| `json` | per-page blocks with kind, text and geometry, plus stats and issues |
+| `raw` | every block in reading order, including headers, footers, page numbers, margin notes and OCR noise; pages separated by form feeds. Not the untouched PDF text: each block is sanitized (and paragraphs re-joined) as in `txt` |
+| `html` | headings, paragraphs, lists and footnotes in reading order (columns and synopses are read one after the other, not laid out side by side) |
+| `json` | the whole `PdfDocument`: pages, blocks with kind, text and geometry, metadata and report |
 
 ## Known limitations
 

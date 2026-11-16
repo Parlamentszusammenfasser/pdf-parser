@@ -28,12 +28,8 @@ def test_custom_renderer(parsed):
 
 
 @pytest.mark.parametrize("name", ALL_DOCS)
-def test_raw_contains_everything(parsed, name):
-    d = parsed[name]
-    raw = render(d, "raw")
-    words = {w.text for p in d.pages for w in p.words}
-    missing = [w for w in words if w not in raw]
-    assert not missing
+def test_raw_contains_the_txt(parsed, name):
+    assert set(render(parsed[name], "txt").split()) <= set(render(parsed[name], "raw").split())
 
 
 def test_raw_keeps_furniture_and_page_breaks(parsed):
@@ -85,12 +81,10 @@ def test_html_well_formed(parsed, name):
     assert html.startswith("<!DOCTYPE html>")
 
 
-def test_html_columns_and_synopsis(parsed):
-    assert 'class="cols"' in render(parsed["two_column"], "html")
-    syn = render(parsed["synopsis"], "html")
-    assert 'class="synopsis"' in syn
-    # aligned rows: left and right cell per row
-    assert syn.count('<div class="l">') == syn.count('<div class="r">') > 3
+def test_html_is_body_in_reading_order(parsed):
+    html = render(parsed["two_column"], "html")
+    assert html.index("vor der rechten Spalte gelesen werden muss.") < html.index("Völlig anderer Inhalt")
+    assert "Registergericht" not in render(parsed["letter"], "html")  # page footer left out
 
 
 def test_html_escapes(parsed):

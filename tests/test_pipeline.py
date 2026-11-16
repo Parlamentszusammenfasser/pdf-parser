@@ -53,7 +53,6 @@ class TestRobustness:
         b = parse(str(p), ocr="never")
         c = parse(io.BytesIO(letter_pdf), ocr="never")
         assert a.sha256 == b.sha256 == c.sha256
-        assert a.source == str(p) and c.source is None
         assert render(a, "txt") == render(c, "txt")
 
     def test_not_a_pdf(self):
@@ -101,20 +100,19 @@ class TestRobustness:
             [paragraph(70, 100, ["Sehr geehrte Damen und Herren,", "dies ist ein Test mit gedrehter Seite."])],
             rotate=90,
         )
-        d = parse(pdf, ocr="never")
+        d = Pipeline().run(pdf, ParseOptions(ocr=OcrMode.NEVER))
         # /Rotate 90 shows the text sideways; the page frame is turned back upright
         assert d.pages[0].rotation == 90
         assert d.pages[0].stats["orientation_corrected"] == 90
         assert d.pages[0].width < d.pages[0].height
-        assert "dies ist ein Test mit gedrehter Seite." in render(d, "txt")
+        assert "dies ist ein Test mit gedrehter Seite." in d.body_text()
 
     def test_sideways_text_is_normalised(self):
         # whole page content drawn rotated by 90° on an upright page
         items = [T(100 + i * 16, 700, f"Zeile {i} mit seitlich gedrehtem Text", 11, angle=90) for i in range(5)]
-        d = parse(make_pdf([items]), ocr="never")
+        d = Pipeline().run(make_pdf([items]), ParseOptions(ocr=OcrMode.NEVER))
         assert d.pages[0].stats.get("orientation_corrected") in (90, 270)
-        txt = render(d, "txt")
-        assert "Zeile 0 mit seitlich gedrehtem Text" in txt
+        assert "Zeile 0 mit seitlich gedrehtem Text" in d.body_text()
 
     def test_rotated_margin_note_goes_to_extras(self):
         items = paragraph(70, 100, ["Haupttext der Seite in normaler Ausrichtung.", "Noch eine Zeile Haupttext."])
@@ -122,7 +120,7 @@ class TestRobustness:
         d = parse(make_pdf([items]), ocr="never")
         assert "Randvermerk" not in render(d, "txt")
         assert "Randvermerk" in render(d, "raw")
-        assert any(b.kind is BlockKind.MARGINAL for b in d.pages[0].extras)
+        assert any(b.kind is BlockKind.MARGINAL for b in d.blocks)
 
     def test_invisible_text_layer_is_used(self):
         items = [
@@ -141,11 +139,11 @@ class TestRobustness:
 
         pdf = make_scanned_pdf([[T(70, 100, "Text im Bild", 14)]], dpi=100)
         d = parse(pdf, ocr="auto", tesseract_cmd="definitely-not-tesseract-xyz")
-        assert any(i.step == "ocr" for i in d.issues)
+        assert any(i.step == "ocr" for i in d.report.issues)
         assert d.pages[0].source is PageSource.EMPTY
 
-    def test_timings_and_stats(self, parsed):
-        d = parsed["bill"]
+    def test_timings_and_stats(self, bill_pdf):
+        d = Pipeline().run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))
         assert d.timings["total"] > 0 and "layout" in d.timings
         assert "flow_joins" in d.stats
 

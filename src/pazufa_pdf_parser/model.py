@@ -7,7 +7,7 @@ y downwards.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Iterable, Iterator
 
@@ -252,7 +252,7 @@ class Page:
         return top + self.blocks + bottom + self.extras
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Issue:
     severity: Severity
     step: str
@@ -279,28 +279,3 @@ class Document:
 
     def issue(self, severity: Severity, step: str, message: str, page: int | None = None) -> None:
         self.issues.append(Issue(severity, step, message, page))
-
-    def to_dict(self, *, include_layout: bool = False) -> dict[str, Any]:
-        """JSON-serialisable summary. Layout geometry is only included on request."""
-        from .render.json_ import document_to_dict
-
-        return document_to_dict(self, include_layout=include_layout)
-
-
-def plain(obj: Any) -> Any:
-    """Convert dataclasses / enums / sets recursively into JSON-friendly values."""
-    if isinstance(obj, StrEnum):
-        return str(obj)
-    if isinstance(obj, BBox):
-        return obj.to_list()
-    if is_dataclass(obj) and not isinstance(obj, type):
-        return {f.name: plain(getattr(obj, f.name)) for f in fields(obj)}
-    if isinstance(obj, dict):
-        return {str(k): plain(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [plain(v) for v in obj]
-    if isinstance(obj, set):
-        return sorted(plain(v) for v in obj)
-    if isinstance(obj, float):
-        return round(obj, 3)
-    return obj
