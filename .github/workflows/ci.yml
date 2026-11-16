@@ -162,7 +162,7 @@ jobs:
       - run: pipx install "uv==$UV_VERSION"
       - run: uv sync --locked
 
-      # -rs lists skip reasons; only the uncommitted samples (PAZUFA_SAMPLES_DIR) may skip.
+      # -rs lists skip reasons; with tesseract installed nothing should skip.
       # Fails below 90 % line coverage (fail_under in pyproject.toml).
       - name: Run tests with coverage
         run: uv run pytest -rs --cov --cov-report=term-missing

@@ -1,4 +1,4 @@
-# findings (samples in ~/Nextcloud/projekte/pazufa/problempdfs-by, 8 files) -- NOT copied into repo
+# findings: the first problem PDFs (now in tests/samples/by and tests/samples/sh under descriptive names, see their READMEs)
 0000000003.pdf  scan Canon, 2p, letter DIN5008, sidebar right, Stellungnahme FreieWohlfahrtspflege -> needs OCR
 0000000041.pdf  scan, 3p, /Rotate 270 (mediabox landscape, view portrait), letter Handwerkstag, footer logo
 0000010143.pdf  scan, 2p, letter ASB, sidebar right, footer Landesvorstand
@@ -13,7 +13,9 @@ pdfium: charbox (pdf space, bottom-left, unrotated), fontsize, fontname, weight,
 # BY samples in tests/samples/by (23 files, 5.7 MB, issue #7)
 Picked from all 1352 PDFs of the 19th Wahlperiode (`pdfs-by-2026-11-14`, 497 MB) by covering every producer / document kind / OCR case, then reviewed by hand; per-file case and today's output defects in `tests/samples/by/README.md`. The full corpus stays outside git (GitHub LFS is unavailable: public fork of an archived repo).
 
-Personal-data check (body text and PDF metadata). All documents are published Landtag/government documents or association statements from a public Verbandsanhörung; no private individuals.
+Personal-data check (body text and PDF metadata).
+- Problem PDFs added later (scan-statement-sidebar, scan-rotate-270-footer-logo, scan-letter-continuation-page, drs-beschlussempfehlung-ablehnung, protokollauszug-24p): association addresses and office holders signing in role, MdL. Keep.
+- email-outlook-forwarded, email-attached-letter-ligatures: work e-mail addresses of association staff (Bauindustrie, GEW) and ministry desks, acting in role; metadata Author of the GEW mail names association staff. Keep. All documents are published Landtag/government documents or association statements from a public Verbandsanhörung; no private individuals.
 - Landtag/GVBl prints (drs-*, ausschuss-tagesordnung, plenum-tagesordnung, protokollauszug, plenarprotokoll-page, gvbl-landscape-tables): MdL and office holders only. Metadata Author of the two agendas names Landtagsamt staff (role: author of an official document). Keep.
 - letter-clean, statement-page-break, statement-toc-dot-leaders, scan-letter, scan-reading-order, scan-rotate-270, scan-garbled-font: association addresses, office holders signing in role. Keep.
 - email-forwarded-with-statement, email-multiline-subject: names and work e-mail addresses of association staff and ministry desks, acting in role. Keep.

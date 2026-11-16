@@ -13,7 +13,7 @@ from pdfgen import T, make_pdf, paragraph  # noqa: E402
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "ocr: needs a working tesseract installation with German data")
-    config.addinivalue_line("markers", "samples: runs against real sample PDFs (tests/samples, PAZUFA_SAMPLES_DIR)")
+    config.addinivalue_line("markers", "samples: runs against real sample PDFs in tests/samples")
     config.addinivalue_line("markers", 'slow: takes more than ~10 s (deselect with -m "not slow")')
 
 

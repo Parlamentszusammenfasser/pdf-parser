@@ -33,7 +33,7 @@ dev = [
 testpaths = ["tests"]
 markers = [
     "ocr: needs a working tesseract installation with German data",
-    "samples: runs against real sample PDFs (tests/samples, PAZUFA_SAMPLES_DIR)",
+    "samples: runs against real sample PDFs in tests/samples",
     "slow: takes more than ~10 s (deselect with -m \"not slow\")",
 ]
 
