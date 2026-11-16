@@ -57,7 +57,13 @@ PDFs raise `PdfOpenError` (all errors subclass `PazufaError`).
 | `doc.report` | `parser_version`; per page why it was or was not OCRed and the OCR confidence; `issues` |
 
 A paragraph that continues across a page break belongs to the page it starts
-on. `doc.to_json()` serialises the whole result (the `json` format).
+on.
+
+`doc.to_json()` serialises the whole result (the `json` format) and
+`PdfDocument.from_json(s)` reads it back, e.g. to cache OCR results. Drop a
+cached result when `doc.report.parser_version` differs from
+`pazufa_pdf_parser.__version__`; JSON with another `schema_version` or broken
+input raises `PazufaError`.
 
 ## Command line
 

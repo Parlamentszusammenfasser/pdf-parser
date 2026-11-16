@@ -8,11 +8,14 @@ from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
+from typing import Any
 
 from . import model
-from .model import BlockKind, Issue, PageSource
+from .errors import PazufaError
+from .model import BlockKind, Issue, PageSource, Severity
 
 PARSER_VERSION = version("pazufa-pdf-parser")
+# bump when to_json's layout changes; from_json reads only this version
 SCHEMA_VERSION = 1
 
 
@@ -78,6 +81,43 @@ class PdfDocument:
     def to_json(self) -> str:
         data = {"schema_version": SCHEMA_VERSION, **asdict(self)}
         return json.dumps(data, ensure_ascii=False, default=datetime.isoformat)
+
+    @classmethod
+    def from_json(cls, s: str | bytes) -> PdfDocument:
+        """Load what :meth:`to_json` wrote. Raises PazufaError for another schema version or malformed input."""
+        try:
+            data = json.loads(s)
+            found = data["schema_version"]
+            if found != SCHEMA_VERSION:
+                raise PazufaError(f"PdfDocument JSON has schema_version {found!r}; this parser reads {SCHEMA_VERSION}")
+            meta, report = data["metadata"], data["report"]
+            return cls(
+                sha256=data["sha256"],
+                metadata=Metadata(
+                    meta["title"],
+                    meta["author"],
+                    _datetime(meta["created"]),
+                    _datetime(meta["modified"]),
+                    meta["page_count"],
+                ),
+                pages=tuple(_page(p) for p in data["pages"]),
+                report=Report(
+                    report["parser_version"],
+                    tuple(PageReport(**r) for r in report["pages"]),
+                    tuple(Issue(**i | {"severity": Severity(i["severity"])}) for i in report["issues"]),
+                ),
+            )
+        except (ValueError, TypeError, KeyError) as e:  # cache files can be truncated or come from other tools
+            raise PazufaError(f"not a PdfDocument JSON: {e!r}") from e
+
+
+def _datetime(value: str | None) -> datetime | None:
+    return datetime.fromisoformat(value) if value else None
+
+
+def _page(p: dict[str, Any]) -> Page:
+    blocks = (Block(**b | {"kind": BlockKind(b["kind"]), "bbox": tuple(b["bbox"])}) for b in p["blocks"])
+    return Page(p["number"], PageSource(p["source"]), tuple(blocks))
 
 
 def _body_text(blocks: Iterable[Block]) -> str:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import __version__, parse
+from pazufa_pdf_parser import PazufaError, PdfDocument, __version__, parse
 from pazufa_pdf_parser.document import pdf_date
 from pdfgen import make_pdf, paragraph
 
@@ -77,3 +77,18 @@ def test_report(parsed):
         (2, "ocr disabled", None),
     ]
     assert report.issues == ()
+
+
+@pytest.mark.parametrize(
+    "s,match",
+    [
+        ('{"schema_version": 2}', "schema_version 2"),
+        ("", "not a PdfDocument"),
+        ("[]", "not a PdfDocument"),
+        ('{"schema_version": 1}', "not a PdfDocument"),
+    ],
+    ids=["other-schema", "empty", "not-an-object", "missing-fields"],
+)
+def test_from_json_rejects(s, match):
+    with pytest.raises(PazufaError, match=match):
+        PdfDocument.from_json(s)

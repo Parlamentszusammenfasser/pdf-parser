@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import Pipeline, parse, render
+from pazufa_pdf_parser import PdfDocument, Pipeline, parse, render
 
 pytestmark = pytest.mark.samples
 
@@ -62,11 +62,12 @@ def sample(name):
 
 
 @pytest.mark.parametrize("name", [*BY_SAMPLES, *BW_SAMPLES, *SH_SAMPLES])
-def test_all_formats_render(name):
+def test_renders_and_round_trips(name):
     d = sample(name)
     assert not [i for i in d.report.issues if i.severity == "error"]
     for fmt in ("raw", "txt", "html", "json"):
         assert render(d, fmt).strip()
+    assert PdfDocument.from_json(d.to_json()) == d
 
 
 def test_clean_drucksache():
