@@ -113,7 +113,7 @@ def test_tesseract_runs_single_threaded(monkeypatch, user_limit, expected):
 
 # counts the OCR runs alive when one starts; `--list-langs` probes are not OCR runs
 COUNTING_TESSERACT = """#!{python}
-import os, subprocess, sys
+import os, subprocess, sys, time
 from pathlib import Path
 
 if "--list-langs" in sys.argv:
@@ -125,6 +125,7 @@ me.touch()
 try:
     with open(Path({dir!r}) / "counts", "a") as f:
         f.write(f"{{len(list(running.iterdir()))}}\\n")
+    time.sleep(0.2)  # long enough for runs of other parses to overlap, if the cap lets them
     sys.exit(subprocess.call(["tesseract", *sys.argv[1:]]))
 finally:
     me.unlink()

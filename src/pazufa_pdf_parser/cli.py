@@ -63,7 +63,7 @@ def _add_parse_options(p: argparse.ArgumentParser) -> None:
 
 def _options(args: argparse.Namespace) -> ParseOptions:
     engine = dict(
-        languages=tuple(x for x in args.lang.replace(",", "+").split("+") if x),
+        languages=args.lang,
         dpi=args.dpi,
         detect_orientation=not args.no_osd,
         tesseract_cmd=args.tesseract,

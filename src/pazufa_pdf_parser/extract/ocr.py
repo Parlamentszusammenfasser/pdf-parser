@@ -202,7 +202,7 @@ def ocr_image(
 
     res = attempt(img, 0)
     if detect_orientation and (res.mean_confidence < 60 or len(res.words) < 15):
-        rot, conf = detect_rotation(img, dpi, cmd)
+        rot, conf = detect_rotation(img, dpi, cmd, timeout)
         res.stats["osd_rotation"], res.stats["osd_confidence"] = rot, conf
         if rot and conf >= 1.5:
             alt = attempt(img.rotate(-rot, expand=True), rot)
