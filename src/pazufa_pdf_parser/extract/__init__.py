@@ -140,22 +140,16 @@ def _leave_without_ocr(todo: list[_Probe]) -> None:
 
 def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list[_Probe]) -> None:
     engine = options.ocr_engine
-    if engine.max_pages is not None and len(todo) > engine.max_pages:
-        doc.issue(
-            Severity.WARNING,
-            "ocr",
-            f"{len(todo)} page(s) need OCR, over the limit of {engine.max_pages}; kept the text layer",
-        )
+    severity = Severity.ERROR if options.ocr is OcrMode.ALWAYS else Severity.WARNING
+    limit = options.max_ocr_pages
+    if limit is not None and len(todo) > limit:
+        doc.issue(severity, "ocr", f"{len(todo)} page(s) need OCR, over the limit of {limit}; left without OCR")
         _leave_without_ocr(todo)
         return
     try:
         lang, missing = resolve_languages(engine.languages, engine.tesseract_cmd)
     except OcrUnavailableError as e:
-        doc.issue(
-            Severity.WARNING if options.ocr is not OcrMode.ALWAYS else Severity.ERROR,
-            "ocr",
-            f"{e}; {len(todo)} page(s) left without OCR",
-        )
+        doc.issue(severity, "ocr", f"{e}; {len(todo)} page(s) left without OCR")
         _leave_without_ocr(todo)
         if options.strict:
             raise

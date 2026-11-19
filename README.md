@@ -38,15 +38,14 @@ Options are keyword arguments (or a `ParseOptions` object):
 ```python
 parse(data, ocr="never")              # "auto" (default) | "always" | "never"
 parse(data, first_page=2, last_page=5, password="…")
+parse(data, max_ocr_pages=500)        # more pages to OCR: none OCR'd, WARNING issue (ERROR if ocr="always")
 ```
 
 Tesseract settings live in one `Ocr` object per process. Its `max_parallel`
 caps the Tesseract processes of every `parse()` sharing it, also across
 threads, and pages get their turn in order; a PDF without pages to OCR never
 waits. By default all calls share
-`Ocr()`: German, 300 dpi, up to 4 processes. `max_pages` skips OCR for a
-PDF with more pages to OCR than that; its text layer is kept and a
-`WARNING` issue with step `ocr` is recorded.
+`Ocr()`: German, 300 dpi, up to 4 processes.
 
 ```python
 OCR = Ocr(languages=("deu", "eng"), dpi=400, max_parallel=2)   # once per process
