@@ -1,67 +1,59 @@
-"""pazufa_pdf_parser - robust extraction of clean text and layout from PDF documents.
+"""pazufa_pdf_parser - clean text and layout from PDF documents.
 
 Quick start::
 
-    from pazufa_pdf_parser import parse, render
+    from pazufa_pdf_parser import parse
 
     doc = parse("letter.pdf")   # OCR is used automatically for scans
-    print(doc.text())           # sanitized body text; render(doc, "html") for other formats
+    print(doc.text())
+
+The names in ``__all__`` are the public API. ``pazufa_pdf_parser._pipeline``
+is internal and changes without notice.
 """
 
-from .api import convert, parse, render
-from .document import PARSER_VERSION, Block, Page, PdfDocument
-from .errors import OcrUnavailableError, PazufaError, PdfOpenError, StepError, UnknownFormatError
-from .model import (
-    BBox,
+from ._document import (
+    PARSER_VERSION,
+    Block,
     BlockKind,
-    Document,
-    Line,
+    Issue,
+    Metadata,
+    Page,
+    PageReport,
     PageSource,
-    Region,
-    RegionKind,
-    Word,
+    PdfDocument,
+    Report,
+    Severity,
 )
-from .options import Ocr, OcrMode, ParseOptions
-from .pipeline import Context, FuncStep, Pipeline, Step, step
-from .render import available_formats, register_renderer
+from ._errors import OcrUnavailableError, PazufaError, PdfOpenError, SchemaVersionError, StepError, UnknownFormatError
+from ._options import Ocr, OcrMode, ParseOptions
+from ._pipeline.api import parse
+from ._pipeline.render import Format, render
+from ._pipeline.source import Source
 
 __version__ = PARSER_VERSION
 
 __all__ = [
     "parse",
-    "render",
-    "convert",
-    "available_formats",
-    "register_renderer",
+    "Source",
     "ParseOptions",
     "OcrMode",
     "Ocr",
-    "Pipeline",
-    "Step",
-    "FuncStep",
-    "step",
-    "Context",
-    "Document",
     "PdfDocument",
     "Page",
     "Block",
     "BlockKind",
-    "Line",
-    "Word",
-    "BBox",
-    "Region",
-    "RegionKind",
     "PageSource",
+    "Metadata",
+    "Report",
+    "PageReport",
+    "Issue",
+    "Severity",
+    "render",
+    "Format",
     "PazufaError",
     "PdfOpenError",
     "OcrUnavailableError",
     "StepError",
     "UnknownFormatError",
-    "main",
+    "SchemaVersionError",
 ]
-
-
-def main(argv: list[str] | None = None) -> int:
-    from .cli import main as _main
-
-    return _main(argv)

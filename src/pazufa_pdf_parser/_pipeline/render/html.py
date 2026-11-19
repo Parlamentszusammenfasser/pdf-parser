@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from html import escape
 
-from ..document import Block, PdfDocument
-from ..model import BlockKind
+from ..._document import Block, BlockKind, PdfDocument
 
 CSS = """
 :root{color-scheme:light dark}

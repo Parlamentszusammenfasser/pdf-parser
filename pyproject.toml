@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pazufa-pdf-parser = "pazufa_pdf_parser:main"
+pazufa-pdf-parser = "pazufa_pdf_parser.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]
@@ -80,7 +80,7 @@ select = ["E", "F", "I", "S"]
 # asserts, subprocess calls to qpdf and fake passwords are what tests are made of
 "tests/**" = ["S101", "S106", "S311", "S603", "S607"]
 # tesseract runs from an argv list, never through a shell
-"src/pazufa_pdf_parser/extract/ocr.py" = ["S603"]
+"src/pazufa_pdf_parser/_pipeline/extract/ocr.py" = ["S603"]
 
 [tool.mypy]
 python_version = "3.12"

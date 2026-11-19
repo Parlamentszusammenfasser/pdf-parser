@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import threading
 from collections import deque
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields
 from enum import StrEnum
-from functools import cached_property
+from functools import cached_property, partial
 from typing import Any
 
 
@@ -44,7 +44,7 @@ class _Slots:
                 self._free += 1
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, kw_only=True)
 class Ocr:
     """Tesseract settings; create one per process and share it between parse() calls.
 
@@ -77,23 +77,19 @@ class Ocr:
 
     def __reduce__(self) -> tuple[Any, ...]:
         # the limit is per process: a pickled copy (e.g. sent to a ProcessPoolExecutor) gets its own slots
-        return Ocr, (
-            self.languages,
-            self.dpi,
-            self.max_parallel,
-            self.timeout,
-            self.tesseract_cmd,
-            self.detect_orientation,
-        )
+        return partial(type(self), **{f.name: getattr(self, f.name) for f in fields(self) if f.init}), ()
+
+    def __copy__(self) -> Ocr:
+        return self  # copies of options must keep sharing the limit
 
     def __deepcopy__(self, memo: dict[int, Any]) -> Ocr:
-        return self  # copies of options must keep sharing the limit
+        return self
 
 
 DEFAULT_OCR = Ocr()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ParseOptions:
     ocr: OcrMode = OcrMode.AUTO
     #: shared Tesseract settings and parallelism limit
@@ -118,6 +114,5 @@ class ParseOptions:
         # a negative limit would silently turn OCR off for every scan
         if self.max_ocr_pages is not None and (type(self.max_ocr_pages) is not int or self.max_ocr_pages < 0):
             raise ValueError(f"max_ocr_pages must be a whole number of at least 0, got {self.max_ocr_pages!r}")
-
-    def with_(self, **changes) -> ParseOptions:
-        return replace(self, **changes)
+        # ParseOptions(ocr="never") would otherwise be silently treated as "auto" by the identity checks
+        object.__setattr__(self, "ocr", OcrMode(self.ocr))

@@ -5,8 +5,8 @@ from __future__ import annotations
 import copy
 import re
 
+from ..._options import ParseOptions
 from ..model import BBox, Block, BlockKind, Document, Page, Region, RegionKind, Word
-from ..options import ParseOptions
 from ..sanitize import block_is_noise
 from .blocks import classify_headings, fill_leaves, split_blocks
 from .furniture import detect_furniture

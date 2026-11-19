@@ -12,7 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import PdfDocument, Pipeline, parse, render
+from pazufa_pdf_parser import PdfDocument, parse, render
+from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 
 pytestmark = pytest.mark.samples
 

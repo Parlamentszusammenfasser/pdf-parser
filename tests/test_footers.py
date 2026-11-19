@@ -1,9 +1,11 @@
 """Second-pass footer detection (layout.footers) and the furniture/flow steps."""
 
-from pazufa_pdf_parser import BlockKind, OcrMode, ParseOptions, Pipeline, parse, render
-from pazufa_pdf_parser.extract.pdf import plausible_size
-from pazufa_pdf_parser.layout.footers import footer_score, lexicon_hits
-from pazufa_pdf_parser.model import BBox
+from conftest import NO_OCR
+from pazufa_pdf_parser import BlockKind, parse, render
+from pazufa_pdf_parser._pipeline.extract.pdf import plausible_size
+from pazufa_pdf_parser._pipeline.layout.footers import footer_score, lexicon_hits
+from pazufa_pdf_parser._pipeline.model import BBox
+from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 from pdfgen import T, make_pdf, paragraph
 
 PROSE = [
@@ -24,7 +26,7 @@ def footer_lines(doc):
 
 def test_single_page_small_footer_note_removed():
     pdf = make_pdf([body() + [T(70, 790, "Drucksachen sind im Internet unter www.landtag.example abrufbar.", 8)]])
-    d = parse(pdf, ocr="never")
+    d = parse(pdf, NO_OCR)
     assert footer_lines(d) == [(1, "Drucksachen sind im Internet unter www.landtag.example abrufbar.")]
     assert "abrufbar" not in render(d, "txt")
     assert "abrufbar" in render(d, "raw")
@@ -36,7 +38,7 @@ def test_first_page_only_letter_footer_removed():
         T(70, 790, "Bankverbindung: Sparkasse · IBAN DE89 3704 0044 0532 0130 00", 7),
     ]
     p2 = body() + [T(70, 300, "Mit freundlichen Grüßen", 11)]
-    d = parse(make_pdf([p1, p2]), ocr="never")
+    d = parse(make_pdf([p1, p2]), NO_OCR)
     assert {n for n, _ in footer_lines(d)} == {1}
     txt = render(d, "txt")
     assert "Registergericht" not in txt and "IBAN" not in txt
@@ -46,7 +48,7 @@ def test_first_page_only_letter_footer_removed():
 def test_varying_logo_text_is_detected_by_tolerant_repetition():
     logos = ["DAS HANDWERK", "DAS HANZWERK", "DAS"]  # OCR reads the logo differently on every page
     pages = [body() + [T(400, 780, logo, 16, True)] for logo in logos]
-    d = parse(make_pdf(pages), ocr="never")
+    d = parse(make_pdf(pages), NO_OCR)
     # pages 1/2 are similar enough for the repetition pass in `layout`; page 3 ("DAS")
     # is only caught by the token-tolerant second pass
     assert all(any(b.kind is BlockKind.FOOTER for b in p.blocks) for p in d.pages)
@@ -58,7 +60,7 @@ def test_text_running_to_page_bottom_is_kept():
     lines = [
         f"Zeile {i} eines langen Redebeitrags, der bis an den Seitenrand reicht und weitergeht." for i in range(50)
     ]
-    d = parse(make_pdf([paragraph(70, 60, lines, 11, 1.3)]), ocr="never")
+    d = parse(make_pdf([paragraph(70, 60, lines, 11, 1.3)]), NO_OCR)
     assert footer_lines(d) == []
     assert "Zeile 49" in render(d, "txt")
 
@@ -70,7 +72,7 @@ def test_normal_body_paragraph_after_gap_is_kept():
             + paragraph(70, 760, ["Wir bitten um Kenntnisnahme und stehen für Rückfragen gerne zur Verfügung."], 11)
         ]
     )
-    d = parse(pdf, ocr="never")
+    d = parse(pdf, NO_OCR)
     assert footer_lines(d) == []
     assert "Kenntnisnahme" in render(d, "txt")
 
@@ -79,7 +81,7 @@ def test_footnotes_are_kept_and_do_not_break_the_flow():
     p1 = body() + paragraph(70, 400, ["Die Quote liegt bundesweit am niedrigsten.1 Hinzu kommt, dass die Träger"], 11)
     p1 += [T(70, 780, "1 Bertelsmann Stiftung (Hrsg.) (2026): Die Personalausstattungsquote in Kitas.", 8)]
     p2 = paragraph(70, 60, ["nur bei voller Belegung ausreichend finanziert werden."], 11)
-    d = parse(make_pdf([p1, p2]), ocr="never")
+    d = parse(make_pdf([p1, p2]), NO_OCR)
     notes = [b for b in d.blocks if b.kind is BlockKind.FOOTNOTE]
     assert len(notes) == 1 and notes[0].text.startswith("1 Bertelsmann")
     txt = render(d, "txt")
@@ -90,7 +92,7 @@ def test_footnotes_are_kept_and_do_not_break_the_flow():
 
 def test_scaled_text_matrix_font_size():
     items = [T(70, 100 + i * 15, f"Zeile {i} mit skalierter Textmatrix", 11, tf_one=True) for i in range(3)]
-    d = Pipeline().run(make_pdf([items]), ParseOptions(ocr=OcrMode.NEVER))
+    d = Pipeline().run(make_pdf([items]), NO_OCR)
     sizes = {round(w.size) for w in d.pages[0].words}
     assert sizes == {11}
 
@@ -103,7 +105,7 @@ def test_plausible_size():
 
 
 def test_scoring_helpers():
-    from pazufa_pdf_parser.model import Block, Line, Word
+    from pazufa_pdf_parser._pipeline.model import Block, Line, Word
 
     def blk(text, size):
         w = Word(text, BBox(70, 780, 400, 780 + size), size=size)

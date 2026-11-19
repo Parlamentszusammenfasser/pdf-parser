@@ -6,9 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from PIL import Image
 
-from pazufa_pdf_parser import Ocr, PageSource, Pipeline, parse, render
-from pazufa_pdf_parser.extract import ocr
-from pazufa_pdf_parser.extract.ocr import parse_tsv
+from pazufa_pdf_parser import Ocr, OcrMode, PageSource, ParseOptions, parse, render
+from pazufa_pdf_parser._pipeline.extract import ocr
+from pazufa_pdf_parser._pipeline.extract.ocr import parse_tsv
+from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 from pdfgen import T, make_scanned_pdf, paragraph
 
 pytestmark = pytest.mark.ocr
@@ -61,7 +62,7 @@ def test_rotated_scan_is_corrected():
 
 
 def test_ocr_always_overrides_text_layer(letter_pdf):
-    d = parse(letter_pdf, ocr="always", ocr_engine=Ocr(dpi=200), first_page=1, last_page=1)
+    d = parse(letter_pdf, ParseOptions(ocr=OcrMode.ALWAYS, ocr_engine=Ocr(dpi=200), first_page=1, last_page=1))
     assert d.pages[0].source is PageSource.OCR
     assert "Sehr geehrte Frau Muster" in render(d, "txt")
 
@@ -139,7 +140,7 @@ def test_shared_ocr_caps_tesseract_runs_across_parses(tmp_path):
     engine = Ocr(max_parallel=2, dpi=100, detect_orientation=False, tesseract_cmd=str(wrapper))
     scan = make_scanned_pdf([LETTER_LINES] * 4, dpi=100)
     with ThreadPoolExecutor(3) as ex:
-        list(ex.map(lambda _: parse(scan, ocr_engine=engine), range(3)))
+        list(ex.map(lambda _: parse(scan, ParseOptions(ocr_engine=engine)), range(3)))
     counts = [int(n) for n in (tmp_path / "counts").read_text().split()]
     assert len(counts) == 12  # one run per page, 3 x 4 pages
     assert max(counts) == 2

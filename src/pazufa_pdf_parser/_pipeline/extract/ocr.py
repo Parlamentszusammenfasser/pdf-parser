@@ -14,7 +14,7 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from ..errors import OcrUnavailableError
+from ..._errors import OcrUnavailableError
 from ..model import BBox, TextSource, Word
 
 

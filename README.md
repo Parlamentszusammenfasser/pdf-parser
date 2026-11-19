@@ -2,110 +2,167 @@
 
 Turns PDFs of German legal and administrative documents (letters, printed
 e-mails, Drucksachen and synopses, plenary protocols, statutes, court
-decisions, contracts) into clean text: page headers, footers and page numbers
-removed, columns in reading order, paragraphs re-joined across page breaks.
-Works on born-digital PDFs and scans (OCR via tesseract).
+decisions, contracts) into clean text and layout. Works on born-digital PDFs
+and scans (OCR via tesseract).
 
-## Install
+- page headers, footers, page numbers and margin notes removed
+- columns and synopses in reading order
+- hyphenation fixed, paragraphs re-joined across page and column breaks
+- every block kept with its kind (heading, paragraph, footnote, …) and position
+
+## Quick start
 
 ```sh
-uv add git+https://github.com/Parlamentszusammenfasser/pdf-parser --tag 0.1.0
+uv add git+https://github.com/Parlamentszusammenfasser/pdf-parser --tag <release>
 ```
-
-Pin a [release](https://github.com/Parlamentszusammenfasser/pdf-parser/releases)
-tag. Each release also carries the wheel and sdist with a build-provenance
-attestation (`gh attestation verify <file> -R Parlamentszusammenfasser/pdf-parser`).
-
-The repo is `pdf-parser`; the package is `pazufa-pdf-parser`
-(`import pazufa_pdf_parser`), and the CLI command is `pazufa-pdf-parser`.
-
-Requires Python ≥ 3.12. Optional, for scans: `tesseract` with German data
-(`apt install tesseract-ocr tesseract-ocr-deu`).
-
-## Library
 
 ```python
 from pazufa_pdf_parser import parse, render
 
-doc = parse("statement.pdf")          # path, bytes or binary file object
-doc.text()                            # clean body text
-doc.text(pages=[2, 3])                # only these pages (1-based)
-render(doc, "html")                   # also "txt", "raw", "json"
+doc = parse("drucksache.pdf")      # path, bytes or binary file object
+doc.text()                         # clean body text
+render(doc, "html")                # or "txt", "raw", "json"
 ```
 
-Options are keyword arguments (or a `ParseOptions` object):
+```sh
+pazufa-pdf-parser drucksache.pdf   # clean text to stdout
+```
+
+Requires Python ≥ 3.12. Use a
+[release](https://github.com/Parlamentszusammenfasser/pdf-parser/releases) tag
+for `<release>`; each release carries the wheel and sdist with a
+build-provenance attestation. For scans, install `tesseract` with German data
+(`apt install tesseract-ocr tesseract-ocr-deu`); without it, pages that need
+OCR stay empty and the report says why.
+
+## How it works
+
+`parse()` runs five steps:
+
+1. **extract**: characters from the PDF text layer; pages without a usable one are OCRed
+2. **layout**: lines, columns, blocks, headings, lists, footnotes
+3. **furniture**: headers, footers and page numbers, found by repetition across pages
+4. **sanitize**: hyphenation, whitespace, OCR noise
+5. **flow**: paragraphs that continue on the next page or column
+
+If step 3, 4 or 5 fails, the document is still returned and the failure is
+recorded in its report. Details: [docs/architecture.md](docs/architecture.md).
+
+## Library
+
+### Options
 
 ```python
-parse(data, ocr="never")              # "auto" (default) | "always" | "never"
-parse(data, first_page=2, last_page=5, password="…")
-parse(data, max_ocr_pages=500)        # more pages to OCR: none OCR'd, WARNING issue (ERROR if ocr="always")
+from pazufa_pdf_parser import Ocr, OcrMode, ParseOptions, parse
+
+parse(data, ParseOptions(ocr=OcrMode.NEVER))                   # AUTO (default) | ALWAYS | NEVER
+parse(data, ParseOptions(first_page=2, last_page=5, password="…"))
+parse(data, ParseOptions(max_ocr_pages=500))                   # more pages to OCR: OCR none, warn
+parse(data, ParseOptions(strict=True))                         # raise instead of recording problems
 ```
 
 Tesseract settings live in one `Ocr` object per process. Its `max_parallel`
-caps the Tesseract processes of every `parse()` sharing it, also across
-threads, and pages get their turn in order; a PDF without pages to OCR never
-waits. By default all calls share
-`Ocr()`: German, 300 dpi, up to 4 processes.
+caps the tesseract processes of all `parse()` calls sharing it, also across
+threads. The default `Ocr()` is German, 300 dpi, up to 4 processes.
 
 ```python
 OCR = Ocr(languages=("deu", "eng"), dpi=400, max_parallel=2)   # once per process
 parse(data, ParseOptions(ocr_engine=OCR))
 ```
 
-`parse` does not raise on recoverable problems. It records them in
-`doc.report.issues` and carries on; pass `strict=True` to raise instead. Unreadable
-PDFs raise `PdfOpenError` (all errors subclass `PazufaError`).
+### The result
 
-### What you get
+`parse()` returns an immutable `PdfDocument`:
 
-`parse` returns an immutable `PdfDocument`:
+```
+PdfDocument
+├── sha256              hash of the PDF
+├── metadata            title, author, created, modified, page_count
+├── pages[]             number, source (text | ocr | empty), blocks, text()
+├── blocks              all blocks: page, kind, text, bbox, level
+├── text(pages=None)    body text, optionally of some pages, e.g. pages=[2, 3]
+└── report              parser_version, pages[] (ocr_reason, ocr_confidence), issues[]
+```
 
-| attribute | content |
+`paragraph`, `heading`, `list_item` and `footnote` blocks make up the text;
+`header`, `footer`, `page_number`, `marginal` and `noise` blocks are kept but
+left out of it. `bbox` is in points, origin top left, page rotation applied. A
+paragraph that continues across a page break belongs to the page it starts on.
+
+`parse()` does not raise on recoverable problems; it records them as issues:
+
+```python
+from pazufa_pdf_parser import Severity
+
+for issue in doc.report.issues:
+    if issue.severity >= Severity.WARNING:
+        print(issue.page, issue.step, issue.message)
+```
+
+`issue.step` (`extract`, `ocr`, `layout`, `furniture`, `sanitize`, `flow`) and
+`severity` are stable; `message` is for people.
+
+### Output formats
+
+| `render(doc, …)` | content |
 |---|---|
-| `doc.pages` | per page: `number`, `source` (`text`/`ocr`/`empty`), `text` (body text), `blocks` |
-| `doc.blocks` | every block of every page with `page`, `kind`, `text`, `bbox` (points, top-left origin), `level` (headings). `paragraph`, `heading`, `list_item` and `footnote` make up the text; `header`, `footer`, `page_number`, `marginal` and `noise` are left out of it |
-| `doc.metadata` | `title`, `author`, `created`, `modified` (`datetime` or `None`), `page_count` |
-| `doc.sha256` | content hash of the PDF |
-| `doc.report` | `parser_version`; per page why it was or was not OCRed and the OCR confidence; `issues` |
+| `"txt"` | clean running text |
+| `"raw"` | every block in reading order, including headers, footers, page numbers, margin notes and noise; pages separated by form feeds |
+| `"html"` | headings, paragraphs, lists and footnotes in reading order |
+| `"json"` | the whole `PdfDocument`, same as `doc.to_json()` |
 
-A paragraph that continues across a page break belongs to the page it starts
-on.
+### Errors
 
-`doc.to_json()` serialises the whole result (the `json` format) and
-`PdfDocument.from_json(s)` reads it back, e.g. to cache OCR results. Key the
-cache by `doc.sha256` and the options you parsed with (OCR mode, page range,
-OCR languages), and drop an entry when `doc.report.parser_version` differs
-from `pazufa_pdf_parser.__version__`. JSON with another `schema_version`,
-invalid JSON or missing fields raise `PazufaError`.
+All subclass `PazufaError`:
+
+- `PdfOpenError`: not a readable PDF (corrupt, wrong password)
+- `StepError`: `extract` or `layout` failed, or any step with `strict=True`; `e.step`, `e.cause`
+- `OcrUnavailableError`: `strict=True` and OCR needed, but no tesseract
+- `UnknownFormatError`: unknown `render` format
+- `SchemaVersionError`: `from_json` got JSON from a newer version
+
+### Caching
+
+```python
+cached = doc.to_json()
+doc = PdfDocument.from_json(cached)
+```
+
+Key the cache by `doc.sha256` and the options you parsed with. `from_json`
+reads JSON from older versions; JSON from newer ones raises
+`SchemaVersionError`, so parse the PDF again. To pick up parser improvements,
+drop entries whose `doc.report.parser_version` differs from
+`pazufa_pdf_parser.__version__`.
+
+### Stability
+
+The public API is `__all__` plus `__version__`; it is typed (`py.typed`).
+Underscored modules such as `pazufa_pdf_parser._pipeline` are internal.
+Breaking changes are marked in the release notes.
 
 ## Command line
 
 ```sh
-pazufa-pdf-parser letter.pdf                        # clean text to stdout
-pazufa-pdf-parser letter.pdf -f json                # pages and blocks with geometry
-pazufa-pdf-parser in/ -r -f txt,json -o out/        # batch, several formats
+pazufa-pdf-parser letter.pdf -f json               # pages and blocks with geometry
+pazufa-pdf-parser in/ -r -f txt,json -o out/       # a folder, several formats
 ```
 
 Common options: `--ocr auto|always|never`, `--lang deu+eng`, `--pages 2-5`,
-`--password`, `--strict`, `-v` (print recorded issues). A broken input never
-stops a batch; exit code is `1` if any input failed.
-
-## Output formats
-
-| format | content |
-|---|---|
-| `txt` | clean running text: no headers/footers/page numbers, de-hyphenated, paragraphs re-joined across page and column breaks |
-| `raw` | every block in reading order, including headers, footers, page numbers, margin notes and OCR noise; pages separated by form feeds. Not the untouched PDF text: each block is sanitized (and paragraphs re-joined) as in `txt` |
-| `html` | headings, paragraphs, lists and footnotes in reading order (columns and synopses are read one after the other, not laid out side by side) |
-| `json` | the whole `PdfDocument`: pages, blocks with kind, text and geometry, metadata and report |
+`--password`, `--strict`, `-v` (print issues); all in `pazufa-pdf-parser
+extract --help`. A broken input never stops a batch; the exit code is `1` if
+any input failed.
 
 ## Known limitations
 
 - Two signatures side by side on a scan are read as one line.
-- Letterheads at the top of the page are only removed when they repeat.
+- Letterheads are only removed when they repeat.
 - No handwriting recognition.
 
-## More
+## Development
 
-- [docs/architecture.md](docs/architecture.md): pipeline, extending, tests
-- `plan/`: task ledger and notes on the real sample PDFs
+```sh
+uv sync
+uv run ruff format && uv run ruff check && uv run mypy && uv run pytest
+```
+
+See [docs/architecture.md](docs/architecture.md) and [CLAUDE.md](CLAUDE.md).

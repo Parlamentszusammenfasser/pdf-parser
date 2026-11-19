@@ -1,19 +1,24 @@
+import pickle
 from html.parser import HTMLParser
+from typing import get_args
 
 import pytest
 
-from pazufa_pdf_parser import PdfDocument, UnknownFormatError, available_formats, register_renderer, render
+from pazufa_pdf_parser import Format, PdfDocument, UnknownFormatError, render
+from pazufa_pdf_parser._pipeline.render import available_formats, register_renderer
 
 ALL_DOCS = ["letter", "bill", "email", "protocol", "judgment", "contract", "synopsis", "two_column"]
 
 
 def test_formats_registered():
-    assert {"raw", "txt", "html", "json"} <= set(available_formats())
+    # the public Format type and the renderers that exist must not drift apart
+    assert set(get_args(Format)) == set(available_formats()) == {"raw", "txt", "html", "json"}
 
 
-def test_unknown_format(parsed):
-    with pytest.raises(UnknownFormatError):
-        render(parsed["letter"], "pdf")
+@pytest.mark.parametrize("fmt", ["pdf", "", "htm"], ids=["other", "empty", "typo"])
+def test_unknown_format(parsed, fmt):
+    with pytest.raises(UnknownFormatError, match="available: html, json, raw, txt"):
+        render(parsed["letter"], fmt)
 
 
 def test_custom_renderer(parsed):
@@ -21,7 +26,7 @@ def test_custom_renderer(parsed):
     try:
         assert "SEHR GEEHRTE" in render(parsed["letter"], "upper")
     finally:
-        from pazufa_pdf_parser.render import _REGISTRY
+        from pazufa_pdf_parser._pipeline.render import _REGISTRY
 
         _REGISTRY.pop("upper", None)
 
@@ -46,8 +51,9 @@ def test_txt_is_clean(parsed, name):
 
 
 @pytest.mark.parametrize("name", ALL_DOCS)
-def test_json_roundtrip(parsed, name):
+def test_json_and_pickle_roundtrip(parsed, name):
     assert PdfDocument.from_json(render(parsed[name], "json")) == parsed[name]
+    assert pickle.loads(pickle.dumps(parsed[name])) == parsed[name]  # noqa: S301 - e.g. from a process pool
 
 
 class _Checker(HTMLParser):
