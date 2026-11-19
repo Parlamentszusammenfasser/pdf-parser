@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import operator
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
@@ -38,6 +39,10 @@ class BlockKind(StrEnum):
     @property
     def is_body(self) -> bool:
         return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM, BlockKind.FOOTNOTE)
+
+
+_FURNITURE = (BlockKind.HEADER, BlockKind.FOOTER, BlockKind.PAGE_NUMBER)
+_LABEL = re.compile(r"\d+|^[ivxlc]+$", re.I)
 
 
 class Severity(StrEnum):
@@ -92,6 +97,20 @@ class Page:
     def text(self) -> str:
         """Sanitized body text of this page."""
         return _body_text(self.blocks)
+
+    @property
+    def furniture_text(self) -> str:
+        """Running headers, footers and page numbers, one block per line, headers first."""
+        return "\n".join(b.text for b in self.blocks if b.kind in _FURNITURE and b.text)
+
+    @property
+    def label(self) -> str | None:
+        """Printed page number ("259", "II"), None when the page shows none."""
+        for b in self.blocks:
+            # "- 2 -", "Seite 2 von 5" print page 2
+            if b.kind is BlockKind.PAGE_NUMBER and (m := _LABEL.search(b.text)):
+                return m.group()
+        return None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

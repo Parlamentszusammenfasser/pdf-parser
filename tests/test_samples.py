@@ -139,11 +139,19 @@ def test_bw_drucksache_footer():
     assert "Recyclingpapier" not in txt or "Plenarprotokolle sind im Internet abrufbar" in txt
 
 
-def test_bw_protocol_page_numbers():
+def test_bw_protocol_page_labels():
+    # scraper-bw maps agenda items to PDF pages by the printed page number
     d = sample("plpr-18-10.pdf")
-    numbers = [[b.text for b in p.blocks if b.kind.value == "page_number"] for p in d.pages]
-    assert numbers[2:] == [[str(n)] for n in range(259, 306)]
+    # page 1's "I" is read into the footer beside it, so it gets no label
+    assert [p.label for p in d.pages] == [None, "II", *(str(n) for n in range(259, 306))]
     assert "Präsident Thomas Strobl: Guten Morgen" in render(d, "txt")
+
+
+def test_bw_drucksache_header_in_furniture():
+    # scraper-bw trusts the printed "Ausgegeben" date only below the Drucksache's own header
+    page = sample("drs-17-0273-clean.pdf").pages[0]
+    assert "Drucksache 17 / 273" in page.furniture_text
+    assert "Drucksache 17 / 273" not in page.text()
 
 
 @pytest.mark.xfail(strict=True, reason="#24: ToC entries split at line ends")

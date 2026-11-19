@@ -40,10 +40,36 @@ def test_page_texts_add_up_to_the_document_text(parsed, name):
     assert d.text(pages=[]) == d.text(pages=[99]) == ""
 
 
-def test_text_leaves_out_furniture(parsed):
-    d = parsed["letter"]
-    assert any(b.kind.value == "page_number" and b.text == "- 2 -" for b in d.blocks)
-    assert "- 2 -" not in d.text()
+def test_furniture_is_kept_apart_from_the_text(parsed):
+    first, second = parsed["letter"].pages
+    assert "- 2 -" not in parsed["letter"].text()
+    assert second.furniture_text == "- 2 -\nVerband der Testbetriebe e.V. · Registergericht München VR 12345"
+    assert second.label == "2" and first.label is None  # letters number pages from the second on
+    email = parsed["email"].pages[0]
+    assert email.furniture_text == "" and email.label is None
+
+
+def _page(*blocks: tuple[BlockKind, str]) -> Page:
+    return Page(
+        number=1,
+        source=PageSource.TEXT,
+        blocks=tuple(Block(page=1, kind=k, text=t, bbox=(0.0, 0.0, 1.0, 1.0)) for k, t in blocks),
+    )
+
+
+@pytest.mark.parametrize(
+    "page,label",
+    [
+        (_page((BlockKind.PAGE_NUMBER, "Seite 3 von 10")), "3"),
+        (_page((BlockKind.PAGE_NUMBER, "3/10")), "3"),
+        (_page((BlockKind.PAGE_NUMBER, "II")), "II"),
+        (_page((BlockKind.PARAGRAPH, "7"), (BlockKind.HEADER, "Drucksache 19/1234")), None),
+        (_page(), None),
+    ],
+    ids=["seite-von", "slash", "roman", "numbers-outside-page-number", "empty"],
+)
+def test_label(page, label):
+    assert page.label == label
 
 
 @pytest.mark.parametrize(
@@ -128,7 +154,7 @@ def _edited(edit) -> str:
         lambda d: None,
         lambda d: d.update(future=1),
         lambda d: d["metadata"].update(subject="x"),
-        lambda d: d["pages"][0].update(label="II"),
+        lambda d: d["pages"][0].update(rotation=90),
         lambda d: d["pages"][0]["blocks"][0].update(confidence=0.9),
         lambda d: d["report"]["pages"][0].update(engine="tesseract"),
         lambda d: d["report"]["issues"][0].update(code="ocr_skipped"),
