@@ -8,13 +8,25 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 
 import pytest
 
 from conftest import HAS_QPDF, NO_OCR
-from pazufa_pdf_parser import BlockKind, Ocr, OcrMode, PageSource, ParseOptions, PdfOpenError, Severity, parse, render
+from pazufa_pdf_parser import (
+    BlockKind,
+    Ocr,
+    OcrMode,
+    OcrUnavailableError,
+    PageSource,
+    ParseOptions,
+    PdfOpenError,
+    Severity,
+    StepError,
+    parse,
+    render,
+)
 from pazufa_pdf_parser._pipeline.pipeline import FuncStep, Pipeline, step
-from pazufa_pdf_parser.errors import StepError
 from pdfgen import T, make_pdf, make_scanned_pdf, paragraph
 
 
@@ -83,7 +95,7 @@ class TestRobustness:
         subprocess.run(["qpdf", "--encrypt", "geheim", "geheim", "256", "--", str(src), str(enc)], check=True)
         with pytest.raises(PdfOpenError, match="password"):
             parse(enc, NO_OCR)
-        d = parse(enc, NO_OCR.with_(password="geheim"))
+        d = parse(enc, replace(NO_OCR, password="geheim"))
         assert "Sehr geehrte Frau Muster," in render(d, "txt")
 
     def test_blank_page_is_empty_not_ocr(self):
@@ -96,7 +108,7 @@ class TestRobustness:
             [paragraph(70, 100, ["Sehr geehrte Damen und Herren,", "dies ist ein Test mit gedrehter Seite."])],
             rotate=90,
         )
-        d = Pipeline().run(pdf, ParseOptions(ocr=OcrMode.NEVER))
+        d = Pipeline().run(pdf, NO_OCR)
         # /Rotate 90 shows the text sideways; the page frame is turned back upright
         assert d.pages[0].rotation == 90
         assert d.pages[0].stats["orientation_corrected"] == 90
@@ -106,7 +118,7 @@ class TestRobustness:
     def test_sideways_text_is_normalised(self):
         # whole page content drawn rotated by 90° on an upright page
         items = [T(100 + i * 16, 700, f"Zeile {i} mit seitlich gedrehtem Text", 11, angle=90) for i in range(5)]
-        d = Pipeline().run(make_pdf([items]), ParseOptions(ocr=OcrMode.NEVER))
+        d = Pipeline().run(make_pdf([items]), NO_OCR)
         assert d.pages[0].stats.get("orientation_corrected") in (90, 270)
         assert "Zeile 0 mit seitlich gedrehtem Text" in d.body_text()
 
@@ -127,16 +139,19 @@ class TestRobustness:
         assert "Unsichtbare OCR-Zeile Nummer 3" in render(d, "txt")
 
     def test_page_range(self, bill_pdf):
-        d = parse(bill_pdf, NO_OCR.with_(first_page=2, last_page=2))
+        d = parse(bill_pdf, replace(NO_OCR, first_page=2, last_page=2))
         assert [p.number for p in d.pages] == [2]
 
     def test_ocr_unavailable_is_reported_not_fatal(self, monkeypatch):
         from pdfgen import make_scanned_pdf
 
         pdf = make_scanned_pdf([[T(70, 100, "Text im Bild", 14)]], dpi=100)
-        d = parse(pdf, ParseOptions(ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz")))
+        options = ParseOptions(ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz"))
+        d = parse(pdf, options)
         assert any(i.step == "ocr" for i in d.report.issues)
         assert d.pages[0].source is PageSource.EMPTY
+        with pytest.raises(OcrUnavailableError):  # strict: the cause itself, not a StepError around it
+            parse(pdf, replace(options, strict=True))
 
     def test_text_pages_do_not_wait_for_ocr(self, letter_pdf):
         engine = Ocr(max_parallel=1)
@@ -200,17 +215,25 @@ class TestRobustness:
         opts = ParseOptions()
         assert opts.ocr_engine is ParseOptions().ocr_engine  # parses share one limit by default
         assert copy.deepcopy(opts).ocr_engine is opts.ocr_engine  # copies keep sharing it
-        assert pickle.loads(pickle.dumps(opts)).ocr_engine.dpi == 300  # noqa: S301 - e.g. sent to a process pool
+        engine = Ocr(
+            languages=("eng",), dpi=150, max_parallel=1, timeout=5.0, tesseract_cmd="t", detect_orientation=False
+        )
+        clone = pickle.loads(pickle.dumps(engine))  # noqa: S301 - e.g. sent to a process pool
+        assert repr(clone) == repr(engine) and clone._slots is not engine._slots  # every setting, own limit
         assert Ocr(languages="deu+eng").languages == ("deu", "eng")  # as on the tesseract command line
         for bad in (0, 1.5):
             with pytest.raises(ValueError, match="max_parallel"):
                 Ocr(max_parallel=bad)
+        # was compared by identity and silently ran as "auto"
+        assert ParseOptions(ocr="never").ocr is OcrMode.NEVER  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="sometimes"):
+            ParseOptions(ocr="sometimes")  # type: ignore[arg-type]
         for bad in (-1, 1.5, True):
             with pytest.raises(ValueError, match="max_ocr_pages"):
                 ParseOptions(max_ocr_pages=bad)
 
     def test_timings_and_stats(self, bill_pdf):
-        d = Pipeline().run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))
+        d = Pipeline().run(bill_pdf, NO_OCR)
         assert d.timings["total"] > 0 and "layout" in d.timings
         assert "flow_joins" in d.stats
 
@@ -222,7 +245,7 @@ class TestPipelineCustomisation:
             ctx.doc.stats["word_count"] = len(ctx.doc.body_text().split())
 
         pipe = Pipeline().insert_after("flow", count_words)
-        d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
+        d = pipe.run(letter_pdf, NO_OCR)
         assert d.stats["word_count"] > 50
 
     def test_failing_step_recorded(self, letter_pdf):
@@ -230,14 +253,14 @@ class TestPipelineCustomisation:
             raise RuntimeError("kaputt")
 
         pipe = Pipeline().insert_after("furniture", FuncStep("boom", boom))
-        d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
+        d = pipe.run(letter_pdf, NO_OCR)
         assert any(i.step == "boom" and "kaputt" in i.message for i in d.issues)
         assert "flow_joins" in d.stats  # later steps still ran
 
     def test_failing_step_strict(self, letter_pdf):
         pipe = Pipeline().insert_after("furniture", FuncStep("boom", lambda ctx: 1 / 0))
         with pytest.raises(StepError) as ei:
-            pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER, strict=True))
+            pipe.run(letter_pdf, replace(NO_OCR, strict=True))
         assert ei.value.step == "boom"
 
     def test_replace_and_remove(self, letter_pdf):
@@ -246,7 +269,7 @@ class TestPipelineCustomisation:
             .remove("flow")
             .replace("furniture", FuncStep("furniture", lambda ctx: ctx.doc.stats.update(furniture="custom")))
         )
-        d = pipe.run(letter_pdf, ParseOptions(ocr=OcrMode.NEVER))
+        d = pipe.run(letter_pdf, NO_OCR)
         assert "flow_joins" not in d.stats and d.stats["furniture"] == "custom"
         with pytest.raises(KeyError):
             pipe.remove("does-not-exist")

@@ -18,9 +18,7 @@ name: CI
 # keeps actions and uv.lock current; UV_VERSION, zizmor, trufflehog's image and
 # python-semantic-release are bumped by hand.
 
-# PR branches run once, as pull_request (on the merge with main); a push trigger
-# for every branch ran the same jobs a second time. main runs on push for the
-# release. A branch without a PR gets no CI.
+# PRs run once as pull_request; a push trigger on every branch ran the same jobs twice
 on:
   push:
     branches: [main]

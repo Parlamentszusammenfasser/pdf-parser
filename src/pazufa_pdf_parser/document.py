@@ -35,10 +35,6 @@ class BlockKind(StrEnum):
     FOOTNOTE = "footnote"  # numbered note at the page bottom (content, kept in the text)
 
     @property
-    def is_furniture(self) -> bool:
-        return self in (BlockKind.HEADER, BlockKind.FOOTER, BlockKind.PAGE_NUMBER)
-
-    @property
     def is_body(self) -> bool:
         return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM, BlockKind.FOOTNOTE)
 

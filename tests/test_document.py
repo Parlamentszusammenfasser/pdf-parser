@@ -1,6 +1,7 @@
 """The public PdfDocument built at the end of the pipeline."""
 
 import tomllib
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -63,7 +64,7 @@ def test_pdf_date(value, expected):
 
 
 def test_metadata(bill_pdf):
-    d = parse(bill_pdf, NO_OCR.with_(first_page=2, last_page=2))
+    d = parse(bill_pdf, replace(NO_OCR, first_page=2, last_page=2))
     assert d.metadata.page_count == 2 and len(d.pages) == 1
     assert d.metadata.title is None and d.metadata.created is None  # pdfgen writes no info by default
     assert parse(make_pdf([paragraph(70, 100, ["Text"])], title="Testbrief"), NO_OCR).metadata.title == "Testbrief"

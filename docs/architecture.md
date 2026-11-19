@@ -1,7 +1,8 @@
 # Architecture
 
-The public API (`__init__.py`, `document.py`, `options.py`, `errors.py`) is
-small and stable. Everything else lives in the internal `_pipeline/` package.
+The public API is what `__init__.py` exports: `__all__` and `__version__`. Its
+types live in `document.py`, `options.py` and `errors.py`; other names there,
+and the whole `_pipeline/` package, are internal.
 
 Everything runs through `_pipeline/pipeline.py`: an ordered list of steps sharing one
 `Context` (`doc`, `options`). Steps never call each other; they only read and

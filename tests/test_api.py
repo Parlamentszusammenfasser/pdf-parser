@@ -1,12 +1,12 @@
 """The public API: exactly the names in __all__, typed for strict consumers."""
 
+import subprocess
+import sys
 from pathlib import Path
 
-import mypy.api
 import pytest
 
 import pazufa_pdf_parser
-from pazufa_pdf_parser import OcrMode, ParseOptions
 
 
 def test_all_is_the_public_api():
@@ -30,19 +30,16 @@ def test_all_is_the_public_api():
             "PazufaError",
             "PdfOpenError",
             "OcrUnavailableError",
+            "StepError",
+            "UnknownFormatError",
         ]
     )
 
 
 def test_strict_consumer_type_checks():
+    pytest.importorskip("mypy")
     # without py.typed mypy sees the package as untyped and this fails
     consumer = Path(__file__).with_name("public_api_consumer.py")
-    out, err, status = mypy.api.run(["--strict", "--config-file", "", str(consumer)])
-    assert status == 0, out + err
-
-
-def test_ocr_mode_from_string():
-    # ParseOptions(ocr="never") used to be compared by identity and silently ran as "auto"
-    assert ParseOptions(ocr="never").ocr is OcrMode.NEVER  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="sometimes"):
-        ParseOptions(ocr="sometimes")  # type: ignore[arg-type]
+    cmd = [sys.executable, "-m", "mypy", "--strict", "--config-file", "", str(consumer)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr

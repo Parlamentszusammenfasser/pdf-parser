@@ -26,7 +26,7 @@ from .document import (
     Report,
     Severity,
 )
-from .errors import OcrUnavailableError, PazufaError, PdfOpenError
+from .errors import OcrUnavailableError, PazufaError, PdfOpenError, StepError, UnknownFormatError
 from .options import Ocr, OcrMode, ParseOptions
 
 __version__ = PARSER_VERSION
@@ -50,4 +50,6 @@ __all__ = [
     "PazufaError",
     "PdfOpenError",
     "OcrUnavailableError",
+    "StepError",
+    "UnknownFormatError",
 ]

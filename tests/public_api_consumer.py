@@ -1,5 +1,6 @@
 """Uses only the public API. tests/test_api.py runs `mypy --strict` on it."""
 
+from dataclasses import replace
 from datetime import datetime
 
 from pazufa_pdf_parser import (
@@ -19,6 +20,9 @@ from pazufa_pdf_parser import (
     PdfOpenError,
     Report,
     Severity,
+    StepError,
+    UnknownFormatError,
+    __version__,
     parse,
     render,
 )
@@ -46,11 +50,21 @@ def confidences(pages: tuple[PageReport, ...]) -> list[float]:
     return [p.ocr_confidence for p in pages if p.ocr_confidence is not None]
 
 
+def cache_key(doc: PdfDocument) -> tuple[str, bool]:
+    return doc.sha256, doc.report.parser_version == __version__
+
+
 def load(path: str, cached: str | None) -> str:
     try:
-        doc = PdfDocument.from_json(cached) if cached else parse(path, OPTIONS)
+        doc = PdfDocument.from_json(cached) if cached else parse(path, replace(OPTIONS, strict=True))
     except (PdfOpenError, OcrUnavailableError):
         return ""
+    except StepError as e:
+        return e.step
     except PazufaError:
-        doc = parse(path, OPTIONS.with_(ocr=OcrMode.NEVER))
-    return render(doc, "html") + doc.text(pages=[1]) + doc.pages[0].text + doc.to_json()
+        doc = parse(path, replace(OPTIONS, ocr=OcrMode.NEVER))
+    try:
+        html = render(doc, "html")
+    except UnknownFormatError:
+        html = ""
+    return html + doc.text(pages=[1]) + doc.pages[0].text + doc.to_json()

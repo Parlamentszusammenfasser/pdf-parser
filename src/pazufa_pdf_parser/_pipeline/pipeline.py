@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Iterable, Protocol, runtime_checkable
 
-from ..errors import StepError
+from ..errors import PazufaError, StepError
 from ..options import ParseOptions
 from .extract import extract_pages
 from .layout import analyze_layout
@@ -221,6 +221,8 @@ class Pipeline:
             except Exception as e:  # noqa: BLE001
                 ctx.doc.issue(Severity.ERROR, s.name, f"{type(e).__name__}: {e}")
                 if ctx.options.strict or getattr(s, "critical", False):
+                    if isinstance(e, PazufaError):  # callers catch e.g. OcrUnavailableError by its own type
+                        raise
                     raise StepError(s.name, e) from e
             finally:
                 ctx.doc.timings[s.name] = round(time.perf_counter() - t, 4)

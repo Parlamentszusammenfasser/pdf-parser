@@ -18,7 +18,7 @@ def parse(src: Source, options: ParseOptions | None = None) -> PdfDocument:
     Recoverable problems are recorded in ``doc.report.issues`` (``ParseOptions(strict=True)``
     raises instead); an unreadable PDF raises :class:`PdfOpenError`.
     """
-    return build_document(Pipeline().run(src, options or ParseOptions()))
+    return build_document(Pipeline().run(src, options))
 
 
 def _block(b: model.Block) -> Block:

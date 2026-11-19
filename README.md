@@ -53,10 +53,11 @@ parse(data, ParseOptions(ocr_engine=OCR))
 
 `parse` does not raise on recoverable problems. It records them in
 `doc.report.issues` and carries on; `ParseOptions(strict=True)` raises
-instead. Unreadable PDFs raise `PdfOpenError` (all errors subclass
-`PazufaError`).
+instead: the parser's own error (e.g. `OcrUnavailableError`), or `StepError`
+wrapping anything else. Unreadable PDFs raise `PdfOpenError`, unknown
+`render` formats `UnknownFormatError` (all errors subclass `PazufaError`).
 
-The public API is what `pazufa_pdf_parser` exports (`__all__`); it is typed
+The public API is what `pazufa_pdf_parser` exports (`__all__`, `__version__`); it is typed
 (`py.typed`). `pazufa_pdf_parser._pipeline` is internal and changes without
 notice.
 
