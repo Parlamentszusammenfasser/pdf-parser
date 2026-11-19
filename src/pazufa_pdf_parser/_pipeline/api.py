@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
-from ..document import PARSER_VERSION, Block, BlockKind, Metadata, Page, PageReport, PdfDocument, Report
-from ..options import ParseOptions
+from .._document import PARSER_VERSION, Block, BlockKind, Metadata, Page, PageReport, PdfDocument, Report
+from .._options import ParseOptions
 from . import model
 from .pipeline import Pipeline
 from .source import Source
@@ -25,7 +25,7 @@ def _block(b: model.Block) -> Block:
     text = b.text.strip()
     text = " ".join(text.split()) if b.kind is BlockKind.HEADING else re.sub(r"\n{3,}", "\n\n", text)
     x0, y0, x1, y1 = b.bbox.to_list()
-    return Block(b.page, b.kind, text, (x0, y0, x1, y1), b.level)
+    return Block(page=b.page, kind=b.kind, text=text, bbox=(x0, y0, x1, y1), level=b.level)
 
 
 # D:YYYYMMDDHHmmSS+HH'mm' (PDF 1.7, 7.9.4); everything after the year is optional
@@ -69,11 +69,17 @@ def build_document(doc: model.Document) -> PdfDocument:
             modified=pdf_date(info.get("ModDate")),
             page_count=info["page_count"],
         ),
-        pages=tuple(Page(p.number, p.source, tuple(_block(b) for b in p.all_blocks)) for p in doc.pages),
+        pages=tuple(
+            Page(number=p.number, source=p.source, blocks=tuple(_block(b) for b in p.all_blocks)) for p in doc.pages
+        ),
         report=Report(
             parser_version=PARSER_VERSION,
             pages=tuple(
-                PageReport(p.number, p.stats.get("ocr_reason", ""), p.stats.get("ocr_mean_confidence"))
+                PageReport(
+                    number=p.number,
+                    ocr_reason=p.stats.get("ocr_reason", ""),
+                    ocr_confidence=p.stats.get("ocr_mean_confidence"),
+                )
                 for p in doc.pages
             ),
             issues=tuple(doc.issues),

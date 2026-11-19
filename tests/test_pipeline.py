@@ -150,6 +150,7 @@ class TestRobustness:
         d = parse(pdf, options)
         assert any(i.step == "ocr" for i in d.report.issues)
         assert d.pages[0].source is PageSource.EMPTY
+        assert d.report.pages[0].ocr_reason.endswith("; not OCRed: tesseract unavailable")
         with pytest.raises(OcrUnavailableError):  # strict: the cause itself, not a StepError around it
             parse(pdf, replace(options, strict=True))
 
@@ -178,10 +179,15 @@ class TestRobustness:
         long_scan.join()
         assert finished == ["kurz", "lang"]
 
-    def test_strict_ocr_failure_cancels_queued_pages(self, tmp_path):
-        # Executor.map drops the queued pages once the loop raises; they must not keep the shared slots busy
+    def test_ocr_failure(self, tmp_path):
         log = tmp_path / "runs"
         engine = Ocr(max_parallel=1, dpi=72, detect_orientation=False, tesseract_cmd=fake_tesseract(tmp_path, log, 1))
+        d = parse(make_scanned_pdf([[T(70, 100, "Seite", 14)]], dpi=72), ParseOptions(ocr_engine=engine))
+        assert [(i.severity, i.page) for i in d.report.issues] == [(Severity.ERROR, 1)]
+        assert d.pages[0].source is PageSource.EMPTY
+        assert d.report.pages[0].ocr_reason.endswith("; not OCRed: OCR failed")
+        # strict: Executor.map drops the queued pages once the loop raises; they must not keep the slots busy
+        log.unlink()
         with pytest.raises(StepError):
             parse(
                 make_scanned_pdf([[T(70, 100, "Seite", 14)]] * 6, dpi=72), ParseOptions(ocr_engine=engine, strict=True)
@@ -210,11 +216,12 @@ class TestRobustness:
         )
         if severity:
             assert {p.source for p in d.pages} == {PageSource.EMPTY if pages else PageSource.TEXT}
+        assert all(("not OCRed: " in r.ocr_reason) == bool(severity) for r in d.report.pages)
 
     def test_ocr_engine_settings(self):
         opts = ParseOptions()
         assert opts.ocr_engine is ParseOptions().ocr_engine  # parses share one limit by default
-        assert copy.deepcopy(opts).ocr_engine is opts.ocr_engine  # copies keep sharing it
+        assert copy.deepcopy(opts).ocr_engine is opts.ocr_engine is copy.copy(opts.ocr_engine)  # copies share it
         engine = Ocr(
             languages=("eng",), dpi=150, max_parallel=1, timeout=5.0, tesseract_cmd="t", detect_orientation=False
         )

@@ -1,7 +1,7 @@
 # Architecture
 
 The public API is what `__init__.py` exports: `__all__` and `__version__`. Its
-types live in `document.py`, `options.py` and `errors.py`; other names there,
+types live in `_document.py`, `_options.py` and `_errors.py`; other names there,
 and the whole `_pipeline/` package, are internal.
 
 Everything runs through `_pipeline/pipeline.py`: an ordered list of steps sharing one
@@ -48,7 +48,7 @@ that stay in the text.
 and OCR junk, collapses letter-spacing, de-hyphenates, then re-joins
 paragraphs across page and column breaks.
 
-**Result** (`document.py`). `parse()` (`_pipeline/api.py`) turns the internal
+**Result** (`_document.py`). `parse()` (`_pipeline/api.py`) turns the internal
 `Document` into the immutable `PdfDocument` (pages, blocks, metadata, report), which round-trips
 through JSON (`to_json`/`from_json`, `SCHEMA_VERSION`). Renderers
 (`_pipeline/render/`) read only `PdfDocument`; formats register via `register_renderer`:

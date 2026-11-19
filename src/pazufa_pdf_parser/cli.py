@@ -12,8 +12,8 @@ import time
 from pathlib import Path
 
 from . import PageSource, PazufaError, __version__, parse
+from ._options import Ocr, OcrMode, ParseOptions
 from ._pipeline.render import available_formats, get_renderer
-from .options import Ocr, OcrMode, ParseOptions
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
 SUBCOMMANDS = ("extract", "formats")

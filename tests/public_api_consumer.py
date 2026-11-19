@@ -6,6 +6,7 @@ from datetime import datetime
 from pazufa_pdf_parser import (
     Block,
     BlockKind,
+    Format,
     Issue,
     Metadata,
     Ocr,
@@ -19,7 +20,9 @@ from pazufa_pdf_parser import (
     PdfDocument,
     PdfOpenError,
     Report,
+    SchemaVersionError,
     Severity,
+    Source,
     StepError,
     UnknownFormatError,
     __version__,
@@ -27,6 +30,7 @@ from pazufa_pdf_parser import (
     render,
 )
 
+FORMAT: Format = "html"
 OPTIONS = ParseOptions(ocr=OcrMode.AUTO, ocr_engine=Ocr(languages=("deu",), max_parallel=2))
 
 
@@ -42,8 +46,18 @@ def created(metadata: Metadata) -> datetime | None:
     return metadata.created
 
 
-def errors(report: Report) -> list[Issue]:
-    return [i for i in report.issues if i.severity is Severity.ERROR]
+def problems(report: Report) -> list[Issue]:
+    return [i for i in report.issues if i.severity >= Severity.WARNING]
+
+
+def stub(text: str) -> PdfDocument:
+    block = Block(page=1, kind=BlockKind.PARAGRAPH, text=text, bbox=(0.0, 0.0, 1.0, 1.0))
+    return PdfDocument(
+        sha256="",
+        metadata=Metadata(title=None, author=None, created=None, modified=None, page_count=1),
+        pages=(Page(number=1, source=PageSource.TEXT, blocks=(block,)),),
+        report=Report(parser_version=__version__, pages=(), issues=()),
+    )
 
 
 def confidences(pages: tuple[PageReport, ...]) -> list[float]:
@@ -54,17 +68,19 @@ def cache_key(doc: PdfDocument) -> tuple[str, bool]:
     return doc.sha256, doc.report.parser_version == __version__
 
 
-def load(path: str, cached: str | None) -> str:
+def load(src: Source, cached: str | None) -> str:
     try:
-        doc = PdfDocument.from_json(cached) if cached else parse(path, replace(OPTIONS, strict=True))
+        doc = PdfDocument.from_json(cached) if cached else parse(src, replace(OPTIONS, strict=True))
+    except SchemaVersionError:
+        doc = parse(src, OPTIONS)
     except (PdfOpenError, OcrUnavailableError):
         return ""
     except StepError as e:
         return e.step
     except PazufaError:
-        doc = parse(path, replace(OPTIONS, ocr=OcrMode.NEVER))
+        doc = parse(src, replace(OPTIONS, ocr=OcrMode.NEVER))
     try:
-        html = render(doc, "html")
+        html = render(doc, FORMAT)
     except UnknownFormatError:
         html = ""
-    return html + doc.text(pages=[1]) + doc.pages[0].text + doc.to_json()
+    return html + doc.text(pages=[1]) + doc.pages[0].text() + doc.to_json()

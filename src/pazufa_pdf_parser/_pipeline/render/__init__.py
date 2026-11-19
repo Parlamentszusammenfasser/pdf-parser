@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Literal
 
-from ...document import PdfDocument
-from ...errors import UnknownFormatError
+from ..._document import PdfDocument
+from ..._errors import UnknownFormatError
 
 RenderFunc = Callable[[PdfDocument], str]
+#: output formats of render(); a typo fails type checking, not only at runtime
+Format = Literal["txt", "raw", "html", "json"]
 
 
 @dataclass(frozen=True)
@@ -43,8 +45,8 @@ def available_formats() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def render(doc: PdfDocument, fmt: str) -> str:
-    """Render a parsed document as "txt", "raw", "html" or "json"; raises UnknownFormatError otherwise."""
+def render(doc: PdfDocument, fmt: Format) -> str:
+    """Render a parsed document in one of the :data:`Format` formats; raises UnknownFormatError otherwise."""
     return get_renderer(fmt).func(doc)
 
 
@@ -64,4 +66,4 @@ register_renderer(
     "json", lambda d: d.to_json() + "\n", "json", "application/json", "pages and blocks with geometry, metadata, report"
 )
 
-__all__ = ["Renderer", "register_renderer", "get_renderer", "available_formats", "render"]
+__all__ = ["Format", "Renderer", "register_renderer", "get_renderer", "available_formats", "render"]

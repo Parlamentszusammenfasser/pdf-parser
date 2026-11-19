@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PDF → clean text and layout for German legal/administrative documents (letters, e-mails, Drucksachen/synopses, plenary protocols, statutes, court decisions, contracts), born-digital and scanned. Library (`pazufa_pdf_parser`) plus CLI (`pazufa-pdf-parser`). Public API = `__all__` in `__init__.py` (types in `document.py`, `options.py`, `errors.py`; `py.typed`); everything else is internal in `_pipeline/`, and `tests/test_api.py` pins `__all__` and type-checks `tests/public_api_consumer.py` with `mypy --strict`. Python ≥3.12, managed with `uv`. Runtime deps are only `pypdfium2` and `pillow`; tesseract is optional and called via subprocess (TSV output). Don't add PyMuPDF (AGPL, deliberately avoided).
+PDF → clean text and layout for German legal/administrative documents (letters, e-mails, Drucksachen/synopses, plenary protocols, statutes, court decisions, contracts), born-digital and scanned. Library (`pazufa_pdf_parser`) plus CLI (`pazufa-pdf-parser`). Public API = `__all__` and `__version__` in `__init__.py` (types in `_document.py`, `_options.py`, `_errors.py`; `py.typed`); everything else is internal, the pipeline in `_pipeline/`, and `tests/test_api.py` pins `__all__` and the public fields and type-checks `tests/public_api_consumer.py` with `mypy --strict`. Python ≥3.12, managed with `uv`. Runtime deps are only `pypdfium2` and `pillow`; tesseract is optional and called via subprocess (TSV output). Don't add PyMuPDF (AGPL, deliberately avoided).
 
 ## Commands
 
@@ -23,7 +23,7 @@ Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; test
 
 Everything runs through `_pipeline/pipeline.py`: an ordered list of `Step`s (`DEFAULT_STEPS`) sharing a `Context` (`doc`, `options`). Steps never call each other; they communicate only by mutating the `Document` (`_pipeline/model.py`).
 
-- `parse()` (`_pipeline/api.py`) converts the internal `Document` into the immutable public `PdfDocument` (`document.py`); renderers read only `PdfDocument`. `document.py` must not import `_pipeline`.
+- `parse()` (`_pipeline/api.py`) converts the internal `Document` into the immutable public `PdfDocument` (`_document.py`); renderers read only `PdfDocument`. `_document.py` must not import `_pipeline`.
 - Steps: `extract` → `layout` → `furniture` → `sanitize` → `flow`. `extract` and `layout` are `critical=True` (failure aborts); every other step's exception is recorded as an `Issue` on the document and the pipeline continues, unless `ParseOptions(strict=True)`.
 - New behaviour = new `@step(...)` inserted with `Pipeline.insert_after/before/replace`, not a call from inside another step.
 

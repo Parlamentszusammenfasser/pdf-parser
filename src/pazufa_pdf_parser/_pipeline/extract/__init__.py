@@ -7,8 +7,8 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from ...errors import OcrUnavailableError
-from ...options import OcrMode, ParseOptions
+from ..._errors import OcrUnavailableError
+from ..._options import OcrMode, ParseOptions
 from ..model import BBox, Document, Page, PageSource, Severity, Word
 from ..source import PDFIUM_LOCK, OpenedPdf
 from .ocr import OcrResult, ocr_image, resolve_languages
@@ -132,8 +132,9 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
     return pages
 
 
-def _leave_without_ocr(todo: list[_Probe]) -> None:
+def _leave_without_ocr(todo: list[_Probe], why: str) -> None:
     for p in todo:
+        p.page.stats["ocr_reason"] += f"; not OCRed: {why}"
         if not p.page.words:
             p.page.source = PageSource.EMPTY
 
@@ -144,13 +145,13 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
     limit = options.max_ocr_pages
     if limit is not None and len(todo) > limit:
         doc.issue(severity, "ocr", f"{len(todo)} page(s) need OCR, over the limit of {limit}; left without OCR")
-        _leave_without_ocr(todo)
+        _leave_without_ocr(todo, f"{len(todo)} pages need OCR, over max_ocr_pages={limit}")
         return
     try:
         lang, missing = resolve_languages(engine.languages, engine.tesseract_cmd)
     except OcrUnavailableError as e:
         doc.issue(severity, "ocr", f"{e}; {len(todo)} page(s) left without OCR")
-        _leave_without_ocr(todo)
+        _leave_without_ocr(todo, "tesseract unavailable")
         if options.strict:
             raise
         return
@@ -184,8 +185,7 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 doc.issue(Severity.ERROR, "ocr", f"OCR failed: {err}", page.number)
                 if options.strict and err is not None:
                     raise err
-                if not page.words:
-                    page.source = PageSource.EMPTY
+                _leave_without_ocr([p], "OCR failed")
                 continue
             page.stats.update(res.stats)
             if p.merge and page.words and not res.rotation:

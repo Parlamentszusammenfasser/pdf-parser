@@ -77,10 +77,13 @@ class Ocr:
 
     def __reduce__(self) -> tuple[Any, ...]:
         # the limit is per process: a pickled copy (e.g. sent to a ProcessPoolExecutor) gets its own slots
-        return partial(Ocr, **{f.name: getattr(self, f.name) for f in fields(self)}), ()
+        return partial(type(self), **{f.name: getattr(self, f.name) for f in fields(self) if f.init}), ()
+
+    def __copy__(self) -> Ocr:
+        return self  # copies of options must keep sharing the limit
 
     def __deepcopy__(self, memo: dict[int, Any]) -> Ocr:
-        return self  # copies of options must keep sharing the limit
+        return self
 
 
 DEFAULT_OCR = Ocr()

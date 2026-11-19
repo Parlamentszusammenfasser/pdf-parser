@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Iterable, Iterator
 
-from ..document import BlockKind, Issue, PageSource, Severity
+from .._document import BlockKind, Issue, PageSource, Severity
 
 # --------------------------------------------------------------------------- geometry
 
@@ -240,4 +240,4 @@ class Document:
         return "\n\n".join(b.text or b.raw_text for b in self.body_blocks)
 
     def issue(self, severity: Severity, step: str, message: str, page: int | None = None) -> None:
-        self.issues.append(Issue(severity, step, message, page))
+        self.issues.append(Issue(severity=severity, step=step, message=message, page=page))

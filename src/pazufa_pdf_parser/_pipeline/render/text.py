@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ...document import PdfDocument
+from ..._document import PdfDocument
 
 
 def render_raw(doc: PdfDocument) -> str:

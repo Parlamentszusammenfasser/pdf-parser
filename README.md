@@ -80,8 +80,9 @@ on.
 `PdfDocument.from_json(s)` reads it back, e.g. to cache OCR results. Key the
 cache by `doc.sha256` and the options you parsed with (OCR mode, page range,
 OCR languages), and drop an entry when `doc.report.parser_version` differs
-from `pazufa_pdf_parser.__version__`. JSON with another `schema_version`,
-invalid JSON or missing fields raise `PazufaError`.
+from `pazufa_pdf_parser.__version__`. `from_json` also reads JSON written by
+older versions and ignores keys it does not know. JSON from a newer schema
+raises `SchemaVersionError`; invalid JSON or missing fields raise `PazufaError`.
 
 ## Command line
 

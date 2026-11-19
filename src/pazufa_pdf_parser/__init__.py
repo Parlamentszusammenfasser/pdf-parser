@@ -11,9 +11,7 @@ The names in ``__all__`` are the public API. ``pazufa_pdf_parser._pipeline``
 is internal and changes without notice.
 """
 
-from ._pipeline.api import parse
-from ._pipeline.render import render
-from .document import (
+from ._document import (
     PARSER_VERSION,
     Block,
     BlockKind,
@@ -26,13 +24,17 @@ from .document import (
     Report,
     Severity,
 )
-from .errors import OcrUnavailableError, PazufaError, PdfOpenError, StepError, UnknownFormatError
-from .options import Ocr, OcrMode, ParseOptions
+from ._errors import OcrUnavailableError, PazufaError, PdfOpenError, SchemaVersionError, StepError, UnknownFormatError
+from ._options import Ocr, OcrMode, ParseOptions
+from ._pipeline.api import parse
+from ._pipeline.render import Format, render
+from ._pipeline.source import Source
 
 __version__ = PARSER_VERSION
 
 __all__ = [
     "parse",
+    "Source",
     "ParseOptions",
     "OcrMode",
     "Ocr",
@@ -47,9 +49,11 @@ __all__ = [
     "Issue",
     "Severity",
     "render",
+    "Format",
     "PazufaError",
     "PdfOpenError",
     "OcrUnavailableError",
     "StepError",
     "UnknownFormatError",
+    "SchemaVersionError",
 ]

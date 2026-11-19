@@ -15,8 +15,8 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Iterable, Protocol, runtime_checkable
 
-from ..errors import PazufaError, StepError
-from ..options import ParseOptions
+from .._errors import PazufaError, StepError
+from .._options import ParseOptions
 from .extract import extract_pages
 from .layout import analyze_layout
 from .layout.footers import refine_footers
