@@ -20,6 +20,7 @@ from .._options import ParseOptions
 from .extract import extract_pages
 from .layout import analyze_layout
 from .layout.footers import refine_footers
+from .layout.furniture import assign_printed_pages
 from .model import Block, BlockKind, Document, Severity
 from .sanitize import is_line_structured, join_hyphenated, sanitize_block
 from .source import OpenedPdf, Source, open_pdf
@@ -137,8 +138,9 @@ def merge_flow(doc: Document) -> int:
 def furniture_step(ctx: Context) -> None:
     """Find page footers the repetition-based detection in ``layout`` missed:
     first-page-only footers, footers of single-page documents, OCR-varying
-    logos; separate footnotes from the running text."""
+    logos; separate footnotes from the running text. Then read each page's printed number."""
     ctx.doc.stats["footer_blocks_moved"] = refine_footers(ctx.doc)
+    assign_printed_pages(ctx.doc.pages)
 
 
 @step("sanitize")

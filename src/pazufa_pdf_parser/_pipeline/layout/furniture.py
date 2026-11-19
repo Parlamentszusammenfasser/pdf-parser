@@ -19,6 +19,11 @@ _PAGE_NUMBER_RES = [
     re.compile(r"^\d{1,4}\s*(/|von|of)\s*\d{1,4}$", re.I),
     re.compile(r"^[ivxlc]{1,6}$", re.I),
 ]
+# the document's own number closing the first line: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273",
+# "Plenarprotokoll 18 / 10"; prose would run on without a tab gap
+_MASTHEAD = re.compile(r"(^|\t[^\t]*\b)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
+_ROMAN = re.compile(r"^(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$", re.I)  # up to 89: front matter; rejects OCR "ll"
+_SEITE = re.compile(r"\b(?:seite|page|blatt) (\d{1,4})\b", re.I)
 
 
 def is_page_number(text: str) -> bool:
@@ -78,6 +83,10 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
                 if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
+                # masthead, also with no page to repeat it; a colon marks an e-mail "Betreff:" field instead
+                if li == 0 and which == 0 and ":" not in ln.text and _MASTHEAD.search(ln.text):
+                    result[(pi, li)] = kind
+                    continue
                 key = keys[pi][which][k]
                 if need is None or len(key) < MIN_KEY_LEN:
                     continue
@@ -91,3 +100,44 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     # trailing/leading page numbers glued to a header line ("... Wahlperiode   12") are
     # handled by the similarity test because digits are normalised.
     return result
+
+
+def assign_printed_pages(pages: list[Page]) -> None:
+    """Set ``printed_page``: a page-number line, else "Seite N" in a header or footer, else a number
+    leading or closing a header or footer line that the next or previous page continues (N±1)."""
+    edges = [_edge_numbers(p) for p in pages]
+    for i, page in enumerate(pages):
+        page.printed_page = _own_number(page)
+        if page.printed_page is not None:
+            continue
+        for n in edges[i]:
+            before = i > 0 and pages[i - 1].number == page.number - 1 and n - 1 in edges[i - 1]
+            after = i + 1 < len(pages) and pages[i + 1].number == page.number + 1 and n + 1 in edges[i + 1]
+            if before or after:
+                page.printed_page = str(n)
+                break
+
+
+def _own_number(page: Page) -> str | None:
+    blocks = sorted(page.furniture, key=lambda b: b.kind is not BlockKind.PAGE_NUMBER)
+    for b in blocks:
+        text = " ".join(b.raw_text.split())
+        if b.kind is BlockKind.PAGE_NUMBER:
+            # "- 2 -", "2 / 5", "Seite 2 von 5" print page 2
+            if m := re.search(r"\d+", text):
+                return m.group()
+            if _ROMAN.match(text):
+                return text
+        elif m := _SEITE.search(text):
+            return m.group(1)
+    return None
+
+
+def _edge_numbers(page: Page) -> set[int]:
+    """Numbers opening or closing a header or footer line: "178 Bayerisches Gesetz- …", "… Wahlperiode 1"."""
+    found: set[int] = set()
+    for b in page.furniture:
+        for ln in b.lines:
+            tokens = ln.text.split()
+            found.update(int(t) for t in tokens[:1] + tokens[-1:] if t.isdigit() and len(t) <= 4)
+    return found

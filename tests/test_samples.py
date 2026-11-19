@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import PdfDocument, parse, render
+from pazufa_pdf_parser import BlockKind, OcrMode, ParseOptions, PdfDocument, parse, render
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 
 pytestmark = pytest.mark.samples
@@ -74,7 +74,7 @@ def test_renders_and_round_trips(name):
 def test_clean_drucksache():
     # best case: a born-digital BY Drucksache whose text must come out exactly clean
     txt = render(sample("drs-clean.pdf"), "txt")
-    assert txt.count("Drucksache 19/9342") == 1  # running header of pp. 2-3 removed
+    assert "Drucksache 19/9342" not in txt  # masthead of p. 1 and running header of pp. 2-3 removed
     assert "Seite" not in txt
     assert "Drucksachen, Plenarprotokolle" not in txt  # page-1 footer removed
     assert txt.rstrip().endswith("I. Vizepräsident")
@@ -139,18 +139,37 @@ def test_bw_drucksache_footer():
     assert "Recyclingpapier" not in txt or "Plenarprotokolle sind im Internet abrufbar" in txt
 
 
-def test_bw_protocol_page_labels():
-    # scraper-bw maps agenda items to PDF pages by the printed page number
-    d = sample("plpr-18-10.pdf")
-    # page 1's "I" is read into the footer beside it, so it gets no label
-    assert [p.label for p in d.pages] == [None, "II", *(str(n) for n in range(259, 306))]
-    assert "Präsident Thomas Strobl: Guten Morgen" in render(d, "txt")
+@pytest.mark.parametrize(
+    "name,printed",
+    [
+        ("plpr-18-10.pdf", ["II", *(str(n) for n in range(259, 306))]),  # page-number lines
+        ("protokollauszug-24p.pdf", [str(n) for n in range(1, 24)]),  # "… 19. Wahlperiode 1"
+        (
+            "gvbl-landscape-tables.pdf",  # "178 Bayerisches …", "… 179"; rotated pages print theirs in the margin
+            [*(str(n) for n in range(178, 193)), None, None, None, *(str(n) for n in range(196, 205))],
+        ),
+        ("plenum-tagesordnung.pdf", [str(n) for n in range(2, 24)]),  # "Bayerischer Landtag Seite 2"
+        ("drs-17-0273-clean.pdf", ["2", "3", "4"]),  # constant "Drucksache 17 / 273" is no page number
+    ],
+    ids=["page-number-line", "closing-header", "alternating-header", "seite", "constant-number"],
+)
+def test_printed_pages(name, printed):
+    # scraper-bw maps protocol agenda items to PDF pages by the printed page number
+    pages = sample(name).pages
+    assert [p.printed_page for p in pages[1:]] == printed
+    assert all(len([b for b in p.blocks if b.kind is BlockKind.PAGE_NUMBER]) <= 1 for p in pages)
 
 
-def test_bw_drucksache_header_in_furniture():
+@pytest.mark.xfail(strict=True, reason='#12 known gap: page 1\'s printed "I" is read into the footer beside it')
+def test_bw_protocol_first_page_number():
+    assert sample("plpr-18-10.pdf").pages[0].printed_page == "I"
+
+
+@pytest.mark.parametrize("last_page", [None, 1], ids=["whole", "first-page-only"])
+def test_bw_drucksache_header_in_furniture(last_page):
     # scraper-bw trusts the printed "Ausgegeben" date only below the Drucksache's own header
-    page = sample("drs-17-0273-clean.pdf").pages[0]
-    assert "Drucksache 17 / 273" in page.furniture_text
+    page = parse(BW_DIR / "drs-17-0273-clean.pdf", ParseOptions(ocr=OcrMode.NEVER, last_page=last_page)).pages[0]
+    assert "Drucksache 17 / 273" in page.furniture_text()
     assert "Drucksache 17 / 273" not in page.text()
 
 

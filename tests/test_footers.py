@@ -1,5 +1,7 @@
 """Second-pass footer detection (layout.footers) and the furniture/flow steps."""
 
+import pytest
+
 from conftest import NO_OCR
 from pazufa_pdf_parser import BlockKind, parse, render
 from pazufa_pdf_parser._pipeline.extract.pdf import plausible_size
@@ -114,6 +116,74 @@ def test_scoring_helpers():
     assert lexicon_hits("Tel. 089 123 · Fax 089 456 · www.example.de") >= 2
     assert footer_score(blk("Vorstand: A · B · C", 7), 11, 30, False) >= 2.5
     assert footer_score(blk("und damit endet der Satz", 7), 11, 30, False) < 2.5
+
+
+def _pages(headers, footers):
+    return [
+        body() + [T(70, 40, h, 9) for h in [head] if h] + [T(280, 800, f, 9) for f in [foot] if f]
+        for head, foot in zip(headers, footers, strict=True)
+    ]
+
+
+@pytest.mark.parametrize(
+    "headers,footers,printed",
+    [
+        ([None, None], ["- 1 -", "- 2 -"], ["1", "2"]),
+        ([None, None], ["Seite 1 von 2", "Seite 2 von 2"], ["1", "2"]),
+        ([None, None], ["I", "II"], ["I", "II"]),
+        ([None, None], ["ll", "ll"], [None, None]),
+        (
+            ["Bayerischer Landtag – 19. Wahlperiode 1", "Bayerischer Landtag – 19. Wahlperiode 2"],
+            [None, None],
+            ["1", "2"],
+        ),
+        (["178 Gesetzblatt Nr. 12/2025", "Gesetzblatt Nr. 12/2025 179"], [None, None], ["178", "179"]),
+        (["Landtag Drucksache 17 / 273", "Landtag Drucksache 17 / 273"], [None, None], [None, None]),
+        (["Landtag – 19. Wahlperiode 5", "Landtag – 19. Wahlperiode 9"], [None, None], [None, None]),
+        ([None], ["Telefon 089 4126 0"], [None]),
+        (
+            ["Stellungnahme des Verbands | Seite 1 von 2", "Stellungnahme des Verbands | Seite 2 von 2"],
+            [None, None],
+            ["1", "2"],
+        ),
+    ],
+    ids=[
+        "page-number-line",
+        "seite-von",
+        "roman",
+        "ocr-misread-roman",
+        "closing-header",
+        "alternating-header",
+        "constant-number",
+        "not-consecutive",
+        "number-in-footer-text",
+        "seite-inside-header",
+    ],
+)
+def test_printed_page(headers, footers, printed):
+    d = parse(make_pdf(_pages(headers, footers)), NO_OCR)
+    assert [p.printed_page for p in d.pages] == printed
+
+
+def test_printed_page_of_an_empty_page():
+    assert parse(make_pdf([[]]), NO_OCR).pages[0].printed_page is None
+
+
+@pytest.mark.parametrize(
+    "first_line,is_header",
+    [
+        ([T(70, 40, "Landtag von Baden-Württemberg", 9), T(400, 40, "Drucksache 17 / 273", 9)], True),
+        ([T(70, 40, "Plenarprotokoll 17 / 273", 12)], True),
+        ([T(70, 40, "Betreff:", 9), T(150, 40, "Kleine Anfrage Drucksache 17 / 273", 9)], False),
+        ([T(70, 40, "Der Ausschuss empfiehlt die Annahme der Drucksache 17 / 273", 9)], False),
+    ],
+    ids=["masthead", "protocol-masthead", "email-field", "prose"],
+)
+def test_single_page_masthead_is_furniture(first_line, is_header):
+    # one page has no running header to repeat it; the document's own number still marks it
+    page = parse(make_pdf([first_line + body()]), NO_OCR).pages[0]
+    assert ("17 / 273" in page.furniture_text()) is is_header
+    assert ("17 / 273" in page.text()) is not is_header
 
 
 def test_step_order():

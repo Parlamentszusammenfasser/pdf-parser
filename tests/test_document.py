@@ -43,33 +43,10 @@ def test_page_texts_add_up_to_the_document_text(parsed, name):
 def test_furniture_is_kept_apart_from_the_text(parsed):
     first, second = parsed["letter"].pages
     assert "- 2 -" not in parsed["letter"].text()
-    assert second.furniture_text == "- 2 -\nVerband der Testbetriebe e.V. · Registergericht München VR 12345"
-    assert second.label == "2" and first.label is None  # letters number pages from the second on
+    assert second.furniture_text() == "- 2 -\nVerband der Testbetriebe e.V. · Registergericht München VR 12345"
+    assert second.printed_page == "2" and first.printed_page is None  # letters number pages from the second on
     email = parsed["email"].pages[0]
-    assert email.furniture_text == "" and email.label is None
-
-
-def _page(*blocks: tuple[BlockKind, str]) -> Page:
-    return Page(
-        number=1,
-        source=PageSource.TEXT,
-        blocks=tuple(Block(page=1, kind=k, text=t, bbox=(0.0, 0.0, 1.0, 1.0)) for k, t in blocks),
-    )
-
-
-@pytest.mark.parametrize(
-    "page,label",
-    [
-        (_page((BlockKind.PAGE_NUMBER, "Seite 3 von 10")), "3"),
-        (_page((BlockKind.PAGE_NUMBER, "3/10")), "3"),
-        (_page((BlockKind.PAGE_NUMBER, "II")), "II"),
-        (_page((BlockKind.PARAGRAPH, "7"), (BlockKind.HEADER, "Drucksache 19/1234")), None),
-        (_page(), None),
-    ],
-    ids=["seite-von", "slash", "roman", "numbers-outside-page-number", "empty"],
-)
-def test_label(page, label):
-    assert page.label == label
+    assert email.furniture_text() == "" and email.printed_page is None
 
 
 @pytest.mark.parametrize(
@@ -160,6 +137,7 @@ def _edited(edit) -> str:
         lambda d: d["report"]["issues"][0].update(code="ocr_skipped"),
         lambda d: d["pages"][0]["blocks"][0].pop("level"),
         lambda d: d["report"]["issues"][0].pop("page"),
+        lambda d: d["pages"][0].pop("printed_page"),
     ],
     ids=[
         "as-written",
@@ -171,6 +149,7 @@ def _edited(edit) -> str:
         "new-issue-key",
         "older-without-block-level",
         "older-without-issue-page",
+        "older-without-printed-page",
     ],
 )
 def test_from_json_reads_newer_and_older_writers(edit):

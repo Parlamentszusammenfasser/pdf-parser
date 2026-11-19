@@ -31,7 +31,7 @@ from pazufa_pdf_parser import (
 # renaming or removing one breaks callers
 PUBLIC_FIELDS = {
     Block: ["page", "kind", "text", "bbox", "level"],
-    Page: ["number", "source", "blocks"],
+    Page: ["number", "source", "blocks", "printed_page"],
     Metadata: ["title", "author", "created", "modified", "page_count"],
     PageReport: ["number", "ocr_reason", "ocr_confidence"],
     Report: ["parser_version", "pages", "issues"],

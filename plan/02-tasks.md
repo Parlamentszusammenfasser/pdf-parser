@@ -25,4 +25,6 @@
 [x] T19 shared `Ocr` engine object in `ParseOptions(ocr_engine=…)`, process-wide `max_parallel` (#9)
 [x] T20 public API = `__all__`, internals in `_pipeline/`, `py.typed`, strict-typed consumer test (#16)
 [x] T21 `ParseOptions.max_ocr_pages`: over the limit no OCR, text layer kept, WARNING issue (ERROR if forced) (#10)
+[x] T22 `Page.furniture_text()` and `Page.printed_page` (page-number line, "Seite N", or header number continued
+     on the next page); first-line Drucksache/Plenarprotokoll masthead is furniture also on single pages (#12)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

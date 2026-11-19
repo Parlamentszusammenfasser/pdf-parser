@@ -205,6 +205,7 @@ class Page:
     furniture: list[Block] = field(default_factory=list)  # headers, footers, page numbers
     extras: list[Block] = field(default_factory=list)  # marginal / noise blocks
     layout: Region | None = None  # body layout tree
+    printed_page: str | None = None  # set by the furniture step
     stats: dict[str, Any] = field(default_factory=dict)
 
     @property

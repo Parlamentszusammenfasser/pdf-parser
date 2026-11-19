@@ -78,7 +78,7 @@ parse(data, ParseOptions(ocr_engine=OCR))
 PdfDocument
 ├── sha256              hash of the PDF
 ├── metadata            title, author, created, modified, page_count
-├── pages[]             number, source (text | ocr | empty), blocks, text()
+├── pages[]             number, source (text | ocr | empty), blocks, text(), furniture_text(), printed_page
 ├── blocks              all blocks: page, kind, text, bbox, level
 ├── text(pages=None)    body text, optionally of some pages, e.g. pages=[2, 3]
 └── report              parser_version, pages[] (ocr_reason, ocr_confidence), issues[]
@@ -86,7 +86,9 @@ PdfDocument
 
 `paragraph`, `heading`, `list_item` and `footnote` blocks make up the text;
 `header`, `footer`, `page_number`, `marginal` and `noise` blocks are kept but
-left out of it. `bbox` is in points, origin top left, page rotation applied. A
+left out of it; `page.furniture_text()` joins the header, footer and page-number
+blocks. `printed_page` is the number printed on the page ("259", "II"), or `None`
+when none was found. `bbox` is in points, origin top left, page rotation applied. A
 paragraph that continues across a page break belongs to the page it starts on.
 
 `parse()` does not raise on recoverable problems; it records them as issues:
