@@ -132,8 +132,22 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
     return pages
 
 
+def _leave_without_ocr(todo: list[_Probe]) -> None:
+    for p in todo:
+        if not p.page.words:
+            p.page.source = PageSource.EMPTY
+
+
 def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list[_Probe]) -> None:
     engine = options.ocr_engine
+    if engine.max_pages is not None and len(todo) > engine.max_pages:
+        doc.issue(
+            Severity.WARNING,
+            "ocr",
+            f"{len(todo)} page(s) need OCR, over the limit of {engine.max_pages}; kept the text layer",
+        )
+        _leave_without_ocr(todo)
+        return
     try:
         lang, missing = resolve_languages(engine.languages, engine.tesseract_cmd)
     except OcrUnavailableError as e:
@@ -142,9 +156,7 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
             "ocr",
             f"{e}; {len(todo)} page(s) left without OCR",
         )
-        for p in todo:
-            if not p.page.words:
-                p.page.source = PageSource.EMPTY
+        _leave_without_ocr(todo)
         if options.strict:
             raise
         return

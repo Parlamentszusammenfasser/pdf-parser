@@ -62,6 +62,9 @@ class Ocr:
     tesseract_cmd: str = "tesseract"
     #: run tesseract orientation detection on scanned pages
     detect_orientation: bool = True
+    #: a PDF with more pages to OCR is not OCR'd at all (its text layer is kept and a warning recorded);
+    #: OCR time grows with pages (0.76 s each single-threaded on BW 17/1104); None = no limit
+    max_pages: int | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.languages, str):
@@ -84,6 +87,7 @@ class Ocr:
             self.timeout,
             self.tesseract_cmd,
             self.detect_orientation,
+            self.max_pages,
         )
 
     def __deepcopy__(self, memo: dict[int, Any]) -> Ocr:
