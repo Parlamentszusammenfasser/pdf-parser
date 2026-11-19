@@ -26,6 +26,7 @@ from pazufa_pdf_parser import (
     render,
     step,
 )
+from pazufa_pdf_parser.model import Severity
 from pdfgen import T, make_pdf, make_scanned_pdf, paragraph
 
 
@@ -184,6 +185,29 @@ class TestRobustness:
             )
         assert len(log.read_text().split()) < 6
 
+    @pytest.mark.parametrize(
+        ("pages", "limit", "mode", "runs", "severity"),
+        [
+            (3, 2, OcrMode.AUTO, 0, Severity.WARNING),
+            (0, 0, OcrMode.ALWAYS, 0, Severity.ERROR),
+            (3, 3, OcrMode.AUTO, 3, None),
+            (0, 0, OcrMode.AUTO, 0, None),
+        ],
+        ids=["over-limit-skips-ocr", "forced-ocr-over-limit-is-error", "at-limit-ocrs", "text-pages-do-not-count"],
+    )
+    def test_max_ocr_pages(self, tmp_path, letter_pdf, pages, limit, mode, runs, severity):
+        # pages=0 means the born-digital letter instead of a scan
+        log = tmp_path / "runs"
+        engine = Ocr(dpi=72, detect_orientation=False, tesseract_cmd=fake_tesseract(tmp_path, log))
+        pdf = make_scanned_pdf([[T(70, 100, "Seite", 14)]] * pages, dpi=72) if pages else letter_pdf
+        d = parse(pdf, ParseOptions(ocr=mode, ocr_engine=engine, max_ocr_pages=limit))
+        assert (len(log.read_text().split()) if log.exists() else 0) == runs
+        assert [i.severity for i in d.report.issues if "over the limit" in i.message] == (
+            [severity] if severity else []
+        )
+        if severity:
+            assert {p.source for p in d.pages} == {PageSource.EMPTY if pages else PageSource.TEXT}
+
     def test_ocr_engine_settings(self):
         opts = ParseOptions()
         assert opts.ocr_engine is ParseOptions().ocr_engine  # parses share one limit by default
@@ -193,6 +217,9 @@ class TestRobustness:
         for bad in (0, 1.5):
             with pytest.raises(ValueError, match="max_parallel"):
                 Ocr(max_parallel=bad)
+        for bad in (-1, 1.5, True):
+            with pytest.raises(ValueError, match="max_ocr_pages"):
+                ParseOptions(max_ocr_pages=bad)
 
     def test_timings_and_stats(self, bill_pdf):
         d = Pipeline().run(bill_pdf, ParseOptions(ocr=OcrMode.NEVER))

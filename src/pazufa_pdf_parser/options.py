@@ -110,6 +110,14 @@ class ParseOptions:
     #: limit pages (1-based, inclusive); None = all
     first_page: int | None = None
     last_page: int | None = None
+    #: a PDF with more pages to OCR than this is not OCR'd at all, as OCR time grows with pages
+    #: (0.76 s each single-threaded on BW 17/1104); None = no limit
+    max_ocr_pages: int | None = None
+
+    def __post_init__(self) -> None:
+        # a negative limit would silently turn OCR off for every scan
+        if self.max_ocr_pages is not None and (type(self.max_ocr_pages) is not int or self.max_ocr_pages < 0):
+            raise ValueError(f"max_ocr_pages must be a whole number of at least 0, got {self.max_ocr_pages!r}")
 
     def with_(self, **changes) -> ParseOptions:
         return replace(self, **changes)

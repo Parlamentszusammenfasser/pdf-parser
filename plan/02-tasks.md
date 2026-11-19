@@ -23,4 +23,5 @@
 [x] T17 public immutable `PdfDocument` (#11); renderers read it, html linear, raw = all blocks sanitized (#15)
 [x] T18 `PdfDocument.to_json`/`from_json` with `schema_version` (#13); 17/1104: 0.50 MB JSON
 [x] T19 shared `Ocr` engine object in `ParseOptions(ocr_engine=…)`, process-wide `max_parallel` (#9)
+[x] T21 `ParseOptions.max_ocr_pages`: over the limit no OCR, text layer kept, WARNING issue (ERROR if forced) (#10)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

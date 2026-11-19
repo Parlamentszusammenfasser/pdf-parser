@@ -38,6 +38,7 @@ Options are keyword arguments (or a `ParseOptions` object):
 ```python
 parse(data, ocr="never")              # "auto" (default) | "always" | "never"
 parse(data, first_page=2, last_page=5, password="…")
+parse(data, max_ocr_pages=500)        # more pages to OCR: none OCR'd, WARNING issue (ERROR if ocr="always")
 ```
 
 Tesseract settings live in one `Ocr` object per process. Its `max_parallel`
