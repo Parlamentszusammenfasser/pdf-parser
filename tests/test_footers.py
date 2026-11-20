@@ -250,12 +250,32 @@ def test_page_number_cell_leaves_its_line():
     ]
 
 
-def test_number_cell_in_the_body_is_no_page_number():
-    # a table row mid-page, though the next page's number would continue it
-    pages = [body(200) + [T(70, 450, "Biberach", 11), T(320, 450, "1", 11)], body(200) + [T(280, 790, "2", 9)]]
+def _row(y, *cells):
+    return [T(70 + 250 * c, y, cell, 11) for c, cell in enumerate(cells)]
+
+
+@pytest.mark.parametrize(
+    "pages,row,printed",
+    [
+        ([body(200) + _row(450, "Biberach", "1"), body(200) + [T(280, 790, "2", 9)]], "Biberach 1", [None, "2"]),
+        (
+            [
+                body(200)
+                + [T(70, 40, "Landtag – 18. Wahlperiode – Juli 2022", 9)]
+                + (_row(745, "Haushaltsjahr", "2023") if i == 1 else [])
+                for i in range(3)
+            ],
+            "Haushaltsjahr 2023",
+            [None] * 3,
+        ),
+    ],
+    ids=["table-row-mid-page", "year-beside-a-year-header"],
+)
+def test_number_cell_in_the_body_is_no_page_number(pages, row, printed):
+    # the next page's number or a header year would continue the row's number
     d = parse(make_pdf(pages), NO_OCR)
-    assert [p.printed_page for p in d.pages] == [None, "2"]
-    assert "Biberach 1" in d.pages[0].text()
+    assert [p.printed_page for p in d.pages] == printed
+    assert any(row in p.text() for p in d.pages)
 
 
 def test_printed_page_of_an_empty_page():

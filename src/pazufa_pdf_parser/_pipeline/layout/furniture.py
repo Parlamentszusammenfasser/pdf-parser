@@ -138,7 +138,10 @@ def _near(i: int, pages: list[Page]) -> list[int]:
 
 
 def _split_number_cells(pages: list[Page]) -> None:
-    known = [{page_number_value(t) for t in _own_numbers(p)} | set(_edge_numbers(p)) for p in pages]
+    own = [{v for t in _own_numbers(p) if (v := page_number_value(t)) is not None} for p in pages]
+    edges = [set(_edge_numbers(p)) for p in pages]
+    # a year or document number the neighbour repeats counts no page; "1 / 2" and "2 / 2" share only their total
+    known = [_unrepeated(own, i, pages) | _unrepeated(edges, i, pages) for i in range(len(pages))]
     for i, page in enumerate(pages):
         found = [
             (block, k, cells)
@@ -154,6 +157,10 @@ def _split_number_cells(pages: list[Page]) -> None:
             block.lines[k] = make_line([w for cell in cells[:-1] for w in cell])
             block.bbox = BBox.enclosing(ln.bbox for ln in block.lines)
             page.furniture.append(Block(lines=[number], bbox=number.bbox, page=page.number, kind=BlockKind.PAGE_NUMBER))
+
+
+def _unrepeated(numbers: list[set[int]], i: int, pages: list[Page]) -> set[int]:
+    return {n for n in numbers[i] if not any(n in numbers[j] for j in _near(i, pages))}
 
 
 def _in_band(line: Line, page: Page) -> bool:
