@@ -86,7 +86,11 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
         brk = False
         if pitches[i] > typical + 0.4 * min(h, size * 1.3) and gaps[i] > 0.25 * h:
             brk = True
-        elif _HYPHENATED_END_RE.search(cur.text) and _LOWER_START_RE.match(nxt.text):
+        elif nxt.bbox.x0 > cur.bbox.x1 or nxt.bbox.x1 < cur.bbox.x0:
+            brk = True
+        elif (
+            _HYPHENATED_END_RE.search(cur.text) and _LOWER_START_RE.match(nxt.text) and not starts_with_marker(nxt.text)
+        ):
             pass  # a word hyphenated across the lines ("Staats-" / "vertragsentwürfe") keeps them together
         elif abs(cur.size - nxt.size) > (0.35 if _is_ocr(cur) or _is_ocr(nxt) else 0.15) * size:
             brk = True
@@ -94,8 +98,6 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
             brk = True
         elif run_in_label(nxt) and (not run_in_label(cur) or run_in_label(nxt) >= 2):
             brk = True  # "Präsidentin X:" / "Abg. Y (SPD):" speaker labels, bold run-in headings
-        elif nxt.bbox.x0 > cur.bbox.x1 or nxt.bbox.x1 < cur.bbox.x0:
-            brk = True
         else:
             short = cur.bbox.x1 < right - max(0.15 * width, 3 * size)
             ends = cur.text.rstrip().endswith(_END_PUNCT)
