@@ -8,7 +8,7 @@ from difflib import SequenceMatcher
 from ..model import BlockKind, Line, Page
 
 BAND = 0.14  # fraction of the page height considered header / footer zone
-MAX_BAND_LINES = 4
+MAX_BAND_LINES = 5  # association letters print "1 von 3" above a four-line footer
 SIMILAR = 0.85  # fuzzy match ratio for repeated header/footer lines
 REPEAT_SHARE = 0.4  # below one half: left/right pages carry different running headers
 MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page

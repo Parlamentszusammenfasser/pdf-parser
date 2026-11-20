@@ -27,5 +27,6 @@
 [x] T21 `ParseOptions.max_ocr_pages`: over the limit no OCR, text layer kept, WARNING issue (ERROR if forced) (#10)
 [x] T22 `Page.furniture_text()` and `Page.printed_page`, step `page_numbers` (page-number line, "Seite N", or header
      number the next page continues; numbers the neighbour repeats are rejected); page-1 Drucksache/Plenarprotokoll
-     masthead is furniture also on single pages (#12; page 1 "I" of PlPr 18/10 → #34)
+     masthead is furniture also on single pages; band holds 5 lines for "1 von 3" above a four-line footer (#12;
+     missed page-1 numbers and OCR-dropped lone numbers → #34)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)
