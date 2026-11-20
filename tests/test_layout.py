@@ -160,6 +160,18 @@ class TestSegmentation:
         assert order[0].startswith("Verband")  # sidebar first
         assert order[-1].startswith("Dies ist")  # body last
 
+    def test_signature_lists_side_by_side_read_left_first(self):
+        # the ministers under a Gesetzblatt law sign in two lists that pair up line for line
+        rows = [("Strobl", "Dr. Bayaz"), ("Dr. Hoffmeister-Kraut", "Olschowski"), ("Gentges", "Lucha")]
+        ws = [
+            w
+            for i, (a, b) in enumerate(rows)
+            for w in words_for(100, 190 + 36 * i, a, 14) + words_for(385, 190 + 36 * i, b, 14)
+        ]
+        region = self.seg(ws)
+        cols = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
+        assert cols and not cols[0].aside_first
+
     def test_synopsis_detection(self):
         txt = [
             "Artikel 1 Änderung des Stiftungsgesetzes",

@@ -26,6 +26,8 @@ _ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
 _PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "… | Seite 1 von 2" in a header
 # page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
 _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
+# a two-page Gesetzblatt issue prints its running header once, on page 2
+_GAZETTE_HEADER = re.compile(r"^Gesetzblatt für .+, Jahrgang \d{4}, Nr\. \d+\b")
 
 
 def is_page_number(text: str) -> bool:
@@ -80,7 +82,8 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     A line in the top/bottom band is furniture if it is a page number or if a
     similar line (digits normalised, fuzzy) appears in the same band on enough
     other pages. The first line of the first page is a header also without
-    repetition when it is a Drucksache or Plenarprotokoll masthead.
+    repetition when it is a Drucksache or Plenarprotokoll masthead, the first
+    line of any page when it is a Gesetzblatt running header.
     """
     result: dict[tuple[int, int], BlockKind] = {}
     bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
@@ -96,8 +99,7 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
                 if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
-                # a colon marks an e-mail field instead ("Betreff:<tab>Drucksache 18/123")
-                if pi == li == which == 0 and ":" not in ln.text and _MASTHEAD.search(ln.text):
+                if li == which == 0 and _is_one_off_header(pi, ln.text):
                     result[(pi, li)] = kind
                     continue
                 key = keys[pi][which][k]
@@ -113,6 +115,13 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     # trailing/leading page numbers glued to a header line ("... Wahlperiode   12") are
     # handled by the similarity test because digits are normalised.
     return result
+
+
+def _is_one_off_header(page_index: int, text: str) -> bool:
+    if _GAZETTE_HEADER.match(text):
+        return True
+    # a colon marks an e-mail field instead ("Betreff:<tab>Drucksache 18/123")
+    return page_index == 0 and ":" not in text and bool(_MASTHEAD.search(text))
 
 
 def assign_printed_pages(pages: list[Page]) -> None:

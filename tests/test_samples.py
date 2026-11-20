@@ -307,7 +307,6 @@ def test_bw_gesetzblatt_law_text():
     assert "Seite 2 von 2" not in txt
 
 
-@pytest.mark.xfail(strict=True, reason="#23: page-2 header in body, signature columns right first")
 def test_bw_gesetzblatt_page_2():
     txt = _txt("gbl-2026-12.pdf")
     assert "Jahrgang 2026" not in txt
