@@ -160,17 +160,34 @@ class TestSegmentation:
         assert order[0].startswith("Verband")  # sidebar first
         assert order[-1].startswith("Dies ist")  # body last
 
-    def test_signature_lists_side_by_side_read_left_first(self):
-        # the ministers under a Gesetzblatt law sign in two lists that pair up line for line
-        rows = [("Strobl", "Dr. Bayaz"), ("Dr. Hoffmeister-Kraut", "Olschowski"), ("Gentges", "Lucha")]
+    @pytest.mark.parametrize(
+        "rows,right_size,aside",
+        [
+            ([("Strobl", "Dr. Bayaz"), ("Dr. Hoffmeister-Kraut", "Olschowski"), ("Gentges", "Lucha")], 14, False),
+            (
+                [
+                    ("Landtag von Bayern", "Ihr Zeichen: AB 12"),
+                    ("Herrn Max Mustermann", "Datum: 03.03.2026"),
+                    ("Maximilianeum", "Telefon 089 1234"),
+                    ("81627 München", "Bearbeiter: Huber"),
+                ],
+                10,
+                True,
+            ),
+        ],
+        ids=["signature-lists", "address-beside-smaller-sidebar"],
+    )
+    def test_columns_pairing_up_line_for_line(self, rows, right_size, aside):
+        # Gesetzblatt ministers sign in two lists read left first; a letter's sidebar aligned with the
+        # address field stays a sidebar
         ws = [
             w
             for i, (a, b) in enumerate(rows)
-            for w in words_for(100, 190 + 36 * i, a, 14) + words_for(385, 190 + 36 * i, b, 14)
+            for w in words_for(100, 190 + 18 * i, a, 14) + words_for(420, 190 + 18 * i, b, right_size)
         ]
         region = self.seg(ws)
         cols = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
-        assert cols and not cols[0].aside_first
+        assert cols and cols[0].aside_first is aside
 
     def test_synopsis_detection(self):
         txt = [
