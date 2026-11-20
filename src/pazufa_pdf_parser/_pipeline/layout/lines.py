@@ -17,17 +17,20 @@ def tab_threshold(size: float) -> float:
     return max(2.0 * size, 16.0)
 
 
-def join_words(words: list[Word]) -> str:
-    parts: list[str] = []
-    prev: Word | None = None
+def split_cells(words: list[Word]) -> list[list[Word]]:
+    """Split a line's words (left to right) into cells at gaps wider than :func:`tab_threshold`."""
+    cells: list[list[Word]] = []
     for w in words:
-        if prev is not None:
-            gap = w.bbox.x0 - prev.bbox.x1
-            size = max(prev.size, w.size, 1.0)
-            parts.append("\t" if gap > tab_threshold(size) else " ")
-        parts.append(w.text)
-        prev = w
-    return "".join(parts)
+        prev = cells[-1][-1] if cells else None
+        if prev is None or w.bbox.x0 - prev.bbox.x1 > tab_threshold(max(prev.size, w.size, 1.0)):
+            cells.append([w])
+        else:
+            cells[-1].append(w)
+    return cells
+
+
+def join_words(words: list[Word]) -> str:
+    return "\t".join(" ".join(w.text for w in cell) for cell in split_cells(words))
 
 
 def make_line(words: list[Word]) -> Line:

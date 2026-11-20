@@ -132,6 +132,19 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
     return pages
 
 
+def _lone_numbers_missed(text: list[Word], ocr: list[Word]) -> list[Word]:
+    """Text-layer numbers alone on their row that OCR missed: tesseract drops the lone bold page number
+    of BW Drucksache annexes, while their shifted font turns its own digits into control characters."""
+    # shortcut: the +29 shift also turns a lone capital M–V into a digit; restrict to the page bands if one shows up
+    return [
+        w
+        for w in text
+        if w.text.isdecimal()
+        and not any(o is not w and o.bbox.y_overlap(w.bbox) > 0 for o in text)
+        and not any(o.bbox.x_overlap(w.bbox) > 0 and o.bbox.y_overlap(w.bbox) > 0 for o in ocr)
+    ]
+
+
 def _leave_without_ocr(todo: list[_Probe], why: str) -> None:
     for p in todo:
         p.page.stats["ocr_reason"] += f"; not OCRed: {why}"
@@ -198,9 +211,9 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 page.stats["ocr_words_merged"] = len(kept)
                 page.source = PageSource.TEXT
             else:
-                page.words = res.words
+                page.words = res.words + ([] if res.rotation else _lone_numbers_missed(page.words, res.words))
                 page.width, page.height = res.width, res.height
-                page.source = PageSource.OCR if res.words else PageSource.EMPTY
+                page.source = PageSource.OCR if page.words else PageSource.EMPTY
             if res.rotation:
                 page.stats["orientation_corrected"] = res.rotation
                 doc.issue(Severity.INFO, "ocr", f"page rotated by {res.rotation}° for OCR", page.number)

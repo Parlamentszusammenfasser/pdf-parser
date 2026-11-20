@@ -144,7 +144,8 @@ def furniture_step(ctx: Context) -> None:
 
 @step("page_numbers")
 def page_numbers_step(ctx: Context) -> None:
-    """Read the number printed on each page from its header, footer and page-number lines."""
+    """Read the number printed on each page from its header, footer and page-number lines. A number
+    printed beside other text ("Bayerisches<tab>177") is first split off into a page-number block."""
     assign_printed_pages(ctx.doc.pages)
 
 
