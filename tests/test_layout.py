@@ -285,18 +285,30 @@ class TestBlocks:
         assert blocks[1].kind is BlockKind.PARAGRAPH
 
     @pytest.mark.parametrize(
-        "first,second_y,blocks",
+        "words,blocks",
         [
-            ("Information über Staats-", 113, 1),
-            ("Information über Staats –", 113, 2),
-            ("Information über Staats-", 140, 2),
+            (
+                words_for(70, 100, "Information über Staats-", bold=True)
+                + words_for(70, 113, "vertragsentwürfe; hier"),
+                1,
+            ),
+            (words_for(70, 100, "Information über Staats-", 13) + words_for(70, 114, "vertragsentwürfe; hier"), 1),
+            (
+                words_for(70, 100, "für Digitalisierung und Europa Ma-")
+                + words_for(70, 113, "nuel Hagel:", bold=True)
+                + words_for(130, 113, "Frau Präsidentin!"),
+                1,
+            ),
+            (words_for(70, 100, "Information über Staats -", bold=True) + words_for(70, 113, "vertragsentwürfe"), 2),
+            (words_for(70, 100, "Information über Staats-", bold=True) + words_for(70, 140, "vertragsentwürfe"), 2),
+            (words_for(300, 100, "Verwaltungs-") + words_for(70, 113, "aufgaben des Landes"), 2),
+            (words_for(70, 100, "a) Vor-") + words_for(70, 113, "b) Nachname"), 2),
         ],
-        ids=["hyphenated-word", "dash", "paragraph-gap"],
+        ids=["bold-change", "size-change", "speaker-label", "dash", "paragraph-gap", "side-by-side", "list-markers"],
     )
-    def test_hyphenated_word_keeps_a_style_change_in_one_block(self, first, second_y, blocks):
+    def test_hyphenated_word_keeps_a_style_change_in_one_block(self, words, blocks):
         # a protocol ToC entry switches from its bold title to regular text inside a hyphenated word
-        ws = words_for(70, 100, first, bold=True) + words_for(70, second_y, "vertragsentwürfe; hier: Staatsvertrag")
-        assert len(split_blocks(build_lines(ws), 1)) == blocks
+        assert len(split_blocks(build_lines(words), 1)) == blocks
 
     def test_split_blocks_without_lines(self):
         assert split_blocks([], 1) == []

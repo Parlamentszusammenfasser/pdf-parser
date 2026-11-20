@@ -57,6 +57,13 @@ def _is_ocr(line: Line) -> bool:
     return any(w.confidence is not None for w in line.words)
 
 
+def _continues_word(cur: Line, nxt: Line) -> bool:
+    """The next line finishes a word the current line breaks off with a hyphen."""
+    if starts_with_marker(nxt.text):
+        return False  # "a) Vor-" / "b) Nachname": the next item starts
+    return bool(_HYPHENATED_END_RE.search(cur.text) and _LOWER_START_RE.match(nxt.text))
+
+
 def _gap(a: Line, b: Line) -> float:
     return b.bbox.y0 - a.bbox.y1
 
@@ -88,10 +95,8 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
             brk = True
         elif nxt.bbox.x0 > cur.bbox.x1 or nxt.bbox.x1 < cur.bbox.x0:
             brk = True
-        elif (
-            _HYPHENATED_END_RE.search(cur.text) and _LOWER_START_RE.match(nxt.text) and not starts_with_marker(nxt.text)
-        ):
-            pass  # a word hyphenated across the lines ("Staats-" / "vertragsentwürfe") keeps them together
+        elif _continues_word(cur, nxt):
+            pass  # a protocol ToC entry turns from bold to regular inside "Staats-" / "vertragsentwürfe"
         elif abs(cur.size - nxt.size) > (0.35 if _is_ocr(cur) or _is_ocr(nxt) else 0.15) * size:
             brk = True
         elif _all_bold(cur) != _all_bold(nxt) and (len(cur.text) < 120 or len(nxt.text) < 120):
