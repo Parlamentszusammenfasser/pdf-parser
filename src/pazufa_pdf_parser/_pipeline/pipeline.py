@@ -1,4 +1,4 @@
-"""Pipeline of steps: extract -> layout -> furniture -> sanitize -> flow.
+"""Pipeline of steps: extract -> layout -> furniture -> page_numbers -> sanitize -> flow.
 
 A pipeline is an ordered list of :class:`Step` objects. Steps never see each
 other directly: they communicate through the :class:`Document` held by the
@@ -20,6 +20,7 @@ from .._options import ParseOptions
 from .extract import extract_pages
 from .layout import analyze_layout
 from .layout.footers import refine_footers
+from .layout.furniture import assign_printed_pages
 from .model import Block, BlockKind, Document, Severity
 from .sanitize import is_line_structured, join_hyphenated, sanitize_block
 from .source import OpenedPdf, Source, open_pdf
@@ -141,6 +142,12 @@ def furniture_step(ctx: Context) -> None:
     ctx.doc.stats["footer_blocks_moved"] = refine_footers(ctx.doc)
 
 
+@step("page_numbers")
+def page_numbers_step(ctx: Context) -> None:
+    """Read the number printed on each page from its header, footer and page-number lines."""
+    assign_printed_pages(ctx.doc.pages)
+
+
 @step("sanitize")
 def sanitize_step(ctx: Context) -> None:
     min_conf = ctx.options.min_word_confidence
@@ -159,6 +166,7 @@ DEFAULT_STEPS: list[Step] = [
     extract_step,
     layout_step,
     furniture_step,
+    page_numbers_step,
     sanitize_step,
     flow_step,
 ]

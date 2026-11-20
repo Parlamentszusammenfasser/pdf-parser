@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from pazufa_pdf_parser import PdfDocument, parse, render
+from pazufa_pdf_parser import BlockKind, OcrMode, ParseOptions, PdfDocument, parse, render
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 
 pytestmark = pytest.mark.samples
@@ -56,9 +56,13 @@ SH_SAMPLES = _params(SH_DIR, set())
 _cache: dict[str, object] = {}
 
 
+def _path(name):
+    return next(d / name for d in (BY_DIR, BW_DIR, SH_DIR) if (d / name).exists())
+
+
 def sample(name):
     if name not in _cache:
-        _cache[name] = parse(next(d / name for d in (BY_DIR, BW_DIR, SH_DIR) if (d / name).exists()))
+        _cache[name] = parse(_path(name))
     return _cache[name]
 
 
@@ -74,7 +78,7 @@ def test_renders_and_round_trips(name):
 def test_clean_drucksache():
     # best case: a born-digital BY Drucksache whose text must come out exactly clean
     txt = render(sample("drs-clean.pdf"), "txt")
-    assert txt.count("Drucksache 19/9342") == 1  # running header of pp. 2-3 removed
+    assert "Drucksache 19/9342" not in txt  # masthead of p. 1 and running header of pp. 2-3 removed
     assert "Seite" not in txt
     assert "Drucksachen, Plenarprotokolle" not in txt  # page-1 footer removed
     assert txt.rstrip().endswith("I. Vizepräsident")
@@ -139,11 +143,150 @@ def test_bw_drucksache_footer():
     assert "Recyclingpapier" not in txt or "Plenarprotokolle sind im Internet abrufbar" in txt
 
 
-def test_bw_protocol_page_numbers():
-    d = sample("plpr-18-10.pdf")
-    numbers = [[b.text for b in p.blocks if b.kind.value == "page_number"] for p in d.pages]
-    assert numbers[2:] == [[str(n)] for n in range(259, 306)]
-    assert "Präsident Thomas Strobl: Guten Morgen" in render(d, "txt")
+def _numbers(first, last):
+    return [str(n) for n in range(first, last + 1)]
+
+
+@pytest.mark.parametrize(
+    "name,printed",
+    [
+        ("plpr-18-10.pdf", ["II", *_numbers(259, 305)]),  # page-number lines
+        ("protokollauszug-24p.pdf", _numbers(1, 23)),  # "… 19. Wahlperiode 1"
+        (
+            "gvbl-landscape-tables.pdf",  # "178 Bayerisches …", "… 179"; rotated pages print theirs in the margin
+            [*_numbers(178, 192), None, None, None, *_numbers(196, 204)],
+        ),
+        ("plenum-tagesordnung.pdf", _numbers(2, 23)),  # "Bayerischer Landtag Seite 2"
+        ("drs-clean.pdf", _numbers(2, 3)),  # "Drucksache 19/9342 … Seite 2"
+        ("drs-17-0273-clean.pdf", _numbers(2, 4)),  # constant "Drucksache 17 / 273" is no page number
+        ("drs-20-3769-synopsis.pdf", _numbers(2, 6)),
+        ("gbl-2026-12.pdf", ["2"]),  # "Seite 2 von 2"
+        ("to-18-14-speaking-times.pdf", _numbers(2, 3)),
+        ("letter-sidebar.pdf", _numbers(2, 4)),
+        ("statement-toc-dot-leaders.pdf", _numbers(2, 10)),
+        ("statement-page-break.pdf", ["2"]),  # "… | Seite 2 von 2" in the header
+        ("email-forwarded-with-statement.pdf", ["2", "1", "2", "3"]),  # the attached statement counts from 1
+        pytest.param(
+            "drs-17-1201-ascii-shift.pdf",
+            _numbers(2, 5),
+            marks=[pytest.mark.ocr, pytest.mark.xfail(strict=True, reason="#34: tesseract drops the lone page number")],
+        ),
+        pytest.param("drs-17-6014-garbled-annex.pdf", ["14", "19"], marks=pytest.mark.ocr),  # pages of an annex
+    ],
+    ids=[
+        "page-number-line",
+        "closing-header",
+        "alternating-header",
+        "seite",
+        "seite-in-header",
+        "constant-number",
+        "synopsis",
+        "seite-von",
+        "agenda",
+        "letter",
+        "statement",
+        "seite-von-in-header",
+        "attachment",
+        "ascii-shift",
+        "annex",
+    ],
+)
+def test_printed_pages(name, printed):
+    # scraper-bw maps protocol agenda items to PDF pages by the printed page number; page 1 has its own test
+    pages = sample(name).pages
+    assert [p.printed_page for p in pages[1:]] == printed
+    assert all(len([b for b in p.blocks if b.kind is BlockKind.PAGE_NUMBER]) <= 1 for p in pages)
+
+
+@pytest.mark.parametrize(
+    "name,printed",
+    [
+        ("drs-clean.pdf", None),  # mastheads carry no number
+        ("protokollauszug-24p.pdf", None),  # unnumbered cover sheet
+        ("plenum-tagesordnung.pdf", None),
+        ("drs-20-3769-synopsis.pdf", None),
+        ("gbl-2026-12.pdf", None),
+        ("statement-page-break.pdf", "1"),
+        ("email-forwarded-with-statement.pdf", "1"),
+        pytest.param(
+            "plpr-18-10.pdf",
+            "I",
+            marks=pytest.mark.xfail(strict=True, reason='#34: page 1\'s printed "I" is read into the footer beside it'),
+        ),
+        pytest.param(
+            "drs-17-0273-clean.pdf",
+            "1",
+            marks=pytest.mark.xfail(strict=True, reason="#22: the page-1 footer row with the number stays in the body"),
+        ),
+        pytest.param(
+            "letter-sidebar.pdf",
+            "1",
+            marks=pytest.mark.xfail(strict=True, reason='#34: "1 / 4" closes a footer line beside the address'),
+        ),
+        pytest.param(
+            "gvbl-landscape-tables.pdf",
+            "177",
+            marks=pytest.mark.xfail(strict=True, reason='#34: "177" is read into the masthead heading beside it'),
+        ),
+    ],
+    ids=[
+        "masthead",
+        "cover",
+        "agenda",
+        "synopsis",
+        "gesetzblatt",
+        "seite-von-in-header",
+        "e-mail",
+        "protocol",
+        "bw-drucksache",
+        "letter",
+        "gvbl",
+    ],
+)
+def test_first_printed_page(name, printed):
+    assert sample(name).pages[0].printed_page == printed
+
+
+def test_bw_protocol_speech_stays_in_body():
+    assert "Präsident Thomas Strobl: Guten Morgen" in _txt("plpr-18-10.pdf")
+
+
+@pytest.mark.parametrize(
+    "name,page,line,last_page",
+    [
+        ("drs-17-0273-clean.pdf", 1, "Landtag von Baden-Württemberg Drucksache 17 / 273", None),
+        ("drs-17-0273-clean.pdf", 1, "Landtag von Baden-Württemberg Drucksache 17 / 273", 1),  # nothing repeats it
+        ("drs-clean.pdf", 1, "19. Wahlperiode 10.12.2025 Drucksache 19/9342", None),
+        ("drs-clean.pdf", 2, "Drucksache 19/9342 Bayerischer Landtag 19. Wahlperiode Seite 2", None),
+        (
+            "plpr-18-10.pdf",
+            3,
+            "Landtag von Baden-Württemberg – 18. Wahlperiode – 10. Sitzung – Donnerstag, 23. Juli 2026",
+            None,
+        ),
+        ("drs-20-3769-synopsis.pdf", 2, "Drucksache 20/3769 Schleswig-Holsteinischer Landtag – 20.Wahlperiode", None),
+        ("protokollauszug-24p.pdf", 2, "41. Plenum, 04.02.2025 Bayerischer Landtag – 19. Wahlperiode 1", None),
+        ("gbl-2026-12.pdf", 2, "Seite 2 von 2", None),
+        ("email-forwarded-with-statement.pdf", 3, "1 von 3", None),  # above a four-line footer
+    ],
+    ids=[
+        "bw-masthead",
+        "bw-masthead-first-page-only",
+        "by-masthead",
+        "by-running-header",
+        "protocol-header",
+        "synopsis-header",
+        "closing-number",
+        "seite-von",
+        "page-number-above-footer",
+    ],
+)
+def test_furniture_text(name, page, line, last_page):
+    # scraper-bw trusts the printed "Ausgegeben" date only below the Drucksache's own header
+    d = sample(name) if last_page is None else parse(_path(name), ParseOptions(ocr=OcrMode.NEVER, last_page=last_page))
+    p = d.pages[page - 1]
+    assert line in p.furniture_text().splitlines()
+    assert line not in p.text()
 
 
 @pytest.mark.xfail(strict=True, reason="#24: ToC entries split at line ends")

@@ -24,7 +24,7 @@ Tests marked `ocr` auto-skip unless tesseract with `deu` data is installed; test
 Everything runs through `_pipeline/pipeline.py`: an ordered list of `Step`s (`DEFAULT_STEPS`) sharing a `Context` (`doc`, `options`). Steps never call each other; they communicate only by mutating the `Document` (`_pipeline/model.py`).
 
 - `parse()` (`_pipeline/api.py`) converts the internal `Document` into the immutable public `PdfDocument` (`_document.py`); renderers read only `PdfDocument`. `_document.py` must not import `_pipeline`.
-- Steps: `extract` → `layout` → `furniture` → `sanitize` → `flow`. `extract` and `layout` are `critical=True` (failure aborts); every other step's exception is recorded as an `Issue` on the document and the pipeline continues, unless `ParseOptions(strict=True)`.
+- Steps: `extract` → `layout` → `furniture` → `page_numbers` → `sanitize` → `flow`. `extract` and `layout` are `critical=True` (failure aborts); every other step's exception is recorded as an `Issue` on the document and the pipeline continues, unless `ParseOptions(strict=True)`.
 - New behaviour = new `@step(...)` inserted with `Pipeline.insert_after/before/replace`, not a call from inside another step.
 
 Coordinates everywhere are view space: points, top-left origin, after applying `/Rotate`. pdfium reports char angles clockwise (negated before mapping).

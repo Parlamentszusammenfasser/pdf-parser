@@ -40,10 +40,13 @@ def test_page_texts_add_up_to_the_document_text(parsed, name):
     assert d.text(pages=[]) == d.text(pages=[99]) == ""
 
 
-def test_text_leaves_out_furniture(parsed):
-    d = parsed["letter"]
-    assert any(b.kind.value == "page_number" and b.text == "- 2 -" for b in d.blocks)
-    assert "- 2 -" not in d.text()
+def test_furniture_is_kept_apart_from_the_text(parsed):
+    first, second = parsed["letter"].pages
+    assert "- 2 -" not in parsed["letter"].text()
+    assert second.furniture_text() == "- 2 -\nVerband der Testbetriebe e.V. · Registergericht München VR 12345"
+    assert second.printed_page == "2" and first.printed_page is None  # letters number pages from the second on
+    email = parsed["email"].pages[0]
+    assert email.furniture_text() == "" and email.printed_page is None
 
 
 @pytest.mark.parametrize(
@@ -128,12 +131,13 @@ def _edited(edit) -> str:
         lambda d: None,
         lambda d: d.update(future=1),
         lambda d: d["metadata"].update(subject="x"),
-        lambda d: d["pages"][0].update(label="II"),
+        lambda d: d["pages"][0].update(rotation=90),
         lambda d: d["pages"][0]["blocks"][0].update(confidence=0.9),
         lambda d: d["report"]["pages"][0].update(engine="tesseract"),
         lambda d: d["report"]["issues"][0].update(code="ocr_skipped"),
         lambda d: d["pages"][0]["blocks"][0].pop("level"),
         lambda d: d["report"]["issues"][0].pop("page"),
+        lambda d: d["pages"][0].pop("printed_page"),
     ],
     ids=[
         "as-written",
@@ -145,6 +149,7 @@ def _edited(edit) -> str:
         "new-issue-key",
         "older-without-block-level",
         "older-without-issue-page",
+        "older-without-printed-page",
     ],
 )
 def test_from_json_reads_newer_and_older_writers(edit):

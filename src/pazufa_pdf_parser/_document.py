@@ -39,6 +39,10 @@ class BlockKind(StrEnum):
     def is_body(self) -> bool:
         return self in (BlockKind.PARAGRAPH, BlockKind.HEADING, BlockKind.LIST_ITEM, BlockKind.FOOTNOTE)
 
+    @property
+    def is_furniture(self) -> bool:
+        return self in (BlockKind.HEADER, BlockKind.FOOTER, BlockKind.PAGE_NUMBER)
+
 
 class Severity(StrEnum):
     INFO = "info"
@@ -68,7 +72,8 @@ class Severity(StrEnum):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Issue:
     severity: Severity
-    #: part of the parser that recorded it: "extract", "ocr", "layout", "furniture", "sanitize" or "flow"; stable
+    #: part of the parser that recorded it: "extract", "ocr", "layout", "furniture", "page_numbers", "sanitize" or
+    #: "flow"; stable
     step: str
     message: str
     page: int | None = None
@@ -88,10 +93,16 @@ class Page:
     number: int  # 1-based PDF page
     source: PageSource
     blocks: tuple[Block, ...]  # headers, body in reading order, footers and page numbers, margin notes and noise
+    #: printed page number ("259", "II"); None when none was found, e.g. on a single page without "Seite N"
+    printed_page: str | None = None
 
     def text(self) -> str:
         """Sanitized body text of this page."""
         return _body_text(self.blocks)
+
+    def furniture_text(self) -> str:
+        """Headers, footers and page numbers joined by newlines: headers top-down, then the rest top-down."""
+        return "\n".join(b.text for b in self.blocks if b.kind.is_furniture and b.text)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

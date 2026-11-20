@@ -70,7 +70,13 @@ def build_document(doc: model.Document) -> PdfDocument:
             page_count=info["page_count"],
         ),
         pages=tuple(
-            Page(number=p.number, source=p.source, blocks=tuple(_block(b) for b in p.all_blocks)) for p in doc.pages
+            Page(
+                number=p.number,
+                source=p.source,
+                blocks=tuple(_block(b) for b in p.all_blocks),
+                printed_page=p.printed_page,
+            )
+            for p in doc.pages
         ),
         report=Report(
             parser_version=PARSER_VERSION,

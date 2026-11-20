@@ -83,4 +83,5 @@ def load(src: Source, cached: str | None) -> str:
         html = render(doc, FORMAT)
     except UnknownFormatError:
         html = ""
-    return html + doc.text(pages=[1]) + doc.pages[0].text() + doc.to_json()
+    page = doc.pages[0]
+    return html + doc.text(pages=[1]) + page.text() + page.furniture_text() + (page.printed_page or "") + doc.to_json()
