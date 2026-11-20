@@ -47,7 +47,7 @@ _LABEL_LINE_RE = re.compile(r"^[\w ÄÖÜäöüß/.\-()]{1,40}:\s+\S")
 _POSTAL_LINE_RE = re.compile(r"^(D-?\s?)?\d{5}\s+[A-ZÄÖÜ][\wäöüß.\- ]{1,40}$")
 
 # hyphen-like characters at line end that indicate word division
-_HYPHENS = "-‐‑­"
+HYPHENS = "-‐‑­"
 
 
 def clean_chars(text: str) -> str:
@@ -99,7 +99,7 @@ def join_hyphenated(first: str, second: str) -> str | None:
     Returns the joined text, or None if no de-hyphenation applies.
     """
     a = first.rstrip()
-    if len(a) < 2 or a[-1] not in _HYPHENS or not a[-2].isalpha():
+    if len(a) < 2 or a[-1] not in HYPHENS or not a[-2].isalpha():
         return None
     b = second.lstrip()
     if not b:
@@ -120,7 +120,7 @@ def is_line_structured(lines: list[str]) -> bool:
         return False
     if any(_POSTAL_LINE_RE.match(ln) for ln in ls) and len(ls) <= 8:
         return True
-    if any(len(ln) > 1 and ln[-1] in _HYPHENS and ln[-2].isalpha() for ln in ls):
+    if any(len(ln) > 1 and ln[-1] in HYPHENS and ln[-2].isalpha() for ln in ls):
         return False  # word divided at line end -> running text
     return all(len(ln) <= 60 for ln in ls) and not ls[-1].endswith((".", ";", ":", "!", "?", ",")) and len(ls) <= 6
 

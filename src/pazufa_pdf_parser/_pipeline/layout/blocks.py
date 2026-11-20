@@ -6,6 +6,7 @@ import re
 from statistics import median
 
 from ..model import BBox, Block, BlockKind, Line, Region, RegionKind
+from ..sanitize import HYPHENS
 from .lines import build_lines
 
 LIST_MARKER_RE = re.compile(
@@ -26,7 +27,7 @@ _DATE_LIKE_RE = re.compile(
     re.I,
 )
 _END_PUNCT = tuple(".:;!?")
-_HYPHENATED_END_RE = re.compile(r"[a-zäöüß]-$")
+_HYPHENATED_END_RE = re.compile(rf"[a-zäöüß][{HYPHENS}]$")
 _LOWER_START_RE = re.compile(r"[a-zäöüß]")
 
 
