@@ -368,3 +368,8 @@ def test_bottom_of_page_content_kept():
     assert "Sehr geehrte Damen und Herren," in _txt("email-outlook-forwarded.pdf")
     d = sample("email-attached-letter-ligatures.pdf")
     assert sum(1 for b in d.blocks if b.kind.value == "footnote") >= 2
+
+
+def test_justified_line_stays_in_its_paragraph():
+    # a wide word gap below the sidebar's gutter is not a column pair of its own
+    assert "Portalen (bspw. UVP Portal, UVP- Verbund)" in _txt("letter-sidebar.pdf")
