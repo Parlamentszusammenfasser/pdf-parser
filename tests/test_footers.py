@@ -7,7 +7,7 @@ import pytest
 from conftest import NO_OCR
 from pazufa_pdf_parser import BlockKind, parse, render
 from pazufa_pdf_parser._pipeline.extract.pdf import plausible_size
-from pazufa_pdf_parser._pipeline.layout.footers import footer_score, has_page_number, lexicon_hits
+from pazufa_pdf_parser._pipeline.layout.footers import footer_score, lexicon_hits, zone_page_number
 from pazufa_pdf_parser._pipeline.model import BBox
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 from pdfgen import T, make_pdf, paragraph
@@ -116,10 +116,19 @@ def test_first_page_footer_with_page_number_removed():
 
 
 def test_numbered_zone_without_footer_text_is_kept():
-    pdf = make_pdf([body() + [T(70, 760, "Die Kosten betragen insgesamt", 11), T(515, 760, "45", 11)]])
+    pdf = make_pdf([body() + [T(70, 760, "Die Kosten betragen insgesamt", 11), T(515, 760, "1", 11)]])
     d = parse(pdf, NO_OCR)
     assert footer_lines(d) == []
     assert "Die Kosten betragen insgesamt" in d.text()
+
+
+def test_small_table_ending_in_numbers_is_kept():
+    # statistics tables close the answers to Kleine Anfragen; a count is not the page number
+    rows = [("Biberach", "12"), ("Bodenseekreis", "1"), ("Insgesamt", "13")]
+    table = [t for i, (a, n) in enumerate(rows) for t in (T(70, 756 + 11 * i, a, 9), T(330, 756 + 11 * i, n, 9))]
+    d = parse(make_pdf([body(690) + table]), NO_OCR)  # small print, but too close to the body for a footer
+    assert footer_lines(d) == []
+    assert "Bodenseekreis" in d.text()
 
 
 def test_scaled_text_matrix_font_size():
@@ -149,21 +158,24 @@ def test_scoring_helpers():
 
 
 @pytest.mark.parametrize(
-    "text,numbered",
+    "lines,numbered",
     [
-        ("Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021\t1", True),
-        ("1", True),
-        ("40\t40", False),
-        ("Ausgegeben: 25.6.2021 1", False),
-        ("", False),
+        (["Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021\t1"], True),
+        (["1"], True),
+        (["Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021\t2"], False),
+        (["Biberach\t12", "Bodenseekreis\t1"], False),
+        (["40\t1"], False),
+        (["Ausgegeben: 25.6.2021 1"], False),
+        ([""], False),
     ],
-    ids=["closing-cell", "lone", "table-row", "no-tab", "empty"],
+    ids=["closing-cell", "lone", "other-page", "table", "number-row", "no-tab", "empty"],
 )
-def test_has_page_number(text, numbered):
+def test_zone_page_number(lines, numbered):
     from pazufa_pdf_parser._pipeline.model import Block, Line, Word
 
-    w = Word(text, BBox(70, 780, 400, 790), size=10)
-    assert has_page_number(Block([Line([w], w.bbox, text)], w.bbox, 1)) is numbered
+    words = [Word(t, BBox(70, 780 + 10 * i, 400, 790 + 10 * i), size=10) for i, t in enumerate(lines)]
+    block = Block([Line([w], w.bbox, w.text) for w in words], BBox.enclosing(w.bbox for w in words), 1)
+    assert (zone_page_number([block], 1) is block) is numbered
 
 
 def _pages(*furniture):
