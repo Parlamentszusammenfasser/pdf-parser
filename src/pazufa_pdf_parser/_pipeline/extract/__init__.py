@@ -133,8 +133,9 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
 
 
 def _lone_numbers_missed(text: list[Word], ocr: list[Word]) -> list[Word]:
-    """Text-layer numbers alone on their row that OCR missed. Tesseract drops a lone bold page number
-    (BW Drucksache annexes); a shifted font turns digits into control characters, so these are genuine."""
+    """Text-layer numbers alone on their row that OCR missed: tesseract drops the lone bold page number
+    of BW Drucksache annexes, while their shifted font turns its own digits into control characters."""
+    # shortcut: the +29 shift also turns a lone capital M–V into a digit; restrict to the page bands if one shows up
     return [
         w
         for w in text
