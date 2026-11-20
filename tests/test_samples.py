@@ -313,6 +313,13 @@ def test_bw_gesetzblatt_page_2():
     assert txt.index("Strobl") < txt.index("Dr. Bayaz")
 
 
+@pytest.mark.ocr
+def test_letter_signatures_side_by_side_read_left_first():
+    # the two signatories pair up line for line in one size, so neither is a sidebar
+    txt = _txt("scan-rotate-270-footer-logo.pdf")
+    assert txt.index("Franz Xaver") < txt.index("Frank Hüpers")
+
+
 def test_bavarian_report():
     txt = _txt("drs-beschlussempfehlung-ablehnung.pdf")
     assert "Ablehnung empfohlen." in txt  # letter-spaced "A b l e h n u n g" collapsed
