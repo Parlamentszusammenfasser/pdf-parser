@@ -33,4 +33,6 @@
 [x] T24 printed page numbers beside text (#34): a page number closing a band line ("Bayerisches<tab>177", footer
      "…<tab>I") becomes its own page-number block when the neighbour page continues it; on OCR pages a lone
      text-layer number tesseract missed is kept
+[x] T25 Gesetzblatt page 2 (#23): its one-off running header is furniture as the page's first line; two
+     columns that pair up line for line (signature lists) are no sidebar and read left first
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

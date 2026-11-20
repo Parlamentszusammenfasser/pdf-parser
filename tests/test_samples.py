@@ -307,11 +307,17 @@ def test_bw_gesetzblatt_law_text():
     assert "Seite 2 von 2" not in txt
 
 
-@pytest.mark.xfail(strict=True, reason="#23: page-2 header in body, signature columns right first")
 def test_bw_gesetzblatt_page_2():
     txt = _txt("gbl-2026-12.pdf")
     assert "Jahrgang 2026" not in txt
     assert txt.index("Strobl") < txt.index("Dr. Bayaz")
+
+
+@pytest.mark.ocr
+def test_letter_signatures_side_by_side_read_left_first():
+    # the two signatories pair up line for line in one size, so neither is a sidebar
+    txt = _txt("scan-rotate-270-footer-logo.pdf")
+    assert txt.index("Franz Xaver") < txt.index("Frank Hüpers")
 
 
 def test_bavarian_report():

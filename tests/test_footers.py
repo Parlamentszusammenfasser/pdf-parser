@@ -317,6 +317,26 @@ def test_single_page_masthead_is_furniture(first_line, is_header):
     assert ("17 / 273" in page.text()) is not is_header
 
 
+_GAZETTE = "Gesetzblatt für Baden-Württemberg, Jahrgang 2026, Nr. 12 vom 27. Februar 2026"
+
+
+@pytest.mark.parametrize(
+    "top,is_header",
+    [
+        ([T(98, 40, _GAZETTE, 13)], True),
+        ([T(70, 40, f"{_GAZETTE} verkündet und wie folgt geändert:", 13)], False),
+        ([T(70, 40, "Anlage", 13), T(98, 58, _GAZETTE, 13)], False),
+    ],
+    ids=["running-header", "citation", "below-the-first-line"],
+)
+def test_gazette_header_printed_once_is_furniture(top, is_header):
+    # a two-page Gesetzblatt issue prints its running header on page 2 only, so nothing repeats it
+    page = parse(make_pdf([body(200), top + body(200)]), NO_OCR).pages[1]
+    header = top[-1].text
+    assert (header in page.furniture_text()) is is_header
+    assert (header in page.text()) is not is_header
+
+
 def test_masthead_only_on_the_first_page():
     # an agenda item at the top of a later page cites its Drucksache the same way
     item = [T(70, 40, "Gesetzentwurf der Staatsregierung", 9), T(400, 40, "Drucksache 17 / 273", 9)]

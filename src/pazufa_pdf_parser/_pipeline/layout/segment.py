@@ -12,10 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from statistics import median
 
-from ..model import BBox, Region, RegionKind, Word
+from ..model import BBox, Line, Region, RegionKind, Word
 from .lines import build_lines, median_size
 
 MAX_DEPTH = 10
+ROW_TOLERANCE = 0.3  # of a line height: centres closer than this sit on one printed row
 
 Interval = tuple[float, float]
 
@@ -212,16 +213,30 @@ class Segmenter:
                         BBox.enclosing(w.bbox for w in gw),
                         children=[self._segment(left, depth + 1), self._segment(right, depth + 1)],
                     )
-                    lw = max(w.bbox.x1 for w in left) - min(w.bbox.x0 for w in left)
-                    rw = max(w.bbox.x1 for w in right) - min(w.bbox.x0 for w in right)
-                    # a narrow right column next to a wide one is a sidebar (letterhead data)
-                    region.aside_first = rw < 0.45 * (lw + rw) and lw >= 1.2 * rw
+                    region.aside_first = _is_sidebar(left, right)
             if region is None:
                 region = self._leaf(gw)
             children.append(region)
         if len(children) == 1:
             return children[0]
         return Region(RegionKind.STACK, BBox.enclosing(c.bbox for c in children), children=_flatten(children))
+
+
+def _is_sidebar(left: list[Word], right: list[Word]) -> bool:
+    """A narrow right column next to a wide one is a sidebar (letterhead data), unless the two pair
+    up line for line in one font size like the two signature lists under a Gesetzblatt law. A letter's
+    sidebar may align with the address field, but in smaller print."""
+    lw = max(w.bbox.x1 for w in left) - min(w.bbox.x0 for w in left)
+    rw = max(w.bbox.x1 for w in right) - min(w.bbox.x0 for w in right)
+    if rw >= 0.45 * (lw + rw) or lw < 1.2 * rw:
+        return False
+    lines, aside = build_lines(left), build_lines(right)
+    paired = len(lines) == len(aside) > 1
+    return not (paired and all(_same_row(a, b) for a, b in zip(lines, aside)))
+
+
+def _same_row(a: Line, b: Line) -> bool:
+    return abs(a.bbox.cy - b.bbox.cy) < ROW_TOLERANCE * a.bbox.height and abs(a.size - b.size) < 0.15 * a.size
 
 
 def _fits(words: list[Word], gap: Interval) -> bool:
