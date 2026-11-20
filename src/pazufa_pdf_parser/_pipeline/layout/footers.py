@@ -14,7 +14,8 @@ vertical gap that ends the body. Each block in the zone is scored on
 * footer vocabulary (register court, board, bank details, contact data, ...),
 * OCR noise (logos read as symbol soup),
 * OCR-tolerant repetition (token containment) with other pages' bottom zones,
-* the size of the gap separating it from the body.
+* the size of the gap separating it from the body,
+* the page number printed inside the zone.
 
 Blocks scoring above :data:`THRESHOLD` become ``FOOTER`` furniture (still in
 ``raw`` output). Numbered notes become ``FOOTNOTE`` blocks, which stay content.
@@ -29,9 +30,11 @@ from dataclasses import dataclass
 from statistics import median
 
 from ..model import Block, BlockKind, Document, Page, Region, RegionKind
+from .furniture import is_page_number
 
 ZONE_TOP = 0.72  # a footer zone must start below this fraction of the page height
 THRESHOLD = 2.5
+NUMBERED_ZONE_BONUS = 1.0  # the page number marks the zone as the page footer
 
 _LEXICON = [
     re.compile(p, re.I)
@@ -95,9 +98,28 @@ def is_noise(block: Block) -> bool:
     return alnum < 0.7 or (conf is not None and conf < 60)
 
 
-def footer_score(block: Block, body_size: float, gap: float, repeated: bool) -> float:
+def has_page_number(block: Block) -> bool:
+    """A lone page number, or one set apart by a tab at the start or end of a text line
+    (BW Drucksachen close page 1's "Ausgegeben: …" footer row with it)."""
+    if len(block.lines) == 1 and is_page_number(block.raw_text):
+        return True
+    for ln in block.lines:
+        cells = ln.text.split("\t")
+        # a row of numbers is a table, not text beside a page number
+        opens = is_page_number(cells[0]) and _has_letters(cells[1:])
+        closes = is_page_number(cells[-1]) and _has_letters(cells[:-1])
+        if opens or closes:
+            return True
+    return False
+
+
+def _has_letters(cells: list[str]) -> bool:
+    return any(c.isalpha() for cell in cells for c in cell)
+
+
+def footer_score(block: Block, body_size: float, gap: float, repeated: bool, numbered_zone: bool = False) -> float:
     text = block.raw_text
-    score = 0.0
+    score = NUMBERED_ZONE_BONUS if numbered_zone else 0.0
     if block.size and block.size < 0.88 * body_size:
         score += 2.0
     hits = lexicon_hits(text)
@@ -160,27 +182,34 @@ def refine_footers(doc: Document) -> int:
     for i, z in zones.items():
         page = doc.pages[i]
         others = [other for j, other in bottom_tokens.items() if j != i and other]
-        footers: list[Block] = []
-        rest: list[Block] = []
-        for b in z.blocks:
-            if is_footnote(b, body_size):
-                b.kind = BlockKind.FOOTNOTE
-                continue
-            if footer_score(b, body_size, z.gap, _repeated(_tokens(b.raw_text), others)) >= THRESHOLD:
-                footers.append(b)
-            else:
-                rest.append(b)
-        # nothing below a footer is body text; logos/noise beside it belong to it too
-        if footers:
-            top = min(b.bbox.y0 for b in footers)
-            footers += [b for b in rest if b.bbox.y0 >= top - 2 or is_noise(b)]
-        for b in footers:
+        for b in _zone_footers(z, body_size, others):
             if page.layout is not None and _detach(page.layout, b):
                 b.kind = BlockKind.FOOTER
                 b.labels.add("footer:zone")
                 page.furniture.append(b)
                 moved += 1
     return moved
+
+
+def _zone_footers(z: _Zone, body_size: float, others: list[set[str]]) -> list[Block]:
+    """The footer blocks of a bottom zone; marks its footnotes on the way."""
+    numbered = any(has_page_number(b) for b in z.blocks)
+    footers: list[Block] = []
+    rest: list[Block] = []
+    for b in z.blocks:
+        if is_footnote(b, body_size):
+            b.kind = BlockKind.FOOTNOTE
+            continue
+        repeated = _repeated(_tokens(b.raw_text), others)
+        if footer_score(b, body_size, z.gap, repeated, numbered) >= THRESHOLD:
+            footers.append(b)
+        else:
+            rest.append(b)
+    # nothing below a footer is body text; logos/noise beside it and the page number belong to it too
+    if footers:
+        top = min(b.bbox.y0 for b in footers)
+        footers += [b for b in rest if b.bbox.y0 >= top - 2 or is_noise(b) or has_page_number(b)]
+    return footers
 
 
 def _repeated(toks: set[str], others: list[set[str]]) -> bool:

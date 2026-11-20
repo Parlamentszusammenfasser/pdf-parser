@@ -1,6 +1,8 @@
 """Layout analysis on synthetic word geometry (no PDF involved)."""
 
-from pazufa_pdf_parser._pipeline.layout.blocks import classify_headings, split_blocks, starts_with_marker
+import pytest
+
+from pazufa_pdf_parser._pipeline.layout.blocks import classify_headings, fill_leaves, split_blocks, starts_with_marker
 from pazufa_pdf_parser._pipeline.layout.furniture import detect_furniture, is_page_number, normalize_key
 from pazufa_pdf_parser._pipeline.layout.lines import build_lines
 from pazufa_pdf_parser._pipeline.layout.segment import Segmenter, detect_synopsis
@@ -199,6 +201,21 @@ class TestSegmentation:
         region = self.seg([])
         assert list(region.iter_blocks()) == []
 
+    @pytest.mark.parametrize("footer_lines", [2, 1], ids=["two-column-footer", "single-tabbed-row"])
+    def test_footer_columns_below_a_margin_page_number(self, footer_lines):
+        # BW page 1: the masthead date and the page number "1" open a right-margin gap down the whole page
+        masthead = words_for(70, 60, "17. Wahlperiode") + words_for(400, 60, "22.6.2021")
+        row = words_for(70, 700, "Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021") + words_for(515, 698, "1", 14)
+        left = ["Drucksachen sind im Internet", "abrufbar unter: www.example.de"][:footer_lines]
+        right = ["Der Landtag druckt auf Recycling-", "papier mit dem Blauen Engel."][:footer_lines]
+        footer = lines_block(70, 716, left, 9, leading=1.0) + lines_block(300, 716, right, 9, leading=1.0)
+        region = self.seg(masthead + lines_block(70, 100, PROSE) + row + footer)
+        fill_leaves(region, 1)
+        columns = [r for r in region.iter_regions() if r.kind is RegionKind.COLUMNS]
+        assert len(columns) == footer_lines - 1  # one row with a tab is not a column pair
+        if columns:
+            assert [b.raw_text.split("\n")[0] for b in columns[0].iter_blocks()] == [left[0], right[0]]
+
 
 class TestBlocks:
     def test_paragraph_gap_splits(self):
@@ -284,7 +301,7 @@ class TestFurniture:
     def test_page_number_patterns(self):
         for t in ["3", "- 3 -", "Seite 3", "Seite 3 von 10", "3 / 10", "S. 4", "ii", "XIV"]:
             assert is_page_number(t), t
-        for t in ["§ 3", "Seite drei", "Kapitel 3", "ll", "IIII", "C"]:
+        for t in ["§ 3", "Seite drei", "Kapitel 3", "ll", "IIII", "C", "0"]:
             assert not is_page_number(t)
 
     def test_normalize_key(self):

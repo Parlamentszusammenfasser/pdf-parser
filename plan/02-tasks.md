@@ -29,4 +29,5 @@
      number the next page continues; numbers the neighbour repeats are rejected); page-1 Drucksache/Plenarprotokoll
      masthead is furniture also on single pages; band holds 5 lines for "1 von 3" above a four-line footer (#12;
      missed page-1 numbers and OCR-dropped lone numbers → #34)
+[x] T23 BW page-1 footer is furniture (#22): a strip whose own two-column gutter the group's margin gutter misses starts new columns; a bottom zone holding the page number (lone, or tab-set beside text) scores +1 and takes the number along; no page "0"
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

@@ -16,7 +16,7 @@ MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
 _PAGE_WORD = r"(?:seite|page|s\.|blatt)"
 _ROMAN = r"(?=[ivxl])(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})"  # up to 89 for front matter; rejects OCR "ll"
 _PAGE_NUMBER_RES = [
-    re.compile(r"^[-–—]?\s*\d{1,4}\s*[-–—]?$"),
+    re.compile(r"^[-–—]?\s*[1-9]\d{0,3}\s*[-–—]?$"),  # no page 0: a "0" is a scale bar or a table cell
     re.compile(rf"^{_PAGE_WORD}\s*\d{{1,4}}(\s*(von|of|/)\s*\d{{1,4}})?\.?$", re.I),
     re.compile(r"^\d{1,4}\s*(/|von|of)\s*\d{1,4}$", re.I),
     re.compile(rf"^{_ROMAN}$", re.I),
