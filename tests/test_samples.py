@@ -160,9 +160,13 @@ def test_printed_pages(name, printed):
     assert all(len([b for b in p.blocks if b.kind is BlockKind.PAGE_NUMBER]) <= 1 for p in pages)
 
 
-@pytest.mark.xfail(strict=True, reason='#12 known gap: page 1\'s printed "I" is read into the footer beside it')
+@pytest.mark.xfail(strict=True, reason='#34: page 1\'s printed "I" is read into the footer beside it')
 def test_bw_protocol_first_page_number():
     assert sample("plpr-18-10.pdf").pages[0].printed_page == "I"
+
+
+def test_bw_protocol_speech_stays_in_body():
+    assert "Präsident Thomas Strobl: Guten Morgen" in _txt("plpr-18-10.pdf")
 
 
 @pytest.mark.parametrize("last_page", [None, 1], ids=["whole", "first-page-only"])

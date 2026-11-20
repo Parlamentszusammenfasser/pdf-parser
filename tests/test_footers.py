@@ -1,5 +1,7 @@
 """Second-pass footer detection (layout.footers) and the furniture/flow steps."""
 
+from dataclasses import replace
+
 import pytest
 
 from conftest import NO_OCR
@@ -118,34 +120,33 @@ def test_scoring_helpers():
     assert footer_score(blk("und damit endet der Satz", 7), 11, 30, False) < 2.5
 
 
-def _pages(headers, footers):
+def _pages(*furniture):
+    """One page per (header, footer); a newline starts another line. The body sits below the header band."""
     return [
-        body() + [T(70, 40, h, 9) for h in [head] if h] + [T(280, 800, f, 9) for f in [foot] if f]
-        for head, foot in zip(headers, footers, strict=True)
+        body(200)
+        + [T(70, 40 + 12 * k, ln, 9) for k, ln in enumerate(head.splitlines())]
+        + [T(280, 790 + 12 * k, ln, 9) for k, ln in enumerate(foot.splitlines())]
+        for head, foot in furniture
     ]
 
 
 @pytest.mark.parametrize(
-    "headers,footers,printed",
+    "furniture,printed",
     [
-        ([None, None], ["- 1 -", "- 2 -"], ["1", "2"]),
-        ([None, None], ["Seite 1 von 2", "Seite 2 von 2"], ["1", "2"]),
-        ([None, None], ["I", "II"], ["I", "II"]),
-        ([None, None], ["ll", "ll"], [None, None]),
-        (
-            ["Bayerischer Landtag – 19. Wahlperiode 1", "Bayerischer Landtag – 19. Wahlperiode 2"],
-            [None, None],
-            ["1", "2"],
-        ),
-        (["178 Gesetzblatt Nr. 12/2025", "Gesetzblatt Nr. 12/2025 179"], [None, None], ["178", "179"]),
-        (["Landtag Drucksache 17 / 273", "Landtag Drucksache 17 / 273"], [None, None], [None, None]),
-        (["Landtag – 19. Wahlperiode 5", "Landtag – 19. Wahlperiode 9"], [None, None], [None, None]),
-        ([None], ["Telefon 089 4126 0"], [None]),
-        (
-            ["Stellungnahme des Verbands | Seite 1 von 2", "Stellungnahme des Verbands | Seite 2 von 2"],
-            [None, None],
-            ["1", "2"],
-        ),
+        ([("", "- 1 -"), ("", "- 2 -")], ["1", "2"]),
+        ([("", "Seite 1 von 2"), ("", "Seite 2 von 2")], ["1", "2"]),
+        ([("", "I"), ("", "II")], ["I", "II"]),
+        ([("", "ll"), ("", "ll")], [None, None]),
+        ([("Landtag – 19. Wahlperiode 1", ""), ("Landtag – 19. Wahlperiode 2", "")], ["1", "2"]),
+        ([("178 Gesetzblatt Nr. 12/2025", ""), ("Gesetzblatt Nr. 12/2025 179", "")], ["178", "179"]),
+        ([("178 Gesetzblatt", "Anlage 8"), ("Gesetzblatt 179", "Anlage 9")], ["178", "179"]),
+        ([("Stellungnahme | Seite 1 von 2", ""), ("Stellungnahme | Seite 2 von 2", "")], ["1", "2"]),
+        ([("2025\nLandtag Seite 1", ""), ("2025\nLandtag Seite 2", "")], ["1", "2"]),
+        ([("Landtag Drucksache 17 / 273", "")] * 2, [None, None]),
+        ([("Landtag – 19. Wahlperiode 5", ""), ("Landtag – 19. Wahlperiode 9", "")], [None, None]),
+        ([("", "Telefon 0711 2063 0\nTelefax 0711 2063 1")] * 3, [None, None, None]),
+        ([("", "Quelle: Statistisches Landesamt ²")] * 2, [None, None]),
+        ([("", "80333 München"), ("", "80334 München")], [None, None]),
     ],
     ids=[
         "page-number-line",
@@ -154,37 +155,67 @@ def _pages(headers, footers):
         "ocr-misread-roman",
         "closing-header",
         "alternating-header",
+        "header-before-footer",
+        "seite-inside-header",
+        "year-beside-seite",
         "constant-number",
         "not-consecutive",
-        "number-in-footer-text",
-        "seite-inside-header",
+        "phone-and-fax",
+        "footnote-mark",
+        "five-digit-number",
     ],
 )
-def test_printed_page(headers, footers, printed):
-    d = parse(make_pdf(_pages(headers, footers)), NO_OCR)
+def test_printed_page(furniture, printed):
+    d = parse(make_pdf(_pages(*furniture)), NO_OCR)
     assert [p.printed_page for p in d.pages] == printed
+    assert not d.report.issues
 
 
 def test_printed_page_of_an_empty_page():
     assert parse(make_pdf([[]]), NO_OCR).pages[0].printed_page is None
 
 
+def test_printed_page_in_a_page_range():
+    pdf = make_pdf(_pages(*[(f"Landtag – 19. Wahlperiode {n}", "") for n in (1, 2, 3)]))
+    assert [p.printed_page for p in parse(pdf, replace(NO_OCR, first_page=2)).pages] == ["2", "3"]
+    # one page alone: nothing shows the number counting up
+    assert parse(pdf, replace(NO_OCR, last_page=1)).pages[0].printed_page is None
+
+
 @pytest.mark.parametrize(
     "first_line,is_header",
     [
         ([T(70, 40, "Landtag von Baden-Württemberg", 9), T(400, 40, "Drucksache 17 / 273", 9)], True),
+        ([T(70, 40, "19. Wahlperiode", 9), T(400, 40, "17.06.2026 Drucksache 17 / 273", 9)], True),
         ([T(70, 40, "Plenarprotokoll 17 / 273", 12)], True),
-        ([T(70, 40, "Betreff:", 9), T(150, 40, "Kleine Anfrage Drucksache 17 / 273", 9)], False),
+        ([T(70, 40, "Betreff:", 9), T(150, 40, "Drucksache 17 / 273", 9)], False),
+        ([T(70, 40, "Bezug", 9), T(150, 40, "Antrag zu Drucksache 17 / 273", 9)], False),
+        ([T(70, 40, "Landtag", 9), T(400, 40, "Drucksache 17 / 273 (neu)", 9)], False),
         ([T(70, 40, "Der Ausschuss empfiehlt die Annahme der Drucksache 17 / 273", 9)], False),
     ],
-    ids=["masthead", "protocol-masthead", "email-field", "prose"],
+    ids=[
+        "masthead",
+        "masthead-with-date",
+        "protocol-masthead",
+        "email-field",
+        "label-and-value",
+        "number-with-suffix",
+        "prose",
+    ],
 )
 def test_single_page_masthead_is_furniture(first_line, is_header):
     # one page has no running header to repeat it; the document's own number still marks it
-    page = parse(make_pdf([first_line + body()]), NO_OCR).pages[0]
+    page = parse(make_pdf([first_line + body(200)]), NO_OCR).pages[0]
     assert ("17 / 273" in page.furniture_text()) is is_header
     assert ("17 / 273" in page.text()) is not is_header
 
 
+def test_masthead_only_on_the_first_page():
+    # an agenda item at the top of a later page cites its Drucksache the same way
+    item = [T(70, 40, "Gesetzentwurf der Staatsregierung", 9), T(400, 40, "Drucksache 17 / 273", 9)]
+    d = parse(make_pdf([body(200), item + body(200)]), NO_OCR)
+    assert "17 / 273" in d.text() and d.pages[1].furniture_text() == ""
+
+
 def test_step_order():
-    assert Pipeline().names() == ["extract", "layout", "furniture", "sanitize", "flow"]
+    assert Pipeline().names() == ["extract", "layout", "furniture", "page_numbers", "sanitize", "flow"]

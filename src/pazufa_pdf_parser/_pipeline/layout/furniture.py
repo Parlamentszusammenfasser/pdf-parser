@@ -13,17 +13,17 @@ SIMILAR = 0.85  # fuzzy match ratio for repeated header/footer lines
 REPEAT_SHARE = 0.4  # below one half: left/right pages carry different running headers
 MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
 
+_PAGE_WORD = r"(?:seite|page|s\.|blatt)"
+_ROMAN = r"(?=[ivxl])(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})"  # up to 89 for front matter; rejects OCR "ll"
 _PAGE_NUMBER_RES = [
     re.compile(r"^[-–—]?\s*\d{1,4}\s*[-–—]?$"),
-    re.compile(r"^(seite|page|s\.|blatt)\s*\d{1,4}(\s*(von|of|/)\s*\d{1,4})?\.?$", re.I),
+    re.compile(rf"^{_PAGE_WORD}\s*\d{{1,4}}(\s*(von|of|/)\s*\d{{1,4}})?\.?$", re.I),
     re.compile(r"^\d{1,4}\s*(/|von|of)\s*\d{1,4}$", re.I),
-    re.compile(r"^[ivxlc]{1,6}$", re.I),
+    re.compile(rf"^{_ROMAN}$", re.I),
 ]
-# the document's own number closing the first line: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273",
-# "Plenarprotokoll 18 / 10"; prose would run on without a tab gap
-_MASTHEAD = re.compile(r"(^|\t[^\t]*\b)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
-_ROMAN = re.compile(r"^(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$", re.I)  # up to 89: front matter; rejects OCR "ll"
-_SEITE = re.compile(r"\b(?:seite|page|blatt) (\d{1,4})\b", re.I)
+_PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "… | Seite 1 von 2" in a header
+# page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
+_MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
 
 
 def is_page_number(text: str) -> bool:
@@ -67,7 +67,8 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
 
     A line in the top/bottom band is furniture if it is a page number or if a
     similar line (digits normalised, fuzzy) appears in the same band on enough
-    other pages.
+    other pages. The first line of the first page is a header also without
+    repetition when it is a Drucksache or Plenarprotokoll masthead.
     """
     result: dict[tuple[int, int], BlockKind] = {}
     bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
@@ -83,8 +84,8 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
                 if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
-                # masthead, also with no page to repeat it; a colon marks an e-mail "Betreff:" field instead
-                if li == 0 and which == 0 and ":" not in ln.text and _MASTHEAD.search(ln.text):
+                # a colon marks an e-mail field instead ("Betreff:<tab>Drucksache 18/123")
+                if pi == li == which == 0 and ":" not in ln.text and _MASTHEAD.search(ln.text):
                     result[(pi, li)] = kind
                     continue
                 key = keys[pi][which][k]
@@ -104,40 +105,27 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
 
 def assign_printed_pages(pages: list[Page]) -> None:
     """Set ``printed_page``: a page-number line, else "Seite N" in a header or footer, else a number
-    leading or closing a header or footer line that the next or previous page continues (N±1)."""
+    opening or closing a header or footer line that the next or previous page continues (N±1)."""
+    own = [_own_numbers(p) for p in pages]
     edges = [_edge_numbers(p) for p in pages]
     for i, page in enumerate(pages):
-        page.printed_page = _own_number(page)
-        if page.printed_page is not None:
-            continue
-        for n in edges[i]:
-            before = i > 0 and pages[i - 1].number == page.number - 1 and n - 1 in edges[i - 1]
-            after = i + 1 < len(pages) and pages[i + 1].number == page.number + 1 and n + 1 in edges[i + 1]
-            if before or after:
-                page.printed_page = str(n)
-                break
+        near = [j for j in (i - 1, i + 1) if 0 <= j < len(pages)]  # parsed pages are a contiguous range
+        # a number the next page repeats is a year, a phone number or a document number
+        steady = [n for n in own[i] if not any(n in own[j] for j in near)]
+        counted = [str(n) for n in edges[i] if any(n + j - i in edges[j] and n not in edges[j] for j in near)]
+        page.printed_page = next(iter(steady + counted), None)
 
 
-def _own_number(page: Page) -> str | None:
-    blocks = sorted(page.furniture, key=lambda b: b.kind is not BlockKind.PAGE_NUMBER)
-    for b in blocks:
-        text = " ".join(b.raw_text.split())
-        if b.kind is BlockKind.PAGE_NUMBER:
-            # "- 2 -", "2 / 5", "Seite 2 von 5" print page 2
-            if m := re.search(r"\d+", text):
-                return m.group()
-            if _ROMAN.match(text):
-                return text
-        elif m := _SEITE.search(text):
-            return m.group(1)
-    return None
+def _own_numbers(page: Page) -> list[str]:
+    """Page-number lines first ("- 2 -", "2 / 5", "II"), then "Seite N" inside headers and footers."""
+    lines = [" ".join(b.raw_text.split()) for b in page.furniture if b.kind is BlockKind.PAGE_NUMBER]
+    found = [m.group() if (m := re.search(r"\d+", t)) else t for t in lines]
+    others = [b.raw_text for b in page.furniture if b.kind is not BlockKind.PAGE_NUMBER]
+    return found + [m.group(1) for t in others for m in _PAGE_WORD_NUMBER.finditer(t)]
 
 
-def _edge_numbers(page: Page) -> set[int]:
-    """Numbers opening or closing a header or footer line: "178 Bayerisches Gesetz- …", "… Wahlperiode 1"."""
-    found: set[int] = set()
-    for b in page.furniture:
-        for ln in b.lines:
-            tokens = ln.text.split()
-            found.update(int(t) for t in tokens[:1] + tokens[-1:] if t.isdigit() and len(t) <= 4)
-    return found
+def _edge_numbers(page: Page) -> list[int]:
+    """Numbers opening or closing a header or footer line, top-down: "178 Bayerisches …", "… Wahlperiode 1"."""
+    tokens = [ln.text.split() for b in page.furniture for ln in b.lines]
+    # isdecimal: a footnote mark "²" is a digit to isdigit() but not a number to int()
+    return [int(t) for ts in tokens for t in ts[:1] + ts[-1:] if t.isdecimal() and len(t) <= 4]

@@ -104,7 +104,7 @@ def test_strict_consumer_type_checks(target, error):
 
 
 # documented on Issue.step; callers filter on them, e.g. "ocr" to alert on scans left without OCR
-ISSUE_STEPS = {"extract", "ocr", "layout", "furniture", "sanitize", "flow"}
+ISSUE_STEPS = {"extract", "ocr", "layout", "furniture", "page_numbers", "sanitize", "flow"}
 
 
 def test_issue_steps_are_the_documented_ones():

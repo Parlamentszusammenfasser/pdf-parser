@@ -1,4 +1,4 @@
-"""Pipeline of steps: extract -> layout -> furniture -> sanitize -> flow.
+"""Pipeline of steps: extract -> layout -> furniture -> page_numbers -> sanitize -> flow.
 
 A pipeline is an ordered list of :class:`Step` objects. Steps never see each
 other directly: they communicate through the :class:`Document` held by the
@@ -138,8 +138,13 @@ def merge_flow(doc: Document) -> int:
 def furniture_step(ctx: Context) -> None:
     """Find page footers the repetition-based detection in ``layout`` missed:
     first-page-only footers, footers of single-page documents, OCR-varying
-    logos; separate footnotes from the running text. Then read each page's printed number."""
+    logos; separate footnotes from the running text."""
     ctx.doc.stats["footer_blocks_moved"] = refine_footers(ctx.doc)
+
+
+@step("page_numbers")
+def page_numbers_step(ctx: Context) -> None:
+    """Read the number printed on each page from its header, footer and page-number lines."""
     assign_printed_pages(ctx.doc.pages)
 
 
@@ -161,6 +166,7 @@ DEFAULT_STEPS: list[Step] = [
     extract_step,
     layout_step,
     furniture_step,
+    page_numbers_step,
     sanitize_step,
     flow_step,
 ]

@@ -101,7 +101,7 @@ for issue in doc.report.issues:
         print(issue.page, issue.step, issue.message)
 ```
 
-`issue.step` (`extract`, `ocr`, `layout`, `furniture`, `sanitize`, `flow`) and
+`issue.step` (`extract`, `ocr`, `layout`, `furniture`, `page_numbers`, `sanitize`, `flow`) and
 `severity` are stable; `message` is for people.
 
 ### Output formats
