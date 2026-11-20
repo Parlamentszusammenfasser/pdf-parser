@@ -93,11 +93,11 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 @pytest.mark.parametrize(
     "name,sources,anchors",
     [
-        ("drs-17-0273-clean.pdf", {"text": 4}, ["Ausgegeben: 25.6.2021", "A. Zielsetzung"]),
+        ("drs-17-0273-clean.pdf", {"text": 4}, ["A. Zielsetzung"]),
         pytest.param(
             "drs-17-1201-ascii-shift.pdf",
             {"text": 1, "ocr": 4},
-            ["Ausgegeben: 7.1.2022", "Änderungsantrag"],
+            ["Änderungsantrag"],
             marks=pytest.mark.ocr,
         ),
         pytest.param(
@@ -116,8 +116,7 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
     ids=["clean", "ascii-shift", "garbled-146p", "garbled-annex"],
 )
 def test_bw_drucksache_text(name, sources, anchors):
-    # BW annexes embed fonts with broken ToUnicode maps (ASCII +29 shift, Latin-Extended mojibake).
-    # "Ausgegeben: …" sits in the page-1 footer, which stays in the body until #22 is decided.
+    # BW annexes embed fonts with broken ToUnicode maps (ASCII +29 shift, Latin-Extended mojibake)
     d = sample(name)
     assert Counter(p.source.value for p in d.pages) == sources
     txt = render(d, "txt")
@@ -137,10 +136,21 @@ def test_bw_ascii_shift_pages_keep_their_number():
         assert set(re.findall(r"17/1201-\d+", d.text(pages=[p.number]))) == {f"17/1201-{p.number - 1}"}
 
 
-@pytest.mark.xfail(strict=True, reason="#22: two-column page-1 footer read line by line")
-def test_bw_drucksache_footer():
-    txt = _txt("drs-17-0273-clean.pdf")
-    assert "Recyclingpapier" not in txt or "Plenarprotokolle sind im Internet abrufbar" in txt
+@pytest.mark.parametrize(
+    "name,issued",
+    [
+        ("drs-17-0273-clean.pdf", "Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021 1"),
+        pytest.param("drs-17-1201-ascii-shift.pdf", "Ausgegeben: 7.1.2022", marks=pytest.mark.ocr),
+        pytest.param("drs-17-6014-garbled-annex.pdf", "Ausgegeben: 4.1.2024", marks=pytest.mark.ocr),
+    ],
+    ids=["clean", "ascii-shift", "garbled-annex"],
+)
+def test_bw_drucksache_footer(name, issued):
+    # scraper-bw reads the issue date from the page-1 footer, which is furniture with its two columns intact
+    page = sample(name).pages[0]
+    assert issued in page.furniture_text()
+    assert "Der Landtag druckt auf Recyclingpapier, ausgezeichnet mit dem Umweltzeichen" in page.furniture_text()
+    assert "Ausgegeben" not in page.text() and "Recyclingpapier" not in page.text()
 
 
 def _numbers(first, last):
@@ -213,11 +223,7 @@ def test_printed_pages(name, printed):
             "I",
             marks=pytest.mark.xfail(strict=True, reason='#34: page 1\'s printed "I" is read into the footer beside it'),
         ),
-        pytest.param(
-            "drs-17-0273-clean.pdf",
-            "1",
-            marks=pytest.mark.xfail(strict=True, reason="#22: the page-1 footer row with the number stays in the body"),
-        ),
+        ("drs-17-0273-clean.pdf", "1"),  # closes the "Ausgegeben: …" footer row
         pytest.param(
             "letter-sidebar.pdf",
             "1",
@@ -362,3 +368,8 @@ def test_bottom_of_page_content_kept():
     assert "Sehr geehrte Damen und Herren," in _txt("email-outlook-forwarded.pdf")
     d = sample("email-attached-letter-ligatures.pdf")
     assert sum(1 for b in d.blocks if b.kind.value == "footnote") >= 2
+
+
+def test_justified_line_stays_in_its_paragraph():
+    # a wide word gap below the sidebar's gutter is not a column pair of its own
+    assert "Portalen (bspw. UVP Portal, UVP- Verbund)" in _txt("letter-sidebar.pdf")

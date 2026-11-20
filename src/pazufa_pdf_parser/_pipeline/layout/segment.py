@@ -125,7 +125,8 @@ class Segmenter:
             g = groups[-1] if groups else None
             if g is not None and g.columns:
                 free = _intersect(g.free, s.free)
-                if self._interior(free, min(g.x0, s.x0), max(g.x1, s.x1), min_w):
+                gutters = self._interior(free, min(g.x0, s.x0), max(g.x1, s.x1), min_w)
+                if gutters and not self._new_columns(s, own, gutters):
                     g.strips.append(s)
                     g.free = free
                     continue
@@ -134,6 +135,13 @@ class Segmenter:
                 continue
             groups.append(_Group([s], s.free, bool(own)))
         return groups
+
+    def _new_columns(self, s: _Strip, own: list[Interval], gutters: list[Interval]) -> bool:
+        """The strip holds columns of its own that the group's gutters miss. BW page 1 prints its
+        number "1" right of the body, so the margin gap left of it would take in the two-column footer."""
+        if not own or _intersect(gutters, own):
+            return False
+        return self._accept_columns(s.words, max(own, key=lambda iv: iv[1] - iv[0]))
 
     def _accept_columns(self, words: list[Word], gap: Interval) -> bool:
         lines = build_lines(words)

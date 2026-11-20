@@ -7,7 +7,7 @@ import pytest
 from conftest import NO_OCR
 from pazufa_pdf_parser import BlockKind, parse, render
 from pazufa_pdf_parser._pipeline.extract.pdf import plausible_size
-from pazufa_pdf_parser._pipeline.layout.footers import footer_score, lexicon_hits
+from pazufa_pdf_parser._pipeline.layout.footers import footer_score, lexicon_hits, zone_page_number
 from pazufa_pdf_parser._pipeline.model import BBox
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 from pdfgen import T, make_pdf, paragraph
@@ -94,6 +94,43 @@ def test_footnotes_are_kept_and_do_not_break_the_flow():
     assert "1 Bertelsmann Stiftung" in txt
 
 
+def _bw_first_page(row_end):
+    """BW Drucksache page 1: masthead date, body, dates row closed by the page number, two-column footer."""
+    footer = [
+        T(70, 776, "Drucksachen sind im Internet", 10),
+        T(70, 785, "abrufbar: www.landtag.example", 10),
+        T(300, 776, "Der Landtag druckt auf Recycling-", 10),
+        T(300, 785, "papier mit dem Blauen Engel.", 10),
+    ]
+    masthead = [T(70, 75, "17. Wahlperiode", 14), T(400, 75, "22.6.2021", 14)]
+    return masthead + body(200) + [T(70, 760, "Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021", 10), row_end] + footer
+
+
+def test_first_page_footer_with_page_number_removed():
+    # the footer text is barely smaller than the body; the page number closing its first row marks it
+    d = parse(make_pdf([_bw_first_page(T(515, 757, "1", 14)), body(200) + [T(70, 757, "2", 14)]]), NO_OCR)
+    furniture = d.pages[0].furniture_text()
+    assert "Ausgegeben: 25.6.2021" in furniture and "Recyclingpapier mit dem Blauen Engel." in furniture
+    assert "Ausgegeben" not in d.text() and "Recycling" not in d.text()
+    assert [p.printed_page for p in d.pages] == ["1", "2"]
+
+
+def test_numbered_zone_without_footer_text_is_kept():
+    pdf = make_pdf([body() + [T(70, 760, "Die Kosten betragen insgesamt", 11), T(515, 760, "1", 11)]])
+    d = parse(pdf, NO_OCR)
+    assert footer_lines(d) == []
+    assert "Die Kosten betragen insgesamt" in d.text()
+
+
+def test_small_table_ending_in_numbers_is_kept():
+    # statistics tables close the answers to Kleine Anfragen; a count is not the page number
+    rows = [("Biberach", "12"), ("Bodenseekreis", "1"), ("Insgesamt", "13")]
+    table = [t for i, (a, n) in enumerate(rows) for t in (T(70, 756 + 11 * i, a, 9), T(330, 756 + 11 * i, n, 9))]
+    d = parse(make_pdf([body(690) + table]), NO_OCR)  # small print, but too close to the body for a footer
+    assert footer_lines(d) == []
+    assert "Bodenseekreis" in d.text()
+
+
 def test_scaled_text_matrix_font_size():
     items = [T(70, 100 + i * 15, f"Zeile {i} mit skalierter Textmatrix", 11, tf_one=True) for i in range(3)]
     d = Pipeline().run(make_pdf([items]), NO_OCR)
@@ -118,6 +155,27 @@ def test_scoring_helpers():
     assert lexicon_hits("Tel. 089 123 · Fax 089 456 · www.example.de") >= 2
     assert footer_score(blk("Vorstand: A · B · C", 7), 11, 30, False) >= 2.5
     assert footer_score(blk("und damit endet der Satz", 7), 11, 30, False) < 2.5
+
+
+@pytest.mark.parametrize(
+    "lines,numbered",
+    [
+        (["Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021\t1"], True),
+        (["1"], True),
+        (["Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021\t2"], False),
+        (["Biberach\t12", "Bodenseekreis\t1"], False),
+        (["40\t1"], False),
+        (["Ausgegeben: 25.6.2021 1"], False),
+        ([""], False),
+    ],
+    ids=["closing-cell", "lone", "other-page", "table", "number-row", "no-tab", "empty"],
+)
+def test_zone_page_number(lines, numbered):
+    from pazufa_pdf_parser._pipeline.model import Block, Line, Word
+
+    words = [Word(t, BBox(70, 780 + 10 * i, 400, 790 + 10 * i), size=10) for i, t in enumerate(lines)]
+    block = Block([Line([w], w.bbox, w.text) for w in words], BBox.enclosing(w.bbox for w in words), 1)
+    assert (zone_page_number([block], 1) is block) is numbered
 
 
 def _pages(*furniture):
