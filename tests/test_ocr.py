@@ -8,10 +8,10 @@ from PIL import Image
 
 from pazufa_pdf_parser import Ocr, OcrMode, PageSource, ParseOptions, parse, render
 from pazufa_pdf_parser._pipeline.extract import _lone_numbers_missed, ocr
-from pazufa_pdf_parser._pipeline.extract.ocr import parse_tsv
+from pazufa_pdf_parser._pipeline.extract.ocr import OcrResult, parse_tsv
 from pazufa_pdf_parser._pipeline.model import BBox, Word
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
-from pdfgen import T, make_scanned_pdf, paragraph
+from pdfgen import T, make_pdf, make_scanned_pdf, paragraph
 
 pytestmark = pytest.mark.ocr
 
@@ -108,6 +108,13 @@ def _word(text, x0, x1=None):
 def test_text_layer_numbers_ocr_missed(text_layer, ocr_words, kept):
     # BW annexes: tesseract drops the lone bold page number the clean text layer has
     assert [w.text for w in _lone_numbers_missed(text_layer, ocr_words)] == kept
+
+
+def test_page_holding_only_a_kept_number_is_not_empty(monkeypatch):
+    blank = OcrResult(words=[], width=595.0, height=842.0, rotation=0, stats={})
+    monkeypatch.setattr("pazufa_pdf_parser._pipeline.extract.ocr_image", lambda *a, **k: blank)
+    page = parse(make_pdf([[T(290, 810, "7", 9)]]), ParseOptions(ocr=OcrMode.ALWAYS)).pages[0]
+    assert (page.source, page.printed_page) == (PageSource.OCR, "7")
 
 
 @pytest.mark.parametrize(

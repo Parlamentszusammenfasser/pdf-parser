@@ -212,7 +212,7 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
             else:
                 page.words = res.words + ([] if res.rotation else _lone_numbers_missed(page.words, res.words))
                 page.width, page.height = res.width, res.height
-                page.source = PageSource.OCR if res.words else PageSource.EMPTY
+                page.source = PageSource.OCR if page.words else PageSource.EMPTY
             if res.rotation:
                 page.stats["orientation_corrected"] = res.rotation
                 doc.issue(Severity.INFO, "ocr", f"page rotated by {res.rotation}° for OCR", page.number)
