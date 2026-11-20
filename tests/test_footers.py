@@ -179,12 +179,16 @@ def test_zone_page_number(lines, numbered):
 
 
 def _pages(*furniture):
-    """One page per (header, footer); a newline starts another line. The body sits below the header band."""
+    """One page per (header, footer); a newline starts another line, a tab another cell 250 pt to the right.
+    The body sits below the header band."""
+    return [body(200) + _band(70, 40, head) + _band(280, 790, foot) for head, foot in furniture]
+
+
+def _band(x, y, text):
     return [
-        body(200)
-        + [T(70, 40 + 12 * k, ln, 9) for k, ln in enumerate(head.splitlines())]
-        + [T(280, 790 + 12 * k, ln, 9) for k, ln in enumerate(foot.splitlines())]
-        for head, foot in furniture
+        T(x + 250 * c, y + 12 * k, cell, 9)
+        for k, ln in enumerate(text.splitlines())
+        for c, cell in enumerate(ln.split("\t"))
     ]
 
 
@@ -205,6 +209,10 @@ def _pages(*furniture):
         ([("", "Telefon 0711 2063 0\nTelefax 0711 2063 1")] * 3, [None, None, None]),
         ([("", "Quelle: Statistisches Landesamt ²")] * 2, [None, None]),
         ([("", "80333 München"), ("", "80334 München")], [None, None]),
+        ([("", "Recyclingpapier\tI"), ("", "II")], ["I", "II"]),
+        ([("", "poststelle@lfv.de\t1 / 2"), ("", "2 / 2")], ["1", "2"]),
+        ([("Bayerisches\t177", ""), ("178\tBayerisches", "")], ["177", "178"]),
+        ([("Landtag\t5", ""), ("Landtag\t9", "")], [None, None]),
     ],
     ids=[
         "page-number-line",
@@ -221,12 +229,33 @@ def _pages(*furniture):
         "phone-and-fax",
         "footnote-mark",
         "five-digit-number",
+        "number-cell-beside-footer",
+        "fraction-cell",
+        "number-cell-beside-heading",
+        "not-consecutive-cells",
     ],
 )
 def test_printed_page(furniture, printed):
     d = parse(make_pdf(_pages(*furniture)), NO_OCR)
     assert [p.printed_page for p in d.pages] == printed
     assert not d.report.issues
+
+
+def test_page_number_cell_leaves_its_line():
+    # PlPr 18/10 prints "I" in the gap of its two-column page-1 footer
+    page = parse(make_pdf(_pages(("", "Recyclingpapier\tI"), ("", "II"))), NO_OCR).pages[0]
+    assert [(b.kind, b.text) for b in page.blocks if b.kind.is_furniture] == [
+        (BlockKind.FOOTER, "Recyclingpapier"),
+        (BlockKind.PAGE_NUMBER, "I"),
+    ]
+
+
+def test_number_cell_in_the_body_is_no_page_number():
+    # a table row mid-page, though the next page's number would continue it
+    pages = [body(200) + [T(70, 450, "Biberach", 11), T(320, 450, "1", 11)], body(200) + [T(280, 790, "2", 9)]]
+    d = parse(make_pdf(pages), NO_OCR)
+    assert [p.printed_page for p in d.pages] == [None, "2"]
+    assert "Biberach 1" in d.pages[0].text()
 
 
 def test_printed_page_of_an_empty_page():

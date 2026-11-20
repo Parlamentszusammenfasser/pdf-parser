@@ -139,7 +139,7 @@ def test_bw_ascii_shift_pages_keep_their_number():
 @pytest.mark.parametrize(
     "name,issued",
     [
-        ("drs-17-0273-clean.pdf", "Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021 1"),
+        ("drs-17-0273-clean.pdf", "Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021"),
         pytest.param("drs-17-1201-ascii-shift.pdf", "Ausgegeben: 7.1.2022", marks=pytest.mark.ocr),
         pytest.param("drs-17-6014-garbled-annex.pdf", "Ausgegeben: 4.1.2024", marks=pytest.mark.ocr),
     ],
@@ -179,7 +179,7 @@ def _numbers(first, last):
         pytest.param(
             "drs-17-1201-ascii-shift.pdf",
             _numbers(2, 5),
-            marks=[pytest.mark.ocr, pytest.mark.xfail(strict=True, reason="#34: tesseract drops the lone page number")],
+            marks=pytest.mark.ocr,
         ),
         pytest.param("drs-17-6014-garbled-annex.pdf", ["14", "19"], marks=pytest.mark.ocr),  # pages of an annex
     ],
@@ -218,22 +218,10 @@ def test_printed_pages(name, printed):
         ("gbl-2026-12.pdf", None),
         ("statement-page-break.pdf", "1"),
         ("email-forwarded-with-statement.pdf", "1"),
-        pytest.param(
-            "plpr-18-10.pdf",
-            "I",
-            marks=pytest.mark.xfail(strict=True, reason='#34: page 1\'s printed "I" is read into the footer beside it'),
-        ),
+        ("plpr-18-10.pdf", "I"),
         ("drs-17-0273-clean.pdf", "1"),  # closes the "Ausgegeben: …" footer row
-        pytest.param(
-            "letter-sidebar.pdf",
-            "1",
-            marks=pytest.mark.xfail(strict=True, reason='#34: "1 / 4" closes a footer line beside the address'),
-        ),
-        pytest.param(
-            "gvbl-landscape-tables.pdf",
-            "177",
-            marks=pytest.mark.xfail(strict=True, reason='#34: "177" is read into the masthead heading beside it'),
-        ),
+        ("letter-sidebar.pdf", "1"),
+        ("gvbl-landscape-tables.pdf", "177"),
     ],
     ids=[
         "masthead",
@@ -263,7 +251,7 @@ def test_bw_protocol_speech_stays_in_body():
         ("drs-17-0273-clean.pdf", 1, "Landtag von Baden-Württemberg Drucksache 17 / 273", None),
         ("drs-17-0273-clean.pdf", 1, "Landtag von Baden-Württemberg Drucksache 17 / 273", 1),  # nothing repeats it
         ("drs-clean.pdf", 1, "19. Wahlperiode 10.12.2025 Drucksache 19/9342", None),
-        ("drs-clean.pdf", 2, "Drucksache 19/9342 Bayerischer Landtag 19. Wahlperiode Seite 2", None),
+        ("drs-clean.pdf", 2, "Drucksache 19/9342 Bayerischer Landtag 19. Wahlperiode", None),
         (
             "plpr-18-10.pdf",
             3,
@@ -271,7 +259,7 @@ def test_bw_protocol_speech_stays_in_body():
             None,
         ),
         ("drs-20-3769-synopsis.pdf", 2, "Drucksache 20/3769 Schleswig-Holsteinischer Landtag – 20.Wahlperiode", None),
-        ("protokollauszug-24p.pdf", 2, "41. Plenum, 04.02.2025 Bayerischer Landtag – 19. Wahlperiode 1", None),
+        ("protokollauszug-24p.pdf", 2, "41. Plenum, 04.02.2025 Bayerischer Landtag – 19. Wahlperiode", None),
         ("gbl-2026-12.pdf", 2, "Seite 2 von 2", None),
         ("email-forwarded-with-statement.pdf", 3, "1 von 3", None),  # above a four-line footer
     ],
@@ -282,7 +270,7 @@ def test_bw_protocol_speech_stays_in_body():
         "by-running-header",
         "protocol-header",
         "synopsis-header",
-        "closing-number",
+        "header-beside-number",
         "seite-von",
         "page-number-above-footer",
     ],

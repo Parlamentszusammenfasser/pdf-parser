@@ -3,7 +3,12 @@
 import pytest
 
 from pazufa_pdf_parser._pipeline.layout.blocks import classify_headings, fill_leaves, split_blocks, starts_with_marker
-from pazufa_pdf_parser._pipeline.layout.furniture import detect_furniture, is_page_number, normalize_key
+from pazufa_pdf_parser._pipeline.layout.furniture import (
+    detect_furniture,
+    is_page_number,
+    normalize_key,
+    page_number_value,
+)
 from pazufa_pdf_parser._pipeline.layout.lines import build_lines
 from pazufa_pdf_parser._pipeline.layout.segment import Segmenter, detect_synopsis
 from pazufa_pdf_parser._pipeline.model import BBox, BlockKind, Page, RegionKind, Word
@@ -306,3 +311,21 @@ class TestFurniture:
 
     def test_normalize_key(self):
         assert normalize_key("Seite 12 von 30") == normalize_key("Seite 3 von 30")
+
+
+@pytest.mark.parametrize(
+    "text,value",
+    [
+        ("- 3 -", 3),
+        ("3 / 10", 3),
+        ("Seite 12 von 30", 12),
+        ("II", 2),
+        ("xiv", 14),
+        ("ll", None),
+        ("§ 3", None),
+        ("", None),
+    ],
+    ids=["dashes", "of-total", "seite", "roman", "roman-subtractive", "ocr-ll", "paragraph", "empty"],
+)
+def test_page_number_value(text, value):
+    assert page_number_value(text) == value

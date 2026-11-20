@@ -7,8 +7,9 @@ import pytest
 from PIL import Image
 
 from pazufa_pdf_parser import Ocr, OcrMode, PageSource, ParseOptions, parse, render
-from pazufa_pdf_parser._pipeline.extract import ocr
+from pazufa_pdf_parser._pipeline.extract import _lone_numbers_missed, ocr
 from pazufa_pdf_parser._pipeline.extract.ocr import parse_tsv
+from pazufa_pdf_parser._pipeline.model import BBox, Word
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 from pdfgen import T, make_scanned_pdf, paragraph
 
@@ -87,6 +88,26 @@ def test_parse_tsv_scaling():
     assert words[0].bbox.x0 == pytest.approx(72.0)
     assert words[0].confidence == 95.5
     assert words[0].size > 9
+
+
+def _word(text, x0, x1=None):
+    return Word(text, BBox(x0, 755, x1 or x0 + 6, 770))
+
+
+@pytest.mark.parametrize(
+    "text_layer,ocr_words,kept",
+    [
+        ([_word("2", 85)], [_word("Seite", 466, 481)], ["2"]),
+        ([_word("2", 85)], [_word("2", 84)], []),
+        ([_word("Ausgegeben:", 85, 150), _word("1", 500)], [], []),
+        ([_word("S", 85)], [], []),
+        ([], [], []),
+    ],
+    ids=["lone-number", "ocr-read-it", "shares-its-row", "letter", "empty"],
+)
+def test_text_layer_numbers_ocr_missed(text_layer, ocr_words, kept):
+    # BW annexes: tesseract drops the lone bold page number the clean text layer has
+    assert [w.text for w in _lone_numbers_missed(text_layer, ocr_words)] == kept
 
 
 @pytest.mark.parametrize(

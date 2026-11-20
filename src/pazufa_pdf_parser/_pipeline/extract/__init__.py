@@ -132,6 +132,18 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
     return pages
 
 
+def _lone_numbers_missed(text: list[Word], ocr: list[Word]) -> list[Word]:
+    """Text-layer numbers alone on their row that OCR missed. Tesseract drops a lone bold page number
+    (BW Drucksache annexes); a shifted font turns digits into control characters, so these are genuine."""
+    return [
+        w
+        for w in text
+        if w.text.isdecimal()
+        and not any(o is not w and o.bbox.y_overlap(w.bbox) > 0 for o in text)
+        and not any(o.bbox.x_overlap(w.bbox) > 0 and o.bbox.y_overlap(w.bbox) > 0 for o in ocr)
+    ]
+
+
 def _leave_without_ocr(todo: list[_Probe], why: str) -> None:
     for p in todo:
         p.page.stats["ocr_reason"] += f"; not OCRed: {why}"
@@ -198,7 +210,7 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 page.stats["ocr_words_merged"] = len(kept)
                 page.source = PageSource.TEXT
             else:
-                page.words = res.words
+                page.words = res.words + ([] if res.rotation else _lone_numbers_missed(page.words, res.words))
                 page.width, page.height = res.width, res.height
                 page.source = PageSource.OCR if res.words else PageSource.EMPTY
             if res.rotation:

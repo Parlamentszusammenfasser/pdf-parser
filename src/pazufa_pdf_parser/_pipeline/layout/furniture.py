@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 
-from ..model import BlockKind, Line, Page
+from ..model import BBox, Block, BlockKind, Line, Page
+from .lines import make_line, split_cells
 
 BAND = 0.14  # fraction of the page height considered header / footer zone
 MAX_BAND_LINES = 5  # association letters print "1 von 3" above a four-line footer
@@ -21,6 +22,7 @@ _PAGE_NUMBER_RES = [
     re.compile(r"^\d{1,4}\s*(/|von|of)\s*\d{1,4}$", re.I),
     re.compile(rf"^{_ROMAN}$", re.I),
 ]
+_ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
 _PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "… | Seite 1 von 2" in a header
 # page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
 _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
@@ -29,6 +31,16 @@ _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprot
 def is_page_number(text: str) -> bool:
     t = " ".join(text.split())
     return any(r.match(t) for r in _PAGE_NUMBER_RES)
+
+
+def page_number_value(text: str) -> int | None:
+    """The number a page-number text counts: "- 2 -", "2 / 5" and "Seite 2" give 2, "II" gives 2."""
+    if not is_page_number(text):
+        return None
+    if m := re.search(r"\d+", text):
+        return int(m.group())
+    values = [_ROMAN_VALUES[c] for c in text.strip().lower()]
+    return sum(-v if v < nxt else v for v, nxt in zip(values, [*values[1:], 0], strict=True))
 
 
 def normalize_key(text: str) -> str:
@@ -105,15 +117,47 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
 
 def assign_printed_pages(pages: list[Page]) -> None:
     """Set ``printed_page``: a page-number line, else "Seite N" in a header or footer, else a number
-    opening or closing a header or footer line that the next or previous page continues (N±1)."""
+    opening or closing a header or footer line that the next or previous page continues (N±1).
+
+    A page number closing a band line beside other text ("Bayerisches<tab>177") becomes a page-number
+    block of its own when the next or previous page continues it."""
+    _split_number_cells(pages)
     own = [_own_numbers(p) for p in pages]
     edges = [_edge_numbers(p) for p in pages]
     for i, page in enumerate(pages):
-        near = [j for j in (i - 1, i + 1) if 0 <= j < len(pages)]  # parsed pages are a contiguous range
         # a number the next page repeats is a year, a phone number or a document number
-        steady = [n for n in own[i] if not any(n in own[j] for j in near)]
-        counted = [str(n) for n in edges[i] if any(n + j - i in edges[j] and n not in edges[j] for j in near)]
+        steady = [n for n in own[i] if not any(n in own[j] for j in _near(i, pages))]
+        counted = [
+            str(n) for n in edges[i] if any(n + j - i in edges[j] and n not in edges[j] for j in _near(i, pages))
+        ]
         page.printed_page = next(iter(steady + counted), None)
+
+
+def _near(i: int, pages: list[Page]) -> list[int]:
+    return [j for j in (i - 1, i + 1) if 0 <= j < len(pages)]  # parsed pages are a contiguous range
+
+
+def _split_number_cells(pages: list[Page]) -> None:
+    known = [{page_number_value(t) for t in _own_numbers(p)} | set(_edge_numbers(p)) for p in pages]
+    for i, page in enumerate(pages):
+        found = [
+            (block, k, cells)
+            for block in [*page.furniture, *page.blocks]
+            for k, ln in enumerate(block.lines)
+            if _in_band(ln, page)
+            and len(cells := split_cells(ln.words)) > 1
+            and (n := page_number_value(" ".join(w.text for w in cells[-1]))) is not None
+            and any(n + j - i in known[j] for j in _near(i, pages))
+        ]
+        for block, k, cells in found:
+            number = make_line(cells[-1])
+            block.lines[k] = make_line([w for cell in cells[:-1] for w in cell])
+            block.bbox = BBox.enclosing(ln.bbox for ln in block.lines)
+            page.furniture.append(Block(lines=[number], bbox=number.bbox, page=page.number, kind=BlockKind.PAGE_NUMBER))
+
+
+def _in_band(line: Line, page: Page) -> bool:
+    return line.bbox.y0 <= page.height * BAND or line.bbox.y1 >= page.height * (1 - BAND)
 
 
 def _own_numbers(page: Page) -> list[str]:
