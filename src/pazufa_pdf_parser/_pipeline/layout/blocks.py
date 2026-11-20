@@ -26,6 +26,8 @@ _DATE_LIKE_RE = re.compile(
     re.I,
 )
 _END_PUNCT = tuple(".:;!?")
+_HYPHENATED_END_RE = re.compile(r"[a-zäöüß]-$")
+_LOWER_START_RE = re.compile(r"[a-zäöüß]")
 
 
 def starts_with_marker(text: str) -> bool:
@@ -84,6 +86,8 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
         brk = False
         if pitches[i] > typical + 0.4 * min(h, size * 1.3) and gaps[i] > 0.25 * h:
             brk = True
+        elif _HYPHENATED_END_RE.search(cur.text) and _LOWER_START_RE.match(nxt.text):
+            pass  # a word hyphenated across the lines ("Staats-" / "vertragsentwürfe") keeps them together
         elif abs(cur.size - nxt.size) > (0.35 if _is_ocr(cur) or _is_ocr(nxt) else 0.15) * size:
             brk = True
         elif _all_bold(cur) != _all_bold(nxt) and (len(cur.text) < 120 or len(nxt.text) < 120):

@@ -283,7 +283,6 @@ def test_furniture_text(name, page, line, last_page):
     assert line not in p.text()
 
 
-@pytest.mark.xfail(strict=True, reason="#24: ToC entries split at line ends")
 def test_bw_protocol_toc_entries_joined():
     txt = _txt("plpr-18-10.pdf")
     toc = txt[: txt.index("Präsident Thomas Strobl: Guten Morgen")]

@@ -284,6 +284,23 @@ class TestBlocks:
         assert blocks[0].kind is BlockKind.HEADING and blocks[0].level == 1
         assert blocks[1].kind is BlockKind.PARAGRAPH
 
+    @pytest.mark.parametrize(
+        "first,second_y,blocks",
+        [
+            ("Information über Staats-", 113, 1),
+            ("Information über Staats –", 113, 2),
+            ("Information über Staats-", 140, 2),
+        ],
+        ids=["hyphenated-word", "dash", "paragraph-gap"],
+    )
+    def test_hyphenated_word_keeps_a_style_change_in_one_block(self, first, second_y, blocks):
+        # a protocol ToC entry switches from its bold title to regular text inside a hyphenated word
+        ws = words_for(70, 100, first, bold=True) + words_for(70, second_y, "vertragsentwürfe; hier: Staatsvertrag")
+        assert len(split_blocks(build_lines(ws), 1)) == blocks
+
+    def test_split_blocks_without_lines(self):
+        assert split_blocks([], 1) == []
+
     def test_run_in_speaker_label_starts_block(self):
         ws = words_for(70, 100, "Präsidentin Aigner:", bold=True) + words_for(170, 100, "Das Wort hat Herr Huber.")
         ws += words_for(70, 113, "Martin Huber (CSU):", bold=True) + words_for(175, 113, "Danke schön.")

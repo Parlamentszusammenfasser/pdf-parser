@@ -35,4 +35,5 @@
      text-layer number tesseract missed is kept
 [x] T25 Gesetzblatt page 2 (#23): its one-off running header is furniture as the page's first line; two
      columns that pair up line for line (signature lists) are no sidebar and read left first
+[x] T26 protocol ToC (#24): a word hyphenated across two lines keeps them in one block despite a bold/size change
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)
