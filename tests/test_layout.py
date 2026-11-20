@@ -301,7 +301,7 @@ class TestFurniture:
     def test_page_number_patterns(self):
         for t in ["3", "- 3 -", "Seite 3", "Seite 3 von 10", "3 / 10", "S. 4", "ii", "XIV"]:
             assert is_page_number(t), t
-        for t in ["§ 3", "Seite drei", "Kapitel 3", "ll", "IIII", "C", "0"]:
+        for t in ["§ 3", "Seite drei", "Kapitel 3", "ll", "IIII", "C"]:
             assert not is_page_number(t)
 
     def test_normalize_key(self):

@@ -99,16 +99,14 @@ def is_noise(block: Block) -> bool:
 
 
 def has_page_number(block: Block) -> bool:
-    """A lone page number, or one set apart by a tab at the start or end of a text line
+    """A lone page number, or one closing a text line after a tab
     (BW Drucksachen close page 1's "Ausgegeben: …" footer row with it)."""
     if len(block.lines) == 1 and is_page_number(block.raw_text):
         return True
     for ln in block.lines:
-        cells = ln.text.split("\t")
+        *text, last = ln.text.split("\t")
         # a row of numbers is a table, not text beside a page number
-        opens = is_page_number(cells[0]) and _has_letters(cells[1:])
-        closes = is_page_number(cells[-1]) and _has_letters(cells[:-1])
-        if opens or closes:
+        if is_page_number(last) and _has_letters(text):
             return True
     return False
 

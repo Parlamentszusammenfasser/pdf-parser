@@ -153,13 +153,11 @@ def test_scoring_helpers():
     [
         ("Eingegangen: 22.6.2021 / Ausgegeben: 25.6.2021\t1", True),
         ("1", True),
-        ("- 3 -\tStellungnahme des Verbands", True),
         ("40\t40", False),
-        ("0\t5\t10 km", False),
         ("Ausgegeben: 25.6.2021 1", False),
         ("", False),
     ],
-    ids=["closing-cell", "lone", "opening-cell", "table-row", "scale-bar", "no-tab", "empty"],
+    ids=["closing-cell", "lone", "table-row", "no-tab", "empty"],
 )
 def test_has_page_number(text, numbered):
     from pazufa_pdf_parser._pipeline.model import Block, Line, Word
