@@ -27,7 +27,7 @@ _PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "…
 # page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
 _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
 # a two-page Gesetzblatt issue prints its running header once, on page 2
-_GAZETTE_HEADER = re.compile(r"^Gesetzblatt für .+, Jahrgang \d{4}, Nr\. \d+\b")
+_GAZETTE_HEADER = re.compile(r"^Gesetzblatt für .+, Jahrgang \d{4}, Nr\. \d+ vom \d{1,2}\. \w+ \d{4}$")
 
 
 def is_page_number(text: str) -> bool:

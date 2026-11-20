@@ -324,7 +324,7 @@ _GAZETTE = "Gesetzblatt für Baden-Württemberg, Jahrgang 2026, Nr. 12 vom 27. F
     "top,is_header",
     [
         ([T(98, 40, _GAZETTE, 13)], True),
-        ([T(70, 40, "Gesetzblatt für Baden-Württemberg 2003, S. 354, zuletzt geändert durch", 13)], False),
+        ([T(70, 40, f"{_GAZETTE} verkündet und wie folgt geändert:", 13)], False),
         ([T(70, 40, "Anlage", 13), T(98, 58, _GAZETTE, 13)], False),
     ],
     ids=["running-header", "citation", "below-the-first-line"],
