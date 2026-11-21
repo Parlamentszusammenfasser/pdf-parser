@@ -84,8 +84,8 @@ def test_first_failure_stops_the_run(tmp_path, letter_pdf, capsys, first, extra,
 
 @pytest.mark.parametrize(
     "flags,prefix",
-    [(["-q"], "{f}: error: ocr p"), (["-q", "-v"], "{f}: [error] ocr p")],
-    ids=["quiet", "quiet-verbose"],
+    [(["-q"], "{f}: error: ocr p"), (["-q", "-v"], "{f}: [error] ocr p"), (["-v"], "  [error] ocr p")],
+    ids=["quiet", "quiet-verbose", "verbose"],
 )
 def test_error_issue_lines_name_file_and_page(tmp_path, capsys, flags, prefix):
     from pdfgen import T, make_scanned_pdf
@@ -159,7 +159,7 @@ def test_outputs_never_overwrite_each_other(tmp_path, letter_pdf, bill_pdf, caps
 
 @pytest.mark.parametrize(
     "output,files",
-    [("file", None), ("read-only", ["brief.txt"]), ("directory-in-the-way", ["a.txt", "brief.txt"])],
+    [("file", None), ("read-only", ["a.txt"]), ("directory-in-the-way", ["a.txt"])],
 )
 def test_unwritable_output(tmp_path, letter_pdf, capsys, output, files):
     a, b = write(tmp_path, "a.pdf", letter_pdf), write(tmp_path, "brief.pdf", letter_pdf)
@@ -167,14 +167,14 @@ def test_unwritable_output(tmp_path, letter_pdf, capsys, output, files):
     if output == "file":
         out.write_text("")
     else:
-        (out / "brief.txt").mkdir(parents=True)  # the rename of brief.txt.part fails
+        (out / "a.txt").mkdir(parents=True)  # the rename of a.txt.part fails
         if output == "read-only":
             out.chmod(0o500)
     try:
         assert main([str(a), str(b), "-o", str(out), "--ocr", "never", "-q", "--overwrite"]) == EXIT_FAILED
     finally:
         out.chmod(0o700)
-    # the first failed write ends the run and leaves no .part file
+    # the first failed write ends the run, brief.pdf is never written, and no .part file is left
     assert capsys.readouterr().err.count("error:") == 1
     assert files is None or sorted(p.name for p in out.iterdir()) == files
 
