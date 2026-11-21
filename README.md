@@ -148,7 +148,8 @@ for issue in doc.report.issues:
 All subclass `PazufaError`:
 
 - `PdfOpenError`: not a readable PDF (corrupt, wrong password)
-- `StepError`: `extract` or `layout` failed, or with `strict=True` any step or ERROR issue; `e.step`, `e.cause`
+- `StepError`: `extract` or `layout` failed, or with `strict=True` any step or ERROR issue; `e.step`,
+  `e.cause`, and `e.issue` for an ERROR issue (match on `e.issue.code`)
 - `OcrUnavailableError`: `strict=True` and OCR needed, but no tesseract
 - `UnknownFormatError`: unknown `render` format
 - `SchemaVersionError`: `from_json` got JSON from a newer version

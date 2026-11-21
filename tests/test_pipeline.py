@@ -245,7 +245,7 @@ class TestRobustness:
         if severity is Severity.ERROR:  # strict raises at the first ERROR issue, not only at failing steps
             with pytest.raises(StepError, match="over the limit") as e:
                 parse(pdf, ParseOptions(ocr=mode, ocr_engine=engine, max_ocr_pages=limit, strict=True))
-            assert e.value.step == "ocr"
+            assert e.value.step == "ocr" and e.value.issue.code == "ocr_limit"
 
     def test_ocr_engine_settings(self):
         opts = ParseOptions()

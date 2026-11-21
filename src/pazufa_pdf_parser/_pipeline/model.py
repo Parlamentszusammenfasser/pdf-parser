@@ -266,6 +266,7 @@ class Document:
         return "\n\n".join(b.text or b.raw_text for b in self.body_blocks)
 
     def issue(self, severity: Severity, step: str, code: str, message: str, page: int | None = None) -> None:
-        self.issues.append(Issue(severity=severity, step=step, code=code, message=message, page=page))
+        issue = Issue(severity=severity, step=step, code=code, message=message, page=page)
+        self.issues.append(issue)
         if self.strict and severity is Severity.ERROR:
-            raise StepError(step, PazufaError(message))
+            raise StepError(step, PazufaError(message), issue)

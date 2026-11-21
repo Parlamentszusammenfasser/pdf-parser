@@ -176,14 +176,16 @@ def test_severity_orders_by_severity():
     "obj",
     [
         StepError("ocr", RuntimeError("tesseract failed")),
+        StepError("ocr", RuntimeError("m"), Issue(severity=Severity.ERROR, step="ocr", code="ocr_limit", message="m")),
         PdfOpenError("not a PDF"),
         SchemaVersionError("schema_version 2"),
         ParseOptions(ocr=OcrMode.NEVER, max_ocr_pages=3, ocr_engine=Ocr(dpi=150, max_parallel=1)),
     ],
-    ids=["step-error", "open-error", "schema-error", "options"],
+    ids=["step-error", "step-error-with-issue", "open-error", "schema-error", "options"],
 )
 def test_survives_pickling(obj):
     # options go to and errors come back from process pools; an unpicklable error breaks the whole pool
     clone = pickle.loads(pickle.dumps(obj))  # noqa: S301
     assert type(clone) is type(obj) and repr(clone) == repr(obj)
     assert getattr(clone, "step", None) == getattr(obj, "step", None)
+    assert getattr(clone, "issue", None) == getattr(obj, "issue", None)

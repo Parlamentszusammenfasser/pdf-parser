@@ -1,6 +1,11 @@
 """Exception hierarchy."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._document import Issue
 
 
 class PazufaError(Exception):
@@ -17,16 +22,17 @@ class OcrUnavailableError(PazufaError):
 
 class StepError(PazufaError):
     """A pipeline step failed: ``extract`` or ``layout``, or with ``strict=True`` any step or any issue of
-    severity ERROR."""
+    severity ERROR; ``issue`` is that issue, so strict callers can match on ``issue.code``."""
 
-    def __init__(self, step: str, cause: BaseException):
+    def __init__(self, step: str, cause: BaseException, issue: Issue | None = None):
         super().__init__(f"step {step!r} failed: {cause!r}")
         self.step = step
         self.cause = cause
+        self.issue = issue
 
     def __reduce__(self) -> tuple[Any, ...]:
         # pickle rebuilds an exception from its message alone; a process pool must get step and cause back
-        return StepError, (self.step, self.cause)
+        return StepError, (self.step, self.cause, self.issue)
 
 
 class SchemaVersionError(PazufaError):
