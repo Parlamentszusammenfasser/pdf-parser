@@ -66,7 +66,7 @@ class TestRobustness:
 
     @pytest.mark.parametrize(
         "data,error",
-        [(b"hello world", "not a PDF"), (b"", "empty"), (make_pdf([]), "has no pages")],
+        [(b"hello world", "not a PDF"), (b"", "empty"), (make_pdf([]), "no readable pages")],
         ids=["not-a-pdf", "empty", "no-pages"],
     )
     def test_unreadable_input(self, data, error):

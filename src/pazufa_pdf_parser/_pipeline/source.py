@@ -77,9 +77,9 @@ def open_pdf(src: Source, password: str | None = None) -> OpenedPdf:
             msg = str(e)
             if "password" in msg.lower():
                 raise PdfOpenError(f"{name or 'input'} is encrypted; a (correct) password is required") from e
-            if "Success" in msg:  # pdfium fails to load a page tree without pages but reports no error
-                raise PdfOpenError(f"{name or 'input'} has no pages") from e
-            raise PdfOpenError(f"{name or 'input'} could not be parsed: {msg}") from e
+            # pdfium reports "Success" for a damaged or empty page tree
+            hint = " (no readable pages?)" if "Success" in msg else ""
+            raise PdfOpenError(f"{name or 'input'} could not be parsed: {msg}{hint}") from e
         info: dict[str, Any] = {}
         # broken metadata or version info must not reject an otherwise readable PDF
         with contextlib.suppress(Exception):
