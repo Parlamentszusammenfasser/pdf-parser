@@ -184,8 +184,10 @@ pazufa-pdf-parser in/ -r -f txt,json -o out/       # a folder, several formats
 
 Common options: `--ocr auto|always|never`, `--lang deu+eng`, `--pages 2-5`,
 `--password`, `--strict`, `-v` (print issues); all in `pazufa-pdf-parser
-extract --help`. A broken input never stops a batch; the exit code is `1` if
-any input failed.
+extract --help`. The run stops at the first input that fails and exits `1`: it is
+unreadable, an output exists or cannot be written, or its parse recorded an
+ERROR issue (a page that cannot be loaded, a page OCR failed on, or
+`--ocr always` without tesseract). Outputs written before stay.
 
 ## Known limitations
 

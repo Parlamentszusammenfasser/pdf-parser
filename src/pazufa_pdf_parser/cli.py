@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import PageSource, PazufaError, __version__, parse
+from . import Issue, PageSource, PazufaError, __version__, parse
 from ._options import Ocr, OcrMode, ParseOptions
 from ._pipeline.render import available_formats, get_renderer
 
@@ -158,6 +158,11 @@ def _output_stem(f: Path, extensions: list[str], used: set[str]) -> str:
     return stem
 
 
+def _issue_text(i: Issue) -> str:
+    where = f" p{i.page}" if i.page else ""
+    return f"{i.step}{where}: {i.message}"
+
+
 def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     fmts = _formats(args.format)
     unknown = [f for f in fmts if f not in available_formats()]
@@ -167,14 +172,14 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             file=sys.stderr,
         )
         return EXIT_USAGE
+    # fail fast: the first failing input ends the run, before any later one is parsed
     files, missing = _collect(args.inputs, args.recursive)
-    status = EXIT_OK
     for m in missing:
         print(f"{m}: no such file or directory", file=sys.stderr)
-        status = EXIT_FAILED
+    if missing:
+        return EXIT_FAILED
     if not files:
-        if not missing:
-            print("error: no PDF files found", file=sys.stderr)
+        print("error: no PDF files found", file=sys.stderr)
         return EXIT_FAILED
     to_stdout = args.output == "-" or (args.output is None and len(files) == 1 and len(fmts) == 1)
     if args.output is None and not to_stdout:
@@ -193,63 +198,67 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
         print(f"{outdir}: error: {e}", file=sys.stderr)
         return EXIT_FAILED
     used_names: set[str] = set()
+    extensions = [get_renderer(fmt).extension for fmt in fmts]
     for f in files:
+        stem = _output_stem(f, extensions, used_names)
+        if outdir is not None and not args.overwrite:
+            # before the parse, so a half-written input and a wasted OCR run are not the price of a typo
+            existing = [t for ext in extensions if (t := outdir / f"{stem}.{ext}").exists()]
+            if existing:
+                print(f"{existing[0]}: exists (use --overwrite)", file=sys.stderr)
+                return EXIT_FAILED
         t0 = time.perf_counter()
         try:
             doc = parse(f, opts)
         except PazufaError as e:
             print(f"{f}: error: {e}", file=sys.stderr)
-            status = EXIT_FAILED
-            continue
-        except Exception as e:  # noqa: BLE001 - never crash a batch on one file
+            return EXIT_FAILED
+        except Exception as e:  # noqa: BLE001 - a message, not a traceback
             print(f"{f}: unexpected error: {type(e).__name__}: {e}", file=sys.stderr)
-            status = EXIT_FAILED
-            continue
+            return EXIT_FAILED
         written = []
-        stem = _output_stem(f, [get_renderer(fmt).extension for fmt in fmts], used_names)
         for fmt in fmts:
             r = get_renderer(fmt)
             try:
                 content = r.func(doc)
             except Exception as e:  # noqa: BLE001
                 print(f"{f}: rendering {fmt} failed: {type(e).__name__}: {e}", file=sys.stderr)
-                status = EXIT_FAILED
-                continue
+                return EXIT_FAILED
             if outdir is None:
                 sys.stdout.write(content)
                 if len(files) > 1 or len(fmts) > 1:
                     sys.stdout.write("\n")
                 continue
             target = outdir / f"{stem}.{r.extension}"
-            if target.exists() and not args.overwrite:
-                print(f"{target}: exists (use --overwrite)", file=sys.stderr)
-                status = EXIT_FAILED
-                continue
             tmp = target.with_suffix(target.suffix + ".part")
             try:
                 tmp.write_text(content, encoding="utf-8")
                 tmp.replace(target)
-            except OSError as e:  # a full disk or read-only directory fails this file, not the batch
+            except OSError as e:  # a full disk or read-only directory
                 tmp.unlink(missing_ok=True)
                 print(f"{target}: error: {e}", file=sys.stderr)
-                status = EXIT_FAILED
-                continue
+                return EXIT_FAILED
             written.append(str(target))
+        errors = [i for i in doc.report.issues if i.severity == "error"]
         if not args.quiet:
             ocr = sum(p.source is PageSource.OCR for p in doc.pages)
             info = f"{f}: {len(doc.pages)} page(s)" + (f", {ocr} OCR" if ocr else "")
             info += f", {time.perf_counter() - t0:.1f}s"
-            errors = [i for i in doc.report.issues if i.severity == "error"]
             if errors:
                 info += f", {len(errors)} error(s)"
             if written:
                 info += " -> " + ", ".join(written)
             print(info, file=sys.stderr)
         if args.verbose:
+            indent = f"{f}: " if args.quiet else "  "  # -q drops the line above that names the file
             for i in doc.report.issues:
-                where = f" p{i.page}" if i.page else ""
-                print(f"  [{i.severity}] {i.step}{where}: {i.message}", file=sys.stderr)
-    return status
+                print(f"{indent}[{i.severity}] {_issue_text(i)}", file=sys.stderr)
+        if errors:  # the outputs are written, but their text is likely incomplete
+            if not args.verbose:
+                for i in errors:
+                    print(f"{f}: error: {_issue_text(i)}", file=sys.stderr)
+            return EXIT_FAILED
+    return EXIT_OK
 
 
 if __name__ == "__main__":  # pragma: no cover
