@@ -135,7 +135,7 @@ class Block:
     region: str = ""  # id of the layout region holding the block
     text: str = ""  # sanitized text, set by the sanitize step
     labels: set[str] = field(default_factory=set)  # set by layout steps, e.g. footer:zone, merged_into_previous
-    continues: bool = False  # the paragraph goes on in the next page's first paragraph (set by flow)
+    continues_on: int | None = None  # the page whose first paragraph continues this one (set by flow)
 
     @property
     def raw_text(self) -> str:

@@ -29,7 +29,7 @@ from pazufa_pdf_parser import (
 # callers build and read these by field name: adding a field (with a default) extends a list here,
 # renaming or removing one breaks callers
 PUBLIC_FIELDS = {
-    Block: ["page", "kind", "text", "bbox", "level", "continues"],
+    Block: ["page", "kind", "text", "bbox", "level", "continues_on"],
     Page: [
         "number",
         "width",

@@ -90,8 +90,8 @@ class Block:
     text: str  # sanitized, never empty
     bbox: tuple[float, float, float, float]  # points, top-left origin, page rotation applied
     level: int = 0  # heading level, 1 = top
-    #: the paragraph goes on in the next page's first body block; ``text()`` joins the two with a space
-    continues: bool = False
+    #: the page whose first paragraph continues this one, also past blank pages; ``text()`` joins them
+    continues_on: int | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -219,5 +219,5 @@ def _body_text(blocks: Iterable[Block]) -> str:
             out += held
             held = []
             out.append(b.text)
-        open_on = b.page + 1 if b.continues else None
+        open_on = b.continues_on
     return "\n\n".join(out + held)

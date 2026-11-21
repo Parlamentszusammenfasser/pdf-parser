@@ -52,7 +52,7 @@ that stay in the text.
 **Sanitize / flow** (`_pipeline/sanitize.py`, `_pipeline/flow.py`). Removes soft hyphens, private-use glyphs
 and OCR junk, collapses letter-spacing, de-hyphenates, then re-joins
 paragraphs across column breaks. Across a page break each page keeps its half
-and the first is marked `continues`, so page citations stay right.
+and the first names the page it `continues_on`, so page citations stay right.
 
 **Result** (`_document.py`). `parse()` (`_pipeline/api.py`) turns the internal
 `Document` into the immutable `PdfDocument` (pages, blocks, metadata, report), which round-trips

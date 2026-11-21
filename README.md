@@ -88,7 +88,7 @@ PdfDocument
 ├── metadata            title, author, created, modified, page_count
 ├── pages[]             number, width, height, source (text | ocr | empty), blocks, text(), furniture_text(),
 │                       printed_page, needs_ocr, ocr_reason, ocr_confidence
-├── blocks              all blocks: page, kind, text, bbox, level, continues
+├── blocks              all blocks: page, kind, text, bbox, level, continues_on
 ├── text(pages=None)    body text, optionally of some pages, e.g. pages=[2, 3]
 └── report              parser_version, issues[]
 ```
@@ -99,7 +99,7 @@ left out of it; `page.furniture_text()` joins the header, footer and page-number
 blocks. `printed_page` is the number printed on the page ("259", "II"), or `None`
 when none was found. `bbox` is in points, origin top left, page rotation applied,
 on a page of `width` × `height`. A paragraph that continues on the next page keeps
-each half on its own page, with `continues` set on the first; `text()` joins them
+each half on its own page; the first names the page in `continues_on`; `text()` joins them
 (a word divided at the break goes whole to the first page). Block kinds may be
 added in later versions: filter with `kind.is_body` and `kind.is_furniture`.
 

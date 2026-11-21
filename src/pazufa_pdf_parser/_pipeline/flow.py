@@ -63,11 +63,11 @@ def merge_flow(doc: Document) -> int:
 
 
 def _continue_on_next_page(prev: Block, b: Block) -> None:
-    """Each page keeps its own text, so page citations stay right: ``prev`` is marked to continue in ``b``,
+    """Each page keeps its own text, so page citations stay right: ``prev`` is marked to continue on ``b``'s page,
     and a word divided at the page break ("Ände-" / "rung") goes whole to the page it starts on."""
     word, *rest = b.text.split(maxsplit=1)
     whole = join_hyphenated(prev.text, word)
     if whole is not None and whole != prev.text.rstrip() + " " + word:  # not "Aus-" / "und Fortbildung"
         prev.text = whole
         b.text = rest[0] if rest else ""
-    prev.continues = bool(b.text)
+    prev.continues_on = b.page if b.text else None

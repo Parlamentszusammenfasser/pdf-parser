@@ -35,7 +35,7 @@ CET = timezone(timedelta(hours=1))
 def test_page_texts_add_up_to_the_document_text(parsed, name):
     d = parsed[name]
     # a paragraph continued on the next page is joined with a space (no fixture has footnotes at a break)
-    seps = [" " if any(b.continues for b in p.blocks) else "\n\n" for p in d.pages]
+    seps = [" " if any(b.continues_on for b in p.blocks) else "\n\n" for p in d.pages]
     assert "".join(t + sep for p, sep in zip(d.pages, seps) if (t := p.text())).rstrip() == d.text()
     assert all(d.text(pages=[p.number]) == p.text() for p in d.pages)
     assert d.text(pages=[]) == d.text(pages=[99]) == ""

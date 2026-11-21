@@ -23,7 +23,9 @@ def parse(src: Source, options: ParseOptions | None = None) -> PdfDocument:
 
 def _block(b: model.Block) -> Block:
     x0, y0, x1, y1 = b.bbox.to_list()
-    return Block(page=b.page, kind=b.kind, text=b.text, bbox=(x0, y0, x1, y1), level=b.level, continues=b.continues)
+    return Block(
+        page=b.page, kind=b.kind, text=b.text, bbox=(x0, y0, x1, y1), level=b.level, continues_on=b.continues_on
+    )
 
 
 # D:YYYYMMDDHHmmSS+HH'mm' (PDF 1.7, 7.9.4); everything after the year is optional
