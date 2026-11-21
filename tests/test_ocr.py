@@ -7,7 +7,7 @@ import pytest
 from PIL import Image
 
 from pazufa_pdf_parser import Ocr, OcrMode, PageSource, ParseOptions, parse, render
-from pazufa_pdf_parser._pipeline.extract import _lone_numbers_missed, ocr
+from pazufa_pdf_parser._pipeline.extract import MAX_OCR_PIXELS, _lone_numbers_missed, ocr, ocr_dpi
 from pazufa_pdf_parser._pipeline.extract.ocr import OcrResult, parse_tsv
 from pazufa_pdf_parser._pipeline.model import BBox, Word
 from pazufa_pdf_parser._pipeline.pipeline import Pipeline
@@ -172,3 +172,14 @@ def test_shared_ocr_caps_tesseract_runs_across_parses(tmp_path):
     counts = [int(n) for n in (tmp_path / "counts").read_text().split()]
     assert len(counts) == 12  # one run per page, 3 x 4 pages
     assert max(counts) == 2
+
+
+@pytest.mark.parametrize(
+    "size,dpi",
+    [((595, 842), 300), ((14400, 14400), 50), ((0, 0), 300)],
+    ids=["a4", "huge-page", "empty-page"],
+)
+def test_ocr_dpi(size, dpi):
+    # a 200-inch page at 300 dpi would be a 10 GB image
+    assert ocr_dpi(*size, 300) == dpi
+    assert (size[0] * dpi / 72) * (size[1] * dpi / 72) <= MAX_OCR_PIXELS

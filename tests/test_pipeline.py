@@ -1,6 +1,7 @@
 """End-to-end behaviour on synthetic PDFs (text layer)."""
 
 import copy
+import hashlib
 import io
 import pickle
 import subprocess
@@ -63,13 +64,14 @@ class TestRobustness:
         assert a.sha256 == b.sha256 == c.sha256
         assert render(a, "txt") == render(c, "txt")
 
-    def test_not_a_pdf(self):
-        with pytest.raises(PdfOpenError, match="not a PDF"):
-            parse(b"hello world")
-
-    def test_empty_input(self):
-        with pytest.raises(PdfOpenError, match="empty"):
-            parse(b"")
+    @pytest.mark.parametrize(
+        "data,error",
+        [(b"hello world", "not a PDF"), (b"", "empty"), (make_pdf([]), "has no pages")],
+        ids=["not-a-pdf", "empty", "no-pages"],
+    )
+    def test_unreadable_input(self, data, error):
+        with pytest.raises(PdfOpenError, match=error):
+            parse(data)
 
     def test_missing_file(self, tmp_path):
         with pytest.raises(PdfOpenError):
@@ -84,8 +86,10 @@ class TestRobustness:
         assert d.pages
 
     def test_garbage_before_header(self, letter_pdf):
-        d = parse(b"X-Mailer: junk\r\n\r\n" + letter_pdf, NO_OCR)
+        data = b"X-Mailer: junk\r\n\r\n" + letter_pdf
+        d = parse(data, NO_OCR)
         assert "Sehr geehrte Frau Muster," in render(d, "txt")
+        assert d.sha256 == hashlib.sha256(data).hexdigest()  # callers dedupe by the hash of the file they hold
 
     @pytest.mark.skipif(not HAS_QPDF, reason="qpdf not installed")
     def test_encrypted_pdf(self, tmp_path, letter_pdf):
@@ -102,6 +106,25 @@ class TestRobustness:
         d = parse(make_pdf([[]]))
         assert d.pages[0].source is PageSource.EMPTY
         assert render(d, "txt") == ""
+
+    @pytest.mark.parametrize(
+        "mapped,text",
+        [("\U0001f600", "Emoji \U0001f600 im Satz"), ("\ud83d", "Emoji \ufffd im Satz")],
+        ids=["emoji", "lone-surrogate"],
+    )
+    def test_characters_beyond_utf16_units(self, mapped, text):
+        # pdfium reports UTF-16 units: an emoji arrives as two surrogates, which no output could encode
+        line = "Ein Satz mit Emoji A im Satz und weiterem Text dahinter"
+        d = parse(make_pdf([[T(70, 100, line)]], to_unicode={"A": mapped}), NO_OCR)
+        assert text in d.text()
+        for fmt in ("raw", "txt", "html", "json"):
+            render(d, fmt).encode("utf-8")
+
+    @pytest.mark.parametrize("rotate", [0, 90], ids=["upright", "rotated"])
+    def test_text_outside_the_crop_box_is_dropped(self, rotate):
+        items = [T(70, 100, "Sichtbarer Text oben"), T(70, 600, "Weggeschnittener Text unten")]
+        d = parse(make_pdf([items], crop_box=(0, 421, 595, 842), rotate=rotate), NO_OCR)
+        assert d.text() == "Sichtbarer Text oben"
 
     def test_rotated_page(self):
         pdf = make_pdf(
@@ -140,7 +163,7 @@ class TestRobustness:
 
     def test_page_range(self, bill_pdf):
         d = parse(bill_pdf, replace(NO_OCR, first_page=2, last_page=2))
-        assert [p.number for p in d.pages] == [2]
+        assert [p.number for p in d.pages] == [2] and d.report.issues == ()
 
     def test_ocr_unavailable_is_reported_not_fatal(self, monkeypatch):
         from pdfgen import make_scanned_pdf
@@ -228,16 +251,43 @@ class TestRobustness:
         clone = pickle.loads(pickle.dumps(engine))  # noqa: S301 - e.g. sent to a process pool
         assert repr(clone) == repr(engine) and clone._slots is not engine._slots  # every setting, own limit
         assert Ocr(languages="deu+eng").languages == ("deu", "eng")  # as on the tesseract command line
-        for bad in (0, 1.5):
-            with pytest.raises(ValueError, match="max_parallel"):
-                Ocr(max_parallel=bad)
         # was compared by identity and silently ran as "auto"
         assert ParseOptions(ocr="never").ocr is OcrMode.NEVER  # type: ignore[arg-type]
-        with pytest.raises(ValueError, match="sometimes"):
-            ParseOptions(ocr="sometimes")  # type: ignore[arg-type]
-        for bad in (-1, 1.5, True):
-            with pytest.raises(ValueError, match="max_ocr_pages"):
-                ParseOptions(max_ocr_pages=bad)
+
+    @pytest.mark.parametrize(
+        "make,error",
+        [
+            (lambda: ParseOptions(ocr="sometimes"), "sometimes"),
+            (lambda: Ocr(max_parallel=0), "max_parallel"),
+            (lambda: Ocr(max_parallel=1.5), "max_parallel"),  # a fractional slot count never blocks
+            (lambda: Ocr(dpi=0), "dpi"),
+            (lambda: Ocr(timeout=0), "timeout"),
+            (lambda: ParseOptions(max_ocr_pages=-1), "max_ocr_pages"),  # would turn OCR off for every scan
+            (lambda: ParseOptions(max_ocr_pages=True), "max_ocr_pages"),
+            (lambda: ParseOptions(first_page=0), "first_page"),  # read as "all pages"
+            (lambda: ParseOptions(last_page=1.5), "last_page"),
+            (lambda: ParseOptions(first_page=3, last_page=2), "after last_page"),  # read as no pages
+        ],
+        ids=[
+            "ocr-mode",
+            "no-slots",
+            "fractional-slots",
+            "dpi",
+            "timeout",
+            "negative-ocr-limit",
+            "bool-ocr-limit",
+            "page-zero",
+            "fractional-page",
+            "reversed-range",
+        ],
+    )
+    def test_invalid_options(self, make, error):
+        with pytest.raises(ValueError, match=error):
+            make()
+
+    def test_range_past_the_last_page(self, bill_pdf):
+        d = parse(bill_pdf, replace(NO_OCR, first_page=5))
+        assert d.pages == () and [i.message for i in d.report.issues] == ["first_page 5 is beyond the last page, 2"]
 
     def test_timings_and_stats(self, bill_pdf):
         d = Pipeline().run(bill_pdf, NO_OCR)
