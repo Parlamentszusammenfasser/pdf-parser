@@ -116,7 +116,7 @@ def run_tesseract_tsv(
     except subprocess.TimeoutExpired as e:
         raise TimeoutError(f"tesseract timed out after {timeout}s") from e
     if r.returncode != 0:
-        raise RuntimeError(f"tesseract failed ({r.returncode}): {r.stderr.decode('utf-8', 'replace')[-300:]}")
+        raise RuntimeError(f"tesseract failed ({r.returncode}): {r.stderr.decode('utf-8', 'replace').strip()[-300:]}")
     return r.stdout.decode("utf-8", "replace")
 
 
