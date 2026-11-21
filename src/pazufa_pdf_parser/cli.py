@@ -198,7 +198,15 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
         print(f"{outdir}: error: {e}", file=sys.stderr)
         return EXIT_FAILED
     used_names: set[str] = set()
+    extensions = [get_renderer(fmt).extension for fmt in fmts]
     for f in files:
+        stem = _output_stem(f, extensions, used_names)
+        if outdir is not None and not args.overwrite:
+            # before the parse, so a half-written input and a wasted OCR run are not the price of a typo
+            existing = [t for ext in extensions if (t := outdir / f"{stem}.{ext}").exists()]
+            if existing:
+                print(f"{existing[0]}: exists (use --overwrite)", file=sys.stderr)
+                return EXIT_FAILED
         t0 = time.perf_counter()
         try:
             doc = parse(f, opts)
@@ -209,7 +217,6 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             print(f"{f}: unexpected error: {type(e).__name__}: {e}", file=sys.stderr)
             return EXIT_FAILED
         written = []
-        stem = _output_stem(f, [get_renderer(fmt).extension for fmt in fmts], used_names)
         for fmt in fmts:
             r = get_renderer(fmt)
             try:
@@ -223,9 +230,6 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
                     sys.stdout.write("\n")
                 continue
             target = outdir / f"{stem}.{r.extension}"
-            if target.exists() and not args.overwrite:
-                print(f"{target}: exists (use --overwrite)", file=sys.stderr)
-                return EXIT_FAILED
             tmp = target.with_suffix(target.suffix + ".part")
             try:
                 tmp.write_text(content, encoding="utf-8")

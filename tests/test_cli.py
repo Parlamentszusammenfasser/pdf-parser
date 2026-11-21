@@ -65,6 +65,8 @@ def test_multiple_inputs_need_output_dir(tmp_path, letter_pdf, capsys):
         ("missing", [], [], "bad.pdf: no such file"),
         # forced OCR without tesseract: written, but its text is likely incomplete
         ("error-issue", ["--ocr", "always", "--tesseract", "no-such-tesseract"], ["bad.txt"], "bad.pdf: error: ocr: "),
+        # checked before the parse: bad.txt is not written either
+        ("exists", ["-f", "txt,json"], ["bad.json"], "bad.json: exists"),
     ],
 )
 def test_first_failure_stops_the_run(tmp_path, letter_pdf, capsys, first, extra, written, error):
@@ -73,6 +75,8 @@ def test_first_failure_stops_the_run(tmp_path, letter_pdf, capsys, first, extra,
         bad.write_bytes(b"not a pdf at all" if first == "not-a-pdf" else letter_pdf)
     good = write(tmp_path, "good.pdf", letter_pdf)
     out = tmp_path / "out"
+    if first == "exists":
+        write(out, "bad.json", b"")
     assert main([str(bad), str(good), "-o", str(out), "-q", *extra]) == EXIT_FAILED
     assert (sorted(p.name for p in out.iterdir()) if out.exists() else []) == written  # good.pdf never parsed
     assert error in capsys.readouterr().err
