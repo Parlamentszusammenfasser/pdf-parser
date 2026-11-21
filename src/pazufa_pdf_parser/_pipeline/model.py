@@ -104,6 +104,7 @@ class Word:
     confidence: float | None = None  # OCR confidence 0..100
     angle: int = 0  # text direction in degrees, 0 = upright
     invisible: bool = False  # text render mode 3 (e.g. an existing OCR layer)
+    garbage: int = 0  # characters the text layer could not map to text (broken font encoding)
 
 
 @dataclass(slots=True)

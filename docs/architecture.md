@@ -10,7 +10,7 @@ modify the `Document`.
 
 ```mermaid
 flowchart LR
-    extract --> layout --> furniture --> sanitize --> flow
+    extract --> layout --> garbled --> furniture --> page_numbers --> sanitize --> flow
 ```
 
 A failure in `extract` or `layout` aborts; any other step's exception is
@@ -36,6 +36,11 @@ multi-column text and two-column synopses without splitting tables or list
 markers into columns. Lines become blocks on changes in pitch, font,
 indentation, list markers and bold run-in labels; headings come from font
 statistics.
+
+**Garbled** (`drop_garbled` in `_pipeline/sanitize.py`). On a page whose garbled text layer OCR did
+not replace (OCR off, unavailable or over `max_ocr_pages`), blocks set mostly in a font whose
+characters the PDF cannot map become `noise`, kept in `raw` output only. `drop_garbled_text=False`
+keeps them.
 
 **Furniture** (`_pipeline/layout/footers.py`). Catches footers that repetition misses:
 first-page-only letter footers, single-page documents, logos OCR reads

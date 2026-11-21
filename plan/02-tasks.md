@@ -36,4 +36,7 @@
 [x] T25 Gesetzblatt page 2 (#23): its one-off running header is furniture as the page's first line; two
      columns that pair up line for line (signature lists) are no sidebar and read left first
 [x] T26 protocol ToC (#24): a word hyphenated across two lines keeps them in one block despite a bold/size change
+[x] T27 `ParseOptions.drop_garbled_text` (#33, on by default): on a page whose garbled text layer OCR did not
+     replace, blocks set mostly in a garbled font become noise (raw only); scraper-bw's paragraph scorer is not
+     ported, on parser output it only hit real text (uppercase titles, Czech, tables)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

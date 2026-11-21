@@ -37,15 +37,17 @@ OCR stay empty and the report says why.
 
 ## How it works
 
-`parse()` runs five steps:
+`parse()` runs these steps:
 
 1. **extract**: characters from the PDF text layer; pages without a usable one are OCRed
-2. **layout**: lines, columns, blocks, headings, lists, footnotes
-3. **furniture**: headers, footers and page numbers, found by repetition across pages
-4. **sanitize**: hyphenation, whitespace, OCR noise
-5. **flow**: paragraphs that continue on the next page or column
+2. **layout**: lines, columns, blocks, headings, lists, footnotes; headers and footers repeated across pages
+3. **garbled**: text in broken fonts that OCR did not replace becomes noise (`drop_garbled_text`)
+4. **furniture**: footers repetition misses, e.g. on the first page only
+5. **page_numbers**: the number printed on each page
+6. **sanitize**: hyphenation, whitespace, OCR noise
+7. **flow**: paragraphs that continue on the next page or column
 
-If step 3, 4 or 5 fails, the document is still returned and the failure is
+If a step after layout fails, the document is still returned and the failure is
 recorded in its report. Details: [docs/architecture.md](docs/architecture.md).
 
 ## Library
@@ -58,6 +60,7 @@ from pazufa_pdf_parser import Ocr, OcrMode, ParseOptions, parse
 parse(data, ParseOptions(ocr=OcrMode.NEVER))                   # AUTO (default) | ALWAYS | NEVER
 parse(data, ParseOptions(first_page=2, last_page=5, password="…"))
 parse(data, ParseOptions(max_ocr_pages=500))                   # more pages to OCR: OCR none, warn
+parse(data, ParseOptions(drop_garbled_text=False))             # keep garbled text OCR did not replace in txt/html
 parse(data, ParseOptions(strict=True))                         # raise instead of recording problems
 ```
 
@@ -101,7 +104,7 @@ for issue in doc.report.issues:
         print(issue.page, issue.step, issue.message)
 ```
 
-`issue.step` (`extract`, `ocr`, `layout`, `furniture`, `page_numbers`, `sanitize`, `flow`) and
+`issue.step` (`extract`, `ocr`, `layout`, `garbled`, `furniture`, `page_numbers`, `sanitize`, `flow`) and
 `severity` are stable; `message` is for people.
 
 ### Output formats

@@ -345,4 +345,4 @@ def test_masthead_only_on_the_first_page():
 
 
 def test_step_order():
-    assert Pipeline().names() == ["extract", "layout", "furniture", "page_numbers", "sanitize", "flow"]
+    assert Pipeline().names() == ["extract", "layout", "garbled", "furniture", "page_numbers", "sanitize", "flow"]
