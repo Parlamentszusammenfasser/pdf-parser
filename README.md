@@ -152,7 +152,7 @@ All subclass `PazufaError`:
   `e.cause`, and `e.issue` for an ERROR issue (match on `e.issue.code`)
 - `OcrUnavailableError`: `strict=True` and OCR needed, but no tesseract
 - `UnknownFormatError`: unknown `render` format
-- `SchemaVersionError`: `from_json` got JSON from a newer version
+- `SchemaVersionError`: `from_json` got JSON of a schema this version cannot read, older or newer
 
 ### Caching
 
@@ -162,8 +162,8 @@ doc = PdfDocument.from_json(cached)
 ```
 
 Key the cache by `doc.sha256` (the hash of the file as given) and the options
-that change the output: `ocr`, the `Ocr` languages and dpi, the page range and
-`drop_garbled_text`. `from_json` reads JSON of the same schema from older and
+that change the output: `ocr`, `max_ocr_pages`, the `Ocr` languages, dpi and
+`detect_orientation`, the page range and `drop_garbled_text`. `from_json` reads JSON of the same schema from older and
 newer versions; JSON of another schema raises `SchemaVersionError`, so parse
 the PDF again. To pick up parser improvements,
 drop entries whose `doc.report.parser_version` differs from

@@ -25,7 +25,8 @@ _REGISTRY: dict[str, Renderer] = {}
 
 
 def register_renderer(name: str, func: RenderFunc, extension: str, description: str = "") -> None:
-    """Register (or replace) an output format; a new one also goes into ``Format``."""
+    """Register (or replace) an output format. ``render()`` and the CLI accept any registered name; for type
+    checkers a new one must also be added to ``Format``."""
     _REGISTRY[name.lower()] = Renderer(name.lower(), func, extension, description)
 
 

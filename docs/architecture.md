@@ -38,7 +38,7 @@ indentation, list markers and bold run-in labels; headings come from font
 statistics.
 
 **Garbled** (`drop_garbled` in `_pipeline/sanitize.py`). On a page whose garbled text layer OCR did
-not replace (OCR off, unavailable or over `max_ocr_pages`), blocks set mostly in a font whose
+not replace (OCR off, unavailable, over `max_ocr_pages` or failed), blocks set mostly in a font whose
 characters the PDF cannot map become `noise`, kept in `raw` output only. `drop_garbled_text=False`
 keeps them.
 
