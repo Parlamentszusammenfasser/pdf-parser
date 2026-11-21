@@ -30,6 +30,7 @@ _BULLETS = dict.fromkeys(map(ord, "▪●■∙‣⁃◦
 _CID_RE = re.compile(r"\(cid:\d+\)")
 _PUA_RE = re.compile(r"[-]")
 _CTRL_RE = re.compile(r"[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+_BLANK_LINES_RE = re.compile(r"\n{3,}")
 _MULTISPACE_RE = re.compile(r"[ \t]{2,}")
 # "A b l e h n u n g" -> "Ablehnung" (>= 4 single letters separated by single spaces)
 _LETTERSPACED_RE = re.compile(r"(?<!\S)((?:[^\W\d_] ){3,}[^\W\d_])(?!\S)")
@@ -192,19 +193,6 @@ def fix_ocr_text(text: str) -> str:
     return text
 
 
-def sanitize_text(text: str) -> str:
-    """Sanitize a free text (no layout info): clean, de-hyphenate, normalise whitespace."""
-    text = clean_chars(text)
-    paras = re.split(r"\n\s*\n", text)
-    out = []
-    for p in paras:
-        lines = [collapse_letterspacing(normalize_spaces(ln)) for ln in p.split("\n")]
-        lines = [ln for ln in lines if not is_junk_line(ln)]
-        if lines:
-            out.append(reflow_lines(lines))
-    return "\n\n".join(out)
-
-
 def line_text(line: Line, min_conf: float | None = None) -> str:
     """Text of a line with low-confidence OCR words removed."""
     if min_conf is None or all(w.confidence is None for w in line.words):
@@ -231,14 +219,15 @@ def sanitize_block(block: Block, min_conf: float | None = None) -> str:
         out = reflow_lines(texts, widths, full)
     if any(w.confidence is not None for ln in block.lines for w in ln.words):
         out = fix_ocr_text(out)
-    return out
+    return " ".join(out.split()) if block.kind is BlockKind.HEADING else _BLANK_LINES_RE.sub("\n\n", out.strip())
 
 
 _OCR_GARBAGE_WORD_RE = re.compile(r"^[^\w§€$%&@]{2,}$")
 
 
-def block_is_noise(block: Block) -> bool:
-    """OCR blocks consisting mostly of symbol soup or very low confidence words."""
+def is_ocr_noise(block: Block) -> bool:
+    """An OCR block of mostly symbol soup or very low confidence words, too poor to keep in the body. Stricter
+    than ``footers.looks_like_logo``, which only adds to a footer score."""
     text = " ".join(ln.text for ln in block.lines)
     stripped = text.replace(" ", "")
     if not stripped:
@@ -263,7 +252,7 @@ def drop_garbled(page: Page, max_garbage_ratio: float) -> int:
     annexes shift whole fonts by ASCII +29, so their words read as letters ("6WlGWHWDJ") beside the
     control characters that betray the font. A word without a font name is judged on its own.
     """
-    if page.source is not PageSource.TEXT or page.stats.get("garbage_ratio", 0.0) <= max_garbage_ratio:
+    if page.source is not PageSource.TEXT or page.garbage_ratio <= max_garbage_ratio:
         return 0
     chars: Counter[str] = Counter()
     unmapped: Counter[str] = Counter()

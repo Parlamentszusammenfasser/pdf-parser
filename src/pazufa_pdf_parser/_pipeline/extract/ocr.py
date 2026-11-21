@@ -42,13 +42,6 @@ def tesseract_languages(cmd: str = "tesseract") -> frozenset[str]:
     return frozenset(line.strip() for line in out[1:] if line.strip() and " " not in line.strip())
 
 
-def tesseract_available(cmd: str = "tesseract") -> bool:
-    try:
-        return bool(tesseract_languages(cmd))
-    except OcrUnavailableError:
-        return False
-
-
 def resolve_languages(requested: tuple[str, ...], cmd: str = "tesseract") -> tuple[str, list[str]]:
     """Return a tesseract ``-l`` argument and the list of requested-but-missing languages."""
     have = tesseract_languages(cmd)

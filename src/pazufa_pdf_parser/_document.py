@@ -14,8 +14,10 @@ from typing import Any
 from ._errors import PazufaError, SchemaVersionError
 
 PARSER_VERSION = version("pazufa-pdf-parser")
-# bump when a key is removed or changes meaning, or an enum gains a value; new keys need no bump
-SCHEMA_VERSION = 1
+# bump when a key is removed or changes meaning, or an enum gains a value; new keys need no bump. A bump
+# drops the old version from _READABLE_VERSIONS unless from_json learns to upgrade it.
+SCHEMA_VERSION = 2
+_READABLE_VERSIONS = {2}  # 1: page OCR details in report.pages, continuations moved into the previous page
 
 
 class PageSource(StrEnum):
@@ -75,26 +77,37 @@ class Issue:
     #: part of the parser that recorded it: "extract", "ocr", "layout", "garbled", "furniture", "page_numbers",
     #: "sanitize" or "flow"; stable
     step: str
+    #: what happened, e.g. "ocr_unavailable", "page_unloadable"; stable, one per message pattern
+    code: str
     message: str
     page: int | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Block:
-    page: int  # 1-based PDF page the block starts on
+    page: int  # 1-based PDF page
     kind: BlockKind
-    text: str  # sanitized; empty when the paragraph was joined to the previous block
+    text: str  # sanitized, never empty
     bbox: tuple[float, float, float, float]  # points, top-left origin, page rotation applied
     level: int = 0  # heading level, 1 = top
+    #: the page whose first paragraph continues this one, also past blank pages; ``text()`` joins them
+    continues_on: int | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Page:
     number: int  # 1-based PDF page
+    width: float  # points, as shown: page rotation applied
+    height: float
     source: PageSource
     blocks: tuple[Block, ...]  # headers, body in reading order, footers and page numbers, margin notes and noise
     #: printed page number ("259", "II"); None when none was found, e.g. on a single page without "Seite N"
     printed_page: str | None = None
+    #: the text layer is missing or garbled and OCR did not replace it (off, unavailable, over the limit, failed)
+    needs_ocr: bool = False
+    #: why the page was or was not OCRed, and why wanted OCR did not run; for people, not matching
+    ocr_reason: str = ""
+    ocr_confidence: float | None = None  # mean tesseract word confidence 0..100 of an OCRed page
 
     def text(self) -> str:
         """Sanitized body text of this page."""
@@ -115,16 +128,8 @@ class Metadata:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class PageReport:
-    number: int
-    ocr_reason: str  # why the page was or was not OCRed, and why wanted OCR did not run; for people, not matching
-    ocr_confidence: float | None  # mean tesseract word confidence 0..100
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class Report:
     parser_version: str
-    pages: tuple[PageReport, ...]
     issues: tuple[Issue, ...]
 
 
@@ -141,6 +146,8 @@ class PdfDocument:
 
     def text(self, pages: Iterable[int] | None = None) -> str:
         """Sanitized body text of all pages, or of the given 1-based page numbers."""
+        if isinstance(pages, str):  # "3" would iterate as {"3"} and match no page
+            raise TypeError("pages must be page numbers, e.g. [3], not a string")
         wanted = None if pages is None else set(pages)
         return _body_text(b for b in self.blocks if wanted is None or b.page in wanted)
 
@@ -150,20 +157,21 @@ class PdfDocument:
 
     @classmethod
     def from_json(cls, s: str | bytes) -> PdfDocument:
-        """Load what :meth:`to_json` wrote, also by an older version of this parser.
+        """Load what :meth:`to_json` wrote, also by another version of this parser of the same schema.
 
         Unknown keys are ignored and missing ones take the field's default. Raises SchemaVersionError
-        for JSON from a newer schema, PazufaError for invalid JSON or missing required fields. Value
-        types are not checked: hand-edited JSON with e.g. a number as text loads and fails later.
+        for JSON of a schema this parser cannot read (parse the PDF again), PazufaError for invalid
+        JSON or missing required fields. Value types are not checked: hand-edited JSON with e.g. a
+        number as text loads and fails later.
         """
         try:
             data = json.loads(s)
             found = data["schema_version"]
             if type(found) is not int or found < 1:
                 raise PazufaError(f"not a PdfDocument JSON: schema_version {found!r}")
-            if found > SCHEMA_VERSION:
+            if found not in _READABLE_VERSIONS:
                 raise SchemaVersionError(
-                    f"PdfDocument JSON has schema_version {found}; this parser reads up to {SCHEMA_VERSION}"
+                    f"PdfDocument JSON has schema_version {found}; this parser reads {sorted(_READABLE_VERSIONS)}"
                 )
             return _load(
                 cls,
@@ -171,10 +179,7 @@ class PdfDocument:
                 metadata=lambda m: _load(Metadata, m, created=_datetime, modified=_datetime),
                 pages=lambda ps: tuple(_load(Page, p, source=PageSource, blocks=_blocks) for p in ps),
                 report=lambda r: _load(
-                    Report,
-                    r,
-                    pages=lambda ps: tuple(_load(PageReport, p) for p in ps),
-                    issues=lambda xs: tuple(_load(Issue, i, severity=Severity) for i in xs),
+                    Report, r, issues=lambda xs: tuple(_load(Issue, i, severity=Severity) for i in xs)
                 ),
             )
         # truncated cache files, other tools' JSON, absurd nesting
@@ -197,4 +202,22 @@ def _blocks(blocks: list[dict[str, Any]]) -> tuple[Block, ...]:
 
 
 def _body_text(blocks: Iterable[Block]) -> str:
-    return "\n\n".join(b.text for b in blocks if b.kind.is_body and b.text)
+    """Body blocks separated by blank lines. A paragraph continued on the next page is joined to its
+    continuation; the footnotes printed between the two follow the joined paragraph."""
+    out: list[str] = []
+    held: list[str] = []
+    open_on: int | None = None  # the page the open paragraph continues on
+    for b in blocks:
+        if not b.kind.is_body:
+            continue
+        if open_on is not None and b.kind is BlockKind.FOOTNOTE:
+            held.append(b.text)
+            continue
+        if b.page == open_on:
+            out[-1] += " " + b.text
+        else:
+            out += held
+            held = []
+            out.append(b.text)
+        open_on = b.continues_on
+    return "\n\n".join(out + held)

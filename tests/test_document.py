@@ -15,7 +15,6 @@ from pazufa_pdf_parser import (
     Issue,
     Metadata,
     Page,
-    PageReport,
     PageSource,
     PazufaError,
     PdfDocument,
@@ -35,9 +34,13 @@ CET = timezone(timedelta(hours=1))
 @pytest.mark.parametrize("name", ALL_DOCS)
 def test_page_texts_add_up_to_the_document_text(parsed, name):
     d = parsed[name]
-    assert "\n\n".join(t for p in d.pages if (t := p.text())) == d.text()
+    # a paragraph continued on the next page is joined with a space (no fixture has footnotes at a break)
+    seps = [" " if any(b.continues_on for b in p.blocks) else "\n\n" for p in d.pages]
+    assert "".join(t + sep for p, sep in zip(d.pages, seps) if (t := p.text())).rstrip() == d.text()
     assert all(d.text(pages=[p.number]) == p.text() for p in d.pages)
     assert d.text(pages=[]) == d.text(pages=[99]) == ""
+    with pytest.raises(TypeError, match="not a string"):
+        d.text(pages="3")  # type: ignore[arg-type]
 
 
 def test_furniture_is_kept_apart_from_the_text(parsed):
@@ -91,13 +94,14 @@ def test_metadata(bill_pdf):
 
 def test_report(parsed):
     pyproject = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
-    report = parsed["letter"].report
-    assert report.parser_version == __version__ == pyproject["project"]["version"]
-    assert [(p.number, p.ocr_reason, p.ocr_confidence) for p in report.pages] == [
-        (1, "ocr disabled", None),
-        (2, "ocr disabled", None),
+    d = parsed["letter"]
+    assert d.report.parser_version == __version__ == pyproject["project"]["version"]
+    assert [(p.number, p.needs_ocr, p.ocr_reason, p.ocr_confidence) for p in d.pages] == [
+        (1, False, "ocr disabled; text layer ok", None),
+        (2, False, "ocr disabled; text layer ok", None),
     ]
-    assert report.issues == ()
+    assert [(p.width, p.height) for p in d.pages] == [(595, 842)] * 2
+    assert d.report.issues == ()
 
 
 # one of everything, with optional fields at their defaults
@@ -107,14 +111,15 @@ DOC = PdfDocument(
     pages=(
         Page(
             number=1,
+            width=595.0,
+            height=842.0,
             source=PageSource.TEXT,
             blocks=(Block(page=1, kind=BlockKind.PARAGRAPH, text="Text", bbox=(1.0, 2.0, 3.0, 4.0)),),
         ),
     ),
     report=Report(
         parser_version="0.0.0",
-        pages=(PageReport(number=1, ocr_reason="text layer", ocr_confidence=None),),
-        issues=(Issue(severity=Severity.WARNING, step="ocr", message="m"),),
+        issues=(Issue(severity=Severity.WARNING, step="ocr", code="ocr_limit", message="m"),),
     ),
 )
 
@@ -133,11 +138,12 @@ def _edited(edit) -> str:
         lambda d: d["metadata"].update(subject="x"),
         lambda d: d["pages"][0].update(rotation=90),
         lambda d: d["pages"][0]["blocks"][0].update(confidence=0.9),
-        lambda d: d["report"]["pages"][0].update(engine="tesseract"),
-        lambda d: d["report"]["issues"][0].update(code="ocr_skipped"),
+        lambda d: d["report"].update(engine="tesseract"),
+        lambda d: d["report"]["issues"][0].update(hint="install tesseract"),
         lambda d: d["pages"][0]["blocks"][0].pop("level"),
         lambda d: d["report"]["issues"][0].pop("page"),
         lambda d: d["pages"][0].pop("printed_page"),
+        lambda d: d["pages"][0].pop("needs_ocr"),
     ],
     ids=[
         "as-written",
@@ -145,11 +151,12 @@ def _edited(edit) -> str:
         "new-metadata-key",
         "new-page-key",
         "new-block-key",
-        "new-page-report-key",
+        "new-report-key",
         "new-issue-key",
         "older-without-block-level",
         "older-without-issue-page",
         "older-without-printed-page",
+        "older-without-needs-ocr",
     ],
 )
 def test_from_json_reads_newer_and_older_writers(edit):
@@ -162,14 +169,15 @@ def test_from_json_reads_newer_and_older_writers(edit):
 @pytest.mark.parametrize(
     "s,error,match",
     [
-        ('{"schema_version": 2}', SchemaVersionError, "reads up to 1"),
+        ('{"schema_version": 3}', SchemaVersionError, r"reads \[2\]"),
+        ('{"schema_version": 1}', SchemaVersionError, r"reads \[2\]"),
         ('{"schema_version": "1"}', PazufaError, "schema_version '1'"),
         ('{"schema_version": true}', PazufaError, "schema_version True"),
         ('{"schema_version": 0}', PazufaError, "schema_version 0"),
         ("", PazufaError, "not a PdfDocument"),
         ("[]", PazufaError, "not a PdfDocument"),
         ("null", PazufaError, "not a PdfDocument"),
-        ('{"schema_version": 1}', PazufaError, "not a PdfDocument"),
+        ('{"schema_version": 2}', PazufaError, "not a PdfDocument"),
         (_edited(lambda d: d.pop("sha256")), PazufaError, "sha256"),
         (_edited(lambda d: d["pages"][0]["blocks"][0].pop("text")), PazufaError, "text"),
         (_edited(lambda d: d.update(pages=[1])), PazufaError, "not a PdfDocument"),
@@ -180,6 +188,7 @@ def test_from_json_reads_newer_and_older_writers(edit):
     ],
     ids=[
         "newer-schema",
+        "older-unreadable-schema",
         "version-as-text",
         "version-bool",
         "version-zero",
@@ -199,5 +208,5 @@ def test_from_json_reads_newer_and_older_writers(edit):
 def test_from_json_rejects(s, error, match):
     with pytest.raises(error, match=match) as e:
         PdfDocument.from_json(s)
-    # only a newer schema is SchemaVersionError: callers re-parse it instead of treating the cache as corrupt
+    # only an unreadable schema is SchemaVersionError: callers re-parse it instead of treating the cache as corrupt
     assert (e.type is SchemaVersionError) == (error is SchemaVersionError)

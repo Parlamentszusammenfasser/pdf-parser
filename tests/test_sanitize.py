@@ -22,7 +22,6 @@ from pazufa_pdf_parser._pipeline.sanitize import (
     join_hyphenated,
     normalize_spaces,
     reflow_lines,
-    sanitize_text,
 )
 
 
@@ -135,11 +134,6 @@ def test_fix_ocr_text(raw, expected):
     assert fix_ocr_text(raw) == expected
 
 
-def test_sanitize_text_end_to_end():
-    raw = "Erste Zeile mit Tren-\nnung und ﬁ-Ligatur.\n\n____________\n\nZweiter   Absatz."
-    assert sanitize_text(raw) == "Erste Zeile mit Trennung und fi-Ligatur.\n\nZweiter Absatz."
-
-
 def _garbled_page(source=PageSource.TEXT, garbage_ratio=0.9, more=()):
     """A BW annex page: a clean header font above body text in a font shifted by ASCII +29, then
     one block per word list in ``more``."""
@@ -151,7 +145,7 @@ def _garbled_page(source=PageSource.TEXT, garbage_ratio=0.9, more=()):
     lines = [header, body, *more]
     blocks = [Block(lines=[make_line(ws)], bbox=BBox.enclosing(w.bbox for w in ws), page=1) for ws in lines]
     page = Page(number=1, width=595, height=842, source=source, words=[w for ws in lines for w in ws])
-    page.stats["garbage_ratio"] = garbage_ratio
+    page.garbage_ratio = garbage_ratio
     page.layout = Region(RegionKind.LEAF, BBox(0, 0, 595, 842), blocks=blocks)
     return page
 

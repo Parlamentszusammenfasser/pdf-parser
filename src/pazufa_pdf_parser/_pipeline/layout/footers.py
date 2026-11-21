@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from statistics import median
 
 from ..model import Block, BlockKind, Document, Page, Region, RegionKind
 from .furniture import is_page_number
@@ -89,7 +88,8 @@ def lexicon_hits(text: str) -> int:
     return sum(1 for rx in _LEXICON if rx.search(text))
 
 
-def is_noise(block: Block) -> bool:
+def looks_like_logo(block: Block) -> bool:
+    """Few letters or low OCR confidence, as logos read as text are: a hint for a footer, not proof of noise."""
     text = block.raw_text.replace(" ", "").replace("\n", "")
     if not text:
         return True
@@ -128,7 +128,7 @@ def footer_score(block: Block, body_size: float, gap: float, repeated: bool, num
     score += min(1.5, 0.75 * hits)
     if len(_SEPARATORS_RE.findall(text)) >= 2:
         score += 0.75
-    if is_noise(block):
+    if looks_like_logo(block):
         score += 1.5
     if repeated:
         score += 2.0
@@ -154,22 +154,13 @@ def _detach(region: Region, block: Block) -> bool:
     return any(_detach(c, block) for c in region.children)
 
 
-def _synopsis_ids(page: Page) -> set[int]:
-    ids: set[int] = set()
-    if page.layout is not None:
-        for r in page.layout.iter_regions():
-            if r.synopsis:
-                ids.update(id(b) for b in r.iter_blocks())
-    return ids
-
-
 def refine_footers(doc: Document) -> int:
     """Move footer blocks of the bottom zones into page furniture. Returns the count."""
-    body_size = doc.stats.get("body_font_size") or _body_size(doc)
+    body_size = doc.body_size
     sep = max(1.8 * body_size, 14.0)
     zones: dict[int, _Zone] = {}
     for i, page in enumerate(doc.pages):
-        z = _bottom_zone(page, sep, _synopsis_ids(page))
+        z = _bottom_zone(page, sep, page.synopsis_block_ids())
         if z is not None:
             zones[i] = z
     # bottom text per page for the repetition test: zone blocks + footers found earlier
@@ -210,7 +201,7 @@ def _zone_footers(z: _Zone, page: int, body_size: float, others: list[set[str]])
     # nothing below a footer is body text; logos/noise beside it and the page number belong to it too
     if footers:
         top = min(b.bbox.y0 for b in footers)
-        footers += [b for b in rest if b.bbox.y0 >= top - 2 or is_noise(b) or b is numbered]
+        footers += [b for b in rest if b.bbox.y0 >= top - 2 or looks_like_logo(b) or b is numbered]
     return footers
 
 
@@ -222,8 +213,3 @@ def _repeated(toks: set[str], others: list[set[str]]) -> bool:
     if len(toks) == 1:
         return sum(1 for o in others if toks <= o) >= 2
     return any(len(toks & o) / len(toks) >= 0.5 for o in others)
-
-
-def _body_size(doc: Document) -> float:
-    sizes = [b.size for p in doc.pages for b in p.blocks if b.size]
-    return median(sizes) if sizes else 10.0

@@ -43,8 +43,8 @@ def scanned_letter():
 
 def test_scan_is_ocred(scanned_letter):
     d = scanned_letter
-    assert d.pages[0].source is PageSource.OCR
-    assert d.report.pages[0].ocr_confidence > 70
+    assert d.pages[0].source is PageSource.OCR and not d.pages[0].needs_ocr
+    assert d.pages[0].ocr_confidence > 70
     txt = render(d, "txt")
     for phrase in (
         "Bayerische Staatskanzlei",

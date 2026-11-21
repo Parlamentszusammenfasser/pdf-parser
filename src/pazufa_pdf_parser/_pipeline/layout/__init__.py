@@ -6,22 +6,22 @@ import copy
 import re
 
 from ..._options import ParseOptions
-from ..model import BBox, Block, BlockKind, Document, Page, Region, RegionKind, Word
-from ..sanitize import block_is_noise
-from .blocks import classify_headings, fill_leaves, split_blocks
+from ..model import BBox, Block, BlockKind, Document, Page, Region, RegionKind, Word, rotate_words
+from ..sanitize import is_ocr_noise
+from .blocks import classify_headings, fill_leaves
 from .furniture import detect_furniture
 from .lines import build_lines, make_line
 from .segment import Segmenter, detect_synopsis, page_body_size
 
-__all__ = ["analyze_layout", "document_body_size"]
+__all__ = ["analyze_layout", "document_body_size", "MIN_WORD_CONFIDENCE"]
+
+MIN_WORD_CONFIDENCE = 25.0  # OCR words below this tesseract confidence are mostly specks and stamps
 
 _LINE_NUMBER_RE = re.compile(r"^\d{1,4}$")
 
 
 def _marginal_blocks(page: Page, words: list[Word]) -> list[Block]:
     """Rotated text: group per direction, rebuild lines in an upright frame."""
-    from ..extract import rotate_words
-
     out: list[Block] = []
     by_angle: dict[int, list[Word]] = {}
     for w in words:
@@ -54,7 +54,7 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
     for page in pages:
         upright = [w for w in page.words if w.angle == 0]
         rotated = [w for w in page.words if w.angle != 0]
-        lowconf = [w for w in upright if w.confidence is not None and w.confidence < options.min_word_confidence]
+        lowconf = [w for w in upright if w.confidence is not None and w.confidence < MIN_WORD_CONFIDENCE]
         if lowconf:
             low_ids = {id(w) for w in lowconf}
             upright = [w for w in upright if id(w) not in low_ids]
@@ -98,7 +98,7 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
                 continue
             keep: list[Block] = []
             for b in region.blocks:
-                if any(w.confidence is not None for ln in b.lines for w in ln.words) and block_is_noise(b):
+                if any(w.confidence is not None for ln in b.lines for w in ln.words) and is_ocr_noise(b):
                     b.kind = BlockKind.NOISE
                     page.extras.append(b)
                 else:
@@ -106,14 +106,9 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
             region.blocks = keep
         page.stats["body_size"] = round(seg.body_size or 0, 2)
 
-    body = document_body_size(pages)
-    doc.stats["body_font_size"] = round(body, 2)
+    body = doc.body_size = document_body_size(pages)
     all_blocks = [b for p in pages for b in p.blocks]
     classify_headings(all_blocks, body)
     for page in pages:
         if page.layout is not None:
             detect_synopsis(page.layout, lambda r: " ".join(b.raw_text for b in r.iter_blocks()))
-
-
-# re-exported helpers for library users
-__all__ += ["build_lines", "split_blocks", "Segmenter"]

@@ -25,7 +25,9 @@ def _block_html(b: Block) -> str:
     if b.kind is BlockKind.HEADING:
         level = min(6, b.level + 1)
         return f"<h{level}>{escape(b.text)}</h{level}>"
-    return f"<p{_CLASS.get(b.kind, '')}>{escape(b.text)}</p>"
+    # each page is a section, so a paragraph crossing pages is split; this ties its halves together
+    goes_on = f' data-continues-on="{b.continues_on}"' if b.continues_on else ""
+    return f"<p{_CLASS.get(b.kind, '')}{goes_on}>{escape(b.text)}</p>"
 
 
 def render_html(doc: PdfDocument) -> str:

@@ -13,7 +13,6 @@ from pazufa_pdf_parser import (
     OcrMode,
     OcrUnavailableError,
     Page,
-    PageReport,
     PageSource,
     ParseOptions,
     PazufaError,
@@ -55,13 +54,21 @@ def stub(text: str) -> PdfDocument:
     return PdfDocument(
         sha256="",
         metadata=Metadata(title=None, author=None, created=None, modified=None, page_count=1),
-        pages=(Page(number=1, source=PageSource.TEXT, blocks=(block,)),),
-        report=Report(parser_version=__version__, pages=(), issues=()),
+        pages=(Page(number=1, width=595.0, height=842.0, source=PageSource.TEXT, blocks=(block,)),),
+        report=Report(parser_version=__version__, issues=()),
     )
 
 
-def confidences(pages: tuple[PageReport, ...]) -> list[float]:
+def confidences(pages: tuple[Page, ...]) -> list[float]:
     return [p.ocr_confidence for p in pages if p.ocr_confidence is not None]
+
+
+def left_without_ocr(doc: PdfDocument) -> list[int]:
+    return [p.number for p in doc.pages if p.needs_ocr]
+
+
+def unavailable(report: Report) -> bool:
+    return any(i.code == "ocr_unavailable" for i in report.issues)
 
 
 def cache_key(doc: PdfDocument) -> tuple[str, bool]:

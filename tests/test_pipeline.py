@@ -66,7 +66,7 @@ class TestRobustness:
 
     @pytest.mark.parametrize(
         "data,error",
-        [(b"hello world", "not a PDF"), (b"", "empty"), (make_pdf([]), "has no pages")],
+        [(b"hello world", "not a PDF"), (b"", "empty"), (make_pdf([]), "no readable pages")],
         ids=["not-a-pdf", "empty", "no-pages"],
     )
     def test_unreadable_input(self, data, error):
@@ -171,9 +171,9 @@ class TestRobustness:
         pdf = make_scanned_pdf([[T(70, 100, "Text im Bild", 14)]], dpi=100)
         options = ParseOptions(ocr_engine=Ocr(tesseract_cmd="definitely-not-tesseract-xyz"))
         d = parse(pdf, options)
-        assert any(i.step == "ocr" for i in d.report.issues)
-        assert d.pages[0].source is PageSource.EMPTY
-        assert d.report.pages[0].ocr_reason.endswith("; not OCRed: tesseract unavailable")
+        assert [(i.step, i.code) for i in d.report.issues] == [("ocr", "ocr_unavailable")]
+        assert d.pages[0].source is PageSource.EMPTY and d.pages[0].needs_ocr
+        assert d.pages[0].ocr_reason.endswith("; not OCRed: tesseract unavailable")
         with pytest.raises(OcrUnavailableError):  # strict: the cause itself, not a StepError around it
             parse(pdf, replace(options, strict=True))
 
@@ -206,9 +206,9 @@ class TestRobustness:
         log = tmp_path / "runs"
         engine = Ocr(max_parallel=1, dpi=72, detect_orientation=False, tesseract_cmd=fake_tesseract(tmp_path, log, 1))
         d = parse(make_scanned_pdf([[T(70, 100, "Seite", 14)]], dpi=72), ParseOptions(ocr_engine=engine))
-        assert [(i.severity, i.page) for i in d.report.issues] == [(Severity.ERROR, 1)]
-        assert d.pages[0].source is PageSource.EMPTY
-        assert d.report.pages[0].ocr_reason.endswith("; not OCRed: OCR failed")
+        assert [(i.severity, i.code, i.page) for i in d.report.issues] == [(Severity.ERROR, "ocr_failed", 1)]
+        assert d.pages[0].source is PageSource.EMPTY and d.pages[0].needs_ocr
+        assert d.pages[0].ocr_reason.endswith("; not OCRed: OCR failed")
         # strict: Executor.map drops the queued pages once the loop raises; they must not keep the slots busy
         log.unlink()
         with pytest.raises(StepError):
@@ -239,7 +239,13 @@ class TestRobustness:
         )
         if severity:
             assert {p.source for p in d.pages} == {PageSource.EMPTY if pages else PageSource.TEXT}
-        assert all(("not OCRed: " in r.ocr_reason) == bool(severity) for r in d.report.pages)
+        assert all(("not OCRed: " in r.ocr_reason) == bool(severity) for r in d.pages)
+        # the letter's text layer is fine even when OCR was forced and skipped
+        assert all(p.needs_ocr == bool(severity and pages) for p in d.pages)
+        if severity is Severity.ERROR:  # strict raises at the first ERROR issue, not only at failing steps
+            with pytest.raises(StepError, match="over the limit") as e:
+                parse(pdf, ParseOptions(ocr=mode, ocr_engine=engine, max_ocr_pages=limit, strict=True))
+            assert e.value.step == "ocr" and e.value.issue.code == "ocr_limit"
 
     def test_ocr_engine_settings(self):
         opts = ParseOptions()
@@ -261,7 +267,9 @@ class TestRobustness:
             (lambda: Ocr(max_parallel=0), "max_parallel"),
             (lambda: Ocr(max_parallel=1.5), "max_parallel"),  # a fractional slot count never blocks
             (lambda: Ocr(dpi=0), "dpi"),
+            (lambda: Ocr(dpi=None), "dpi"),  # None means "no limit" only for the page options
             (lambda: Ocr(timeout=0), "timeout"),
+            (lambda: Ocr(timeout=None), "timeout"),
             (lambda: ParseOptions(max_ocr_pages=-1), "max_ocr_pages"),  # would turn OCR off for every scan
             (lambda: ParseOptions(max_ocr_pages=True), "max_ocr_pages"),
             (lambda: ParseOptions(first_page=0), "first_page"),  # read as "all pages"
@@ -273,7 +281,9 @@ class TestRobustness:
             "no-slots",
             "fractional-slots",
             "dpi",
+            "no-dpi",
             "timeout",
+            "no-timeout",
             "negative-ocr-limit",
             "bool-ocr-limit",
             "page-zero",

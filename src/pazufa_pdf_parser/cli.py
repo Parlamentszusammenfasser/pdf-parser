@@ -141,14 +141,20 @@ def main(argv: list[str] | None = None) -> int:
     return _cmd_extract(args, ap)
 
 
-def _output_stem(f: Path, used: set[str]) -> str:
-    """The file name for this input's outputs; inputs of the same name from different directories get
-    their directory name, then a counter, so none overwrites another."""
-    stem = f.stem if f.stem not in used else f"{f.parent.name}_{f.stem}"
+def _output_stem(f: Path, extensions: list[str], used: set[str]) -> str:
+    """The file name for this input's outputs. Inputs of the same name from different directories get
+    their directory name, then a counter, so none overwrites another; names are compared case-folded
+    for macOS and Windows disks, and per output file ("x.pdf" as raw and "x.raw.pdf" as txt clash)."""
+
+    def taken(stem: str) -> bool:
+        return any(f"{stem}.{ext}".casefold() in used for ext in extensions)
+
+    stem = f.stem if not taken(f.stem) else f"{f.parent.name}_{f.stem}"
     base, n = stem, 1
-    while stem in used:
+    while taken(stem):
         n += 1
         stem = f"{base}_{n}"
+    used.update(f"{stem}.{ext}".casefold() for ext in extensions)
     return stem
 
 
@@ -200,8 +206,7 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             status = EXIT_FAILED
             continue
         written = []
-        stem = _output_stem(f, used_names)
-        used_names.add(stem)
+        stem = _output_stem(f, [get_renderer(fmt).extension for fmt in fmts], used_names)
         for fmt in fmts:
             r = get_renderer(fmt)
             try:

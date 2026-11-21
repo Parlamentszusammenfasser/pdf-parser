@@ -5,24 +5,25 @@ other directly: they communicate through the :class:`Document` held by the
 :class:`Context`.
 
 Failures of non-critical steps are recorded as issues on the document and the
-pipeline continues; with ``ParseOptions(strict=True)`` they are re-raised.
+pipeline continues; with ``ParseOptions(strict=True)`` they, and the first issue
+of severity ERROR, raise.
 """
 
 from __future__ import annotations
 
-import re
 import time
 from dataclasses import dataclass
 from typing import Callable, Iterable, Protocol, runtime_checkable
 
 from .._errors import PazufaError, StepError
 from .._options import ParseOptions
-from .extract import extract_pages
-from .layout import analyze_layout
+from .extract import MAX_GARBAGE_RATIO, extract_pages
+from .flow import merge_flow
+from .layout import MIN_WORD_CONFIDENCE, analyze_layout
 from .layout.footers import refine_footers
 from .layout.furniture import assign_printed_pages
-from .model import Block, BlockKind, Document, Severity
-from .sanitize import drop_garbled, is_line_structured, join_hyphenated, sanitize_block
+from .model import Document, Severity
+from .sanitize import drop_garbled, sanitize_block
 from .source import OpenedPdf, Source, open_pdf
 
 
@@ -73,76 +74,15 @@ def layout_step(ctx: Context) -> None:
     analyze_layout(ctx.doc.pages, ctx.options, ctx.doc)
 
 
-_SENTENCE_END = tuple('.!?:;)“"»…')
-_SALUTATION_RE = re.compile(r"^\s*(Sehr geehrte[rs]?|Liebe[rs]?|Hallo|Guten Tag|Dear)\b", re.I)
-
-
-def _synopsis_block_ids(doc: Document) -> set[int]:
-    ids: set[int] = set()
-    for p in doc.pages:
-        if p.layout is None:
-            continue
-        for r in p.layout.iter_regions():
-            if r.synopsis:
-                ids.update(id(b) for b in r.iter_blocks())
-    return ids
-
-
-def merge_flow(doc: Document) -> int:
-    """Join paragraphs split by page/column breaks or spurious layout splits.
-
-    Across regions/pages a join requires similar, reasonably wide blocks (never a
-    sidebar); inside a region only clear continuations (next block starts lower-case)
-    are joined.
-    """
-    skip = _synopsis_block_ids(doc)
-    widths = {p.number: p.width or 1.0 for p in doc.pages}  # numbers count from the PDF's page 1, not first_page
-    prev: Block | None = None
-    joins = 0
-    for b in doc.body_blocks:
-        if not b.text or b.kind is BlockKind.FOOTNOTE:
-            continue  # footnotes sit between a page's last and the next page's first paragraph
-        if (
-            prev is not None
-            and id(b) not in skip
-            and id(prev) not in skip
-            and prev.kind in (BlockKind.PARAGRAPH, BlockKind.LIST_ITEM)
-            and b.kind is BlockKind.PARAGRAPH
-        ):
-            same_region = prev.page == b.page and prev.region == b.region
-            page_w = widths[b.page]
-            compatible = same_region or (
-                min(prev.bbox.width, b.bbox.width) >= 0.35 * page_w
-                and min(prev.bbox.width, b.bbox.width) / max(prev.bbox.width, b.bbox.width, 1.0) >= 0.6
-            )
-            joined = None
-            if compatible and not _SALUTATION_RE.match(prev.text):
-                if not same_region:
-                    joined = join_hyphenated(prev.text, b.text)
-                # inside one region only prose continues ("- Kläger -" / "gegen" must stay apart)
-                prose = not same_region or (
-                    prev.bbox.width >= 0.5 * page_w and not is_line_structured(prev.text.split("\n"))
-                )
-                if joined is None and prose and not prev.text.rstrip().endswith(_SENTENCE_END) and b.text[:1].islower():
-                    joined = prev.text.rstrip() + " " + b.text.lstrip()
-            if joined is not None:
-                prev.text = joined
-                b.text = ""
-                b.labels.add("merged_into_previous")
-                joins += 1
-                continue
-        prev = b
-    return joins
-
-
 @step("garbled")
 def garbled_step(ctx: Context) -> None:
     """Move text in garbled fonts, on pages whose text layer OCR did not replace, to noise."""
     if not ctx.options.drop_garbled_text:
         return
     for page in ctx.doc.pages:
-        if n := drop_garbled(page, ctx.options.max_garbage_ratio):
-            ctx.doc.issue(Severity.INFO, "garbled", f"{n} block(s) in a garbled font moved to noise", page.number)
+        if n := drop_garbled(page, MAX_GARBAGE_RATIO):
+            msg = f"{n} block(s) in a garbled font moved to noise"
+            ctx.doc.issue(Severity.INFO, "garbled", "garbled_dropped", msg, page.number)
 
 
 @step("furniture")
@@ -162,10 +102,9 @@ def page_numbers_step(ctx: Context) -> None:
 
 @step("sanitize")
 def sanitize_step(ctx: Context) -> None:
-    min_conf = ctx.options.min_word_confidence
     for page in ctx.doc.pages:
         for b in page.all_blocks:
-            b.text = sanitize_block(b, min_conf)
+            b.text = sanitize_block(b, MIN_WORD_CONFIDENCE)
 
 
 @step("flow")
@@ -224,7 +163,7 @@ class Pipeline:
         options = options or ParseOptions()
         t0 = time.perf_counter()
         opened = open_pdf(src, options.password)
-        doc = Document(source=opened.name, sha256=opened.sha256, pdf_info=dict(opened.info))
+        doc = Document(source=opened.name, sha256=opened.sha256, pdf_info=dict(opened.info), strict=options.strict)
         ctx = Context(doc=doc, options=options, opened=opened)
         try:
             self.run_context(ctx)
@@ -240,10 +179,10 @@ class Pipeline:
             try:
                 s.run(ctx)
             except Exception as e:  # noqa: BLE001
-                ctx.doc.issue(Severity.ERROR, s.name, f"{type(e).__name__}: {e}")
                 if ctx.options.strict or getattr(s, "critical", False):
                     if isinstance(e, PazufaError):  # callers catch e.g. OcrUnavailableError by its own type
                         raise
                     raise StepError(s.name, e) from e
+                ctx.doc.issue(Severity.ERROR, s.name, "step_failed", f"{type(e).__name__}: {e}")
             finally:
                 ctx.doc.timings[s.name] = round(time.perf_counter() - t, 4)

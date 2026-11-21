@@ -18,18 +18,16 @@ class Renderer:
     name: str
     func: RenderFunc
     extension: str
-    media_type: str
     description: str = ""
 
 
 _REGISTRY: dict[str, Renderer] = {}
 
 
-def register_renderer(
-    name: str, func: RenderFunc, extension: str, media_type: str = "text/plain", description: str = ""
-) -> None:
-    """Register (or replace) an output format."""
-    _REGISTRY[name.lower()] = Renderer(name.lower(), func, extension, media_type, description)
+def register_renderer(name: str, func: RenderFunc, extension: str, description: str = "") -> None:
+    """Register (or replace) an output format. ``render()`` and the CLI accept any registered name; for type
+    checkers a new one must also be added to ``Format``."""
+    _REGISTRY[name.lower()] = Renderer(name.lower(), func, extension, description)
 
 
 def get_renderer(name: str) -> Renderer:
@@ -57,13 +55,10 @@ register_renderer(
     "raw",
     render_raw,
     "raw.txt",
-    "text/plain",
     "every block in reading order incl. headers, footers and margin notes; text sanitized like txt",
 )
-register_renderer("txt", render_txt, "txt", "text/plain", "sanitized full text without page furniture and artifacts")
-register_renderer("html", render_html, "html", "text/html", "headings, paragraphs and lists in reading order")
-register_renderer(
-    "json", lambda d: d.to_json() + "\n", "json", "application/json", "pages and blocks with geometry, metadata, report"
-)
+register_renderer("txt", render_txt, "txt", "sanitized full text without page furniture and artifacts")
+register_renderer("html", render_html, "html", "headings, paragraphs and lists in reading order")
+register_renderer("json", lambda d: d.to_json() + "\n", "json", "pages and blocks with geometry, metadata, report")
 
 __all__ = ["Format", "Renderer", "register_renderer", "get_renderer", "available_formats", "render"]

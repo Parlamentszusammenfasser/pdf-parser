@@ -29,7 +29,7 @@ Everything runs through `_pipeline/pipeline.py`: an ordered list of `Step`s (`DE
 
 Coordinates everywhere are view space: points, top-left origin, after applying `/Rotate`. pdfium reports char angles clockwise (negated before mapping).
 
-Packages under `_pipeline/`: `extract/` (pdfium chars → words, per-page text-layer vs OCR decision, threaded tesseract), `layout/` (lines, repetition-based header/footer detection in `furniture.py`, recursive XY-cut segmentation in `segment.py`, blocks/headings, bottom-zone footer scoring in `footers.py`), `sanitize.py`, `render/` (registry via `register_renderer`; formats `raw`, `txt`, `html`, `json`).
+Packages under `_pipeline/`: `extract/` (pdfium chars → words, per-page text-layer vs OCR decision, threaded tesseract), `layout/` (lines, repetition-based header/footer detection in `furniture.py`, recursive XY-cut segmentation in `segment.py`, blocks/headings, bottom-zone footer scoring in `footers.py`), `sanitize.py`, `flow.py` (paragraphs re-joined across breaks), `render/` (registry via `register_renderer`; formats `raw`, `txt`, `html`, `json`).
 
 ## Tests
 

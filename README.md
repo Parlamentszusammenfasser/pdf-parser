@@ -61,7 +61,7 @@ parse(data, ParseOptions(ocr=OcrMode.NEVER))                   # AUTO (default) 
 parse(data, ParseOptions(first_page=2, last_page=5, password="…"))
 parse(data, ParseOptions(max_ocr_pages=500))                   # more pages to OCR: OCR none, warn
 parse(data, ParseOptions(drop_garbled_text=False))             # keep garbled text OCR did not replace in txt/html
-parse(data, ParseOptions(strict=True))                         # raise instead of recording problems
+parse(data, ParseOptions(strict=True))                         # raise StepError at the first failure or ERROR issue
 ```
 
 Tesseract settings live in one `Ocr` object per process. Its `max_parallel`
@@ -73,6 +73,11 @@ OCR = Ocr(languages=("deu", "eng"), dpi=400, max_parallel=2)   # once per proces
 parse(data, ParseOptions(ocr_engine=OCR))
 ```
 
+`parse()` is thread-safe, e.g. under `asyncio.to_thread`, but pdfium runs one
+page at a time per process, so threads overlap only in OCR. For CPU
+parallelism use a `ProcessPoolExecutor`: options and results pickle, and each
+process gets its own `Ocr` limit.
+
 ### The result
 
 `parse()` returns an immutable `PdfDocument`:
@@ -81,18 +86,26 @@ parse(data, ParseOptions(ocr_engine=OCR))
 PdfDocument
 ├── sha256              hash of the PDF
 ├── metadata            title, author, created, modified, page_count
-├── pages[]             number, source (text | ocr | empty), blocks, text(), furniture_text(), printed_page
-├── blocks              all blocks: page, kind, text, bbox, level
+├── pages[]             number, width, height, source (text | ocr | empty), blocks, text(), furniture_text(),
+│                       printed_page, needs_ocr, ocr_reason, ocr_confidence
+├── blocks              all blocks: page, kind, text, bbox, level, continues_on
 ├── text(pages=None)    body text, optionally of some pages, e.g. pages=[2, 3]
-└── report              parser_version, pages[] (ocr_reason, ocr_confidence), issues[]
+└── report              parser_version, issues[]
 ```
 
 `paragraph`, `heading`, `list_item` and `footnote` blocks make up the text;
 `header`, `footer`, `page_number`, `marginal` and `noise` blocks are kept but
 left out of it; `page.furniture_text()` joins the header, footer and page-number
 blocks. `printed_page` is the number printed on the page ("259", "II"), or `None`
-when none was found. `bbox` is in points, origin top left, page rotation applied. A
-paragraph that continues across a page break belongs to the page it starts on.
+when none was found. `bbox` is in points, origin top left, page rotation applied,
+on a page of `width` × `height`. A paragraph that continues on the next page keeps
+each half on its own page; the first names the page in `continues_on`; `text()` joins them
+(a word divided at the break goes whole to the first page). Block kinds may be
+added in later versions: filter with `kind.is_body` and `kind.is_furniture`.
+
+`needs_ocr` marks a page whose text layer is missing or garbled and that OCR did
+not replace (`OcrMode.NEVER`, no tesseract, over `max_ocr_pages`, OCR failed):
+its text is missing or garbage.
 
 `parse()` does not raise on recoverable problems; it records them as issues:
 
@@ -104,8 +117,22 @@ for issue in doc.report.issues:
         print(issue.page, issue.step, issue.message)
 ```
 
-`issue.step` (`extract`, `ocr`, `layout`, `garbled`, `furniture`, `page_numbers`, `sanitize`, `flow`) and
-`severity` are stable; `message` is for people.
+`issue.step` (`extract`, `ocr`, `layout`, `garbled`, `furniture`, `page_numbers`, `sanitize`, `flow`),
+`issue.code` and `severity` are stable; `message` is for people. Codes:
+
+| code | |
+|---|---|
+| `page_range_empty` | `first_page` is past the last page |
+| `page_unloadable` | a damaged page could not be read |
+| `text_layer_failed` | reading a page's text layer failed |
+| `ocr_unavailable` | no tesseract; pages that need OCR stay as they are |
+| `ocr_limit` | more pages need OCR than `max_ocr_pages`; none were OCRed |
+| `ocr_languages_missing` | a requested tesseract language is not installed |
+| `ocr_failed` | tesseract failed on a page |
+| `ocr_dpi_lowered` | a huge page was OCRed at a lower resolution |
+| `ocr_rotated` | a scan was turned upright for OCR |
+| `garbled_dropped` | text in a broken font became noise |
+| `step_failed` | a step after `layout` raised; the rest of the document is kept |
 
 ### Output formats
 
@@ -113,18 +140,19 @@ for issue in doc.report.issues:
 |---|---|
 | `"txt"` | clean running text |
 | `"raw"` | every block in reading order, including headers, footers, page numbers, margin notes and noise; pages separated by form feeds |
-| `"html"` | headings, paragraphs, lists and footnotes in reading order |
-| `"json"` | the whole `PdfDocument`, same as `doc.to_json()` |
+| `"html"` | headings, paragraphs, lists and footnotes in reading order, one `<section>` per page; a paragraph continued on a later page is split there, its first half marked `data-continues-on="N"` |
+| `"json"` | the whole `PdfDocument`: `doc.to_json()` plus a final newline |
 
 ### Errors
 
 All subclass `PazufaError`:
 
 - `PdfOpenError`: not a readable PDF (corrupt, wrong password)
-- `StepError`: `extract` or `layout` failed, or any step with `strict=True`; `e.step`, `e.cause`
+- `StepError`: `extract` or `layout` failed, or with `strict=True` any step or ERROR issue; `e.step`,
+  `e.cause`, and `e.issue` for an ERROR issue (match on `e.issue.code`)
 - `OcrUnavailableError`: `strict=True` and OCR needed, but no tesseract
 - `UnknownFormatError`: unknown `render` format
-- `SchemaVersionError`: `from_json` got JSON from a newer version
+- `SchemaVersionError`: `from_json` got JSON of a schema this version cannot read, older or newer
 
 ### Caching
 
@@ -133,9 +161,11 @@ cached = doc.to_json()
 doc = PdfDocument.from_json(cached)
 ```
 
-Key the cache by `doc.sha256` and the options you parsed with. `from_json`
-reads JSON from older versions; JSON from newer ones raises
-`SchemaVersionError`, so parse the PDF again. To pick up parser improvements,
+Key the cache by `doc.sha256` (the hash of the file as given) and the options
+that change the output: `ocr`, `max_ocr_pages`, the `Ocr` languages, dpi and
+`detect_orientation`, the page range and `drop_garbled_text`. `from_json` reads JSON of the same schema from older and
+newer versions; JSON of another schema raises `SchemaVersionError`, so parse
+the PDF again. To pick up parser improvements,
 drop entries whose `doc.report.parser_version` differs from
 `pazufa_pdf_parser.__version__`.
 

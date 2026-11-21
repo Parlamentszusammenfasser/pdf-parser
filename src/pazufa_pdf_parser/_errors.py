@@ -1,6 +1,11 @@
 """Exception hierarchy."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._document import Issue
 
 
 class PazufaError(Exception):
@@ -16,20 +21,22 @@ class OcrUnavailableError(PazufaError):
 
 
 class StepError(PazufaError):
-    """A pipeline step failed (only raised in strict mode)."""
+    """A pipeline step failed: ``extract`` or ``layout``, or with ``strict=True`` any step or any issue of
+    severity ERROR; ``issue`` is that issue, so strict callers can match on ``issue.code``."""
 
-    def __init__(self, step: str, cause: BaseException):
+    def __init__(self, step: str, cause: BaseException, issue: Issue | None = None):
         super().__init__(f"step {step!r} failed: {cause!r}")
         self.step = step
         self.cause = cause
+        self.issue = issue
 
     def __reduce__(self) -> tuple[Any, ...]:
         # pickle rebuilds an exception from its message alone; a process pool must get step and cause back
-        return StepError, (self.step, self.cause)
+        return StepError, (self.step, self.cause, self.issue)
 
 
 class SchemaVersionError(PazufaError):
-    """The JSON was written with a newer schema than this parser reads; parse the PDF again."""
+    """The JSON was written with a schema this parser cannot read; parse the PDF again."""
 
 
 class UnknownFormatError(PazufaError, ValueError):

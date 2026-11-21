@@ -9,12 +9,15 @@ from dataclasses import dataclass
 
 from ..._errors import OcrUnavailableError
 from ..._options import OcrMode, ParseOptions
-from ..model import BBox, Document, Page, PageSource, Severity, Word
+from ..model import Document, Page, PageSource, Severity, Word, rotate_words
 from ..source import PDFIUM_LOCK, OpenedPdf
 from .ocr import OcrResult, ocr_image, resolve_languages
 from .pdf import extract_page_words, image_coverage, page_has_vector_glyphs
 
-__all__ = ["extract_pages", "decide_ocr", "rotate_words"]
+__all__ = ["extract_pages", "MAX_GARBAGE_RATIO"]
+
+MIN_TEXT_CHARS = 25  # a page with fewer letters and digits has no text layer to speak of
+MAX_GARBAGE_RATIO = 0.15  # above this share of unmapped characters a text layer, or a font on it, is garbled
 
 
 @dataclass(slots=True)
@@ -23,24 +26,20 @@ class _Probe:
     page: Page
     want_ocr: bool
     merge: bool  # keep text layer and add OCR words that do not overlap it
-    reason: str
 
 
 def _meaningful_chars(words: list[Word]) -> int:
     return sum(sum(ch.isalnum() for ch in w.text) for w in words)
 
 
-def decide_ocr(stats: dict, words: list[Word], options: ParseOptions) -> tuple[bool, bool, str]:
-    """Decide whether a page needs OCR. Returns (ocr, merge_with_text_layer, reason)."""
-    if options.ocr is OcrMode.NEVER:
-        return False, False, "ocr disabled"
-    if options.ocr is OcrMode.ALWAYS:
-        return True, False, "ocr forced"
+def _text_layer(stats: dict, words: list[Word]) -> tuple[bool, bool, str]:
+    """Whether the text layer needs OCR, and whether to merge OCR words into it. Returns
+    (needs_ocr, merge_with_text_layer, reason)."""
     meaningful = _meaningful_chars(words)
     cover = stats.get("image_coverage", 0.0)
-    if stats.get("garbage_ratio", 0.0) > options.max_garbage_ratio and stats.get("chars", 0) >= 10:
+    if stats.get("garbage_ratio", 0.0) > MAX_GARBAGE_RATIO and stats.get("chars", 0) >= 10:
         return True, False, f"text layer garbled ({stats['garbage_ratio']:.0%} garbage)"
-    if meaningful < options.min_text_chars:
+    if meaningful < MIN_TEXT_CHARS:
         if cover > 0.02 or stats.get("paths", 0) > 50:
             return True, False, "no usable text layer"
         return False, False, "blank page"
@@ -49,24 +48,13 @@ def decide_ocr(stats: dict, words: list[Word], options: ParseOptions) -> tuple[b
     return False, False, "text layer ok"
 
 
-def rotate_words(words: list[Word], width: float, height: float, ccw: int) -> tuple[float, float]:
-    """Rotate word boxes in place by ``ccw`` degrees counter-clockwise (visual). Returns new size."""
-    ccw %= 360
-    if ccw == 0:
-        return width, height
-    for w in words:
-        b = w.bbox
-        pts = [(b.x0, b.y0), (b.x1, b.y1)]
-        if ccw == 90:
-            pts = [(y, width - x) for x, y in pts]
-        elif ccw == 180:
-            pts = [(width - x, height - y) for x, y in pts]
-        elif ccw == 270:
-            pts = [(height - y, x) for x, y in pts]
-        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        w.bbox = BBox(min(xs), min(ys), max(xs), max(ys))
-        w.angle = (w.angle + ccw) % 360
-    return (height, width) if ccw in (90, 270) else (width, height)
+def _decide_ocr(mode: OcrMode, needs: bool, merge: bool, reason: str) -> tuple[bool, bool, str]:
+    """Returns (ocr, merge_with_text_layer, reason)."""
+    if mode is OcrMode.NEVER:
+        return False, False, f"ocr disabled; {reason}"
+    if mode is OcrMode.ALWAYS:
+        return True, False, "ocr forced"
+    return needs, merge, reason
 
 
 def _normalize_orientation(page: Page) -> None:
@@ -93,44 +81,12 @@ def ocr_dpi(width: float, height: float, dpi: int) -> int:
 
 
 def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> list[Page]:
-    n = len(opened.pdf)
+    n = opened.info["page_count"]  # read under the pdfium lock when opened
     first = options.first_page or 1
     last = min(n, options.last_page or n)
     if first > n:
-        doc.issue(Severity.WARNING, "extract", f"first_page {first} is beyond the last page, {n}")
-    probes: list[_Probe] = []
-    with PDFIUM_LOCK:
-        for idx in range(first - 1, last):
-            try:
-                pg = opened.pdf[idx]
-            except Exception as e:  # damaged page tree
-                doc.issue(Severity.ERROR, "extract", f"cannot load page: {e}", idx + 1)
-                probes.append(
-                    _Probe(idx, Page(idx + 1, 595.0, 842.0, source=PageSource.EMPTY), False, False, "unloadable")
-                )
-                continue
-            w, h = pg.get_size()
-            page = Page(number=idx + 1, width=w, height=h, rotation=pg.get_rotation())
-            words: list[Word] = []
-            stats: dict = {}
-            try:
-                pt = extract_page_words(pg)
-                words, stats = pt.words, pt.stats
-            except Exception as e:
-                doc.issue(Severity.WARNING, "extract", f"text layer extraction failed: {e}", page.number)
-                stats = {"chars": 0, "garbage_ratio": 0.0}
-            stats["image_coverage"] = round(image_coverage(pg), 3)
-            if _meaningful_chars(words) < options.min_text_chars:
-                stats["paths"] = page_has_vector_glyphs(pg)
-            page.words = words
-            page.stats.update(stats)
-            want, merge, reason = decide_ocr(stats, words, options)
-            page.stats["ocr_reason"] = reason
-            if not want:
-                page.source = PageSource.TEXT if words else PageSource.EMPTY
-            probes.append(_Probe(idx, page, want, merge, reason))
-            with contextlib.suppress(Exception):
-                pg.close()
+        doc.issue(Severity.WARNING, "extract", "page_range_empty", f"first_page {first} is beyond the last page, {n}")
+    probes = [_probe(opened, idx, options, doc) for idx in range(first - 1, last)]
 
     todo = [p for p in probes if p.want_ocr]
     if todo:
@@ -141,6 +97,41 @@ def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> li
         if page.source is not PageSource.OCR:
             _normalize_orientation(page)
     return pages
+
+
+def _probe(opened: OpenedPdf, idx: int, options: ParseOptions, doc: Document) -> _Probe:
+    """Read one page's text layer and decide on OCR. Holds the pdfium lock for this page only, so
+    parses in other threads take turns instead of waiting for the whole PDF."""
+    with PDFIUM_LOCK:
+        try:
+            pg = opened.pdf[idx]
+        except Exception as e:  # damaged page tree
+            doc.issue(Severity.ERROR, "extract", "page_unloadable", f"cannot load page: {e}", idx + 1)
+            page = Page(idx + 1, 595.0, 842.0, source=PageSource.EMPTY, ocr_reason="page unloadable")
+            return _Probe(idx, page, False, False)
+        try:
+            w, h = pg.get_size()
+            page = Page(number=idx + 1, width=w, height=h, rotation=pg.get_rotation())
+            try:
+                pt = extract_page_words(pg)
+                page.words, page.stats = pt.words, pt.stats
+            except Exception as e:
+                doc.issue(
+                    Severity.WARNING, "extract", "text_layer_failed", f"text layer extraction failed: {e}", page.number
+                )
+                page.stats = {"chars": 0, "garbage_ratio": 0.0}
+            page.stats["image_coverage"] = round(image_coverage(pg), 3)
+            if _meaningful_chars(page.words) < MIN_TEXT_CHARS:
+                page.stats["paths"] = page_has_vector_glyphs(pg)
+        finally:
+            with contextlib.suppress(Exception):
+                pg.close()
+    page.garbage_ratio = page.stats["garbage_ratio"]
+    page.needs_ocr, merge, reason = _text_layer(page.stats, page.words)
+    want, merge, page.ocr_reason = _decide_ocr(options.ocr, page.needs_ocr, merge, reason)
+    if not want:
+        page.source = PageSource.TEXT if page.words else PageSource.EMPTY
+    return _Probe(idx, page, want, merge)
 
 
 def _lone_numbers_missed(text: list[Word], ocr: list[Word]) -> list[Word]:
@@ -158,7 +149,7 @@ def _lone_numbers_missed(text: list[Word], ocr: list[Word]) -> list[Word]:
 
 def _leave_without_ocr(todo: list[_Probe], why: str) -> None:
     for p in todo:
-        p.page.stats["ocr_reason"] += f"; not OCRed: {why}"
+        p.page.ocr_reason += f"; not OCRed: {why}"
         if not p.page.words:
             p.page.source = PageSource.EMPTY
 
@@ -168,19 +159,26 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
     severity = Severity.ERROR if options.ocr is OcrMode.ALWAYS else Severity.WARNING
     limit = options.max_ocr_pages
     if limit is not None and len(todo) > limit:
-        doc.issue(severity, "ocr", f"{len(todo)} page(s) need OCR, over the limit of {limit}; left without OCR")
+        doc.issue(
+            severity, "ocr", "ocr_limit", f"{len(todo)} page(s) need OCR, over the limit of {limit}; left without OCR"
+        )
         _leave_without_ocr(todo, f"{len(todo)} pages need OCR, over max_ocr_pages={limit}")
         return
     try:
         lang, missing = resolve_languages(engine.languages, engine.tesseract_cmd)
     except OcrUnavailableError as e:
-        doc.issue(severity, "ocr", f"{e}; {len(todo)} page(s) left without OCR")
-        _leave_without_ocr(todo, "tesseract unavailable")
         if options.strict:
-            raise
+            raise  # callers catch it by its own type
+        doc.issue(severity, "ocr", "ocr_unavailable", f"{e}; {len(todo)} page(s) left without OCR")
+        _leave_without_ocr(todo, "tesseract unavailable")
         return
     if missing:
-        doc.issue(Severity.WARNING, "ocr", f"tesseract languages not installed: {', '.join(missing)}; using {lang}")
+        doc.issue(
+            Severity.WARNING,
+            "ocr",
+            "ocr_languages_missing",
+            f"tesseract languages not installed: {', '.join(missing)}; using {lang}",
+        )
 
     def work(p: _Probe) -> tuple[_Probe, OcrResult | None, Exception | None]:
         try:
@@ -207,14 +205,17 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
         for p, res, err in ex.map(work, todo):
             page = p.page
             if err is not None or res is None:
-                doc.issue(Severity.ERROR, "ocr", f"OCR failed: {err}", page.number)
                 if options.strict and err is not None:
                     raise err
+                doc.issue(Severity.ERROR, "ocr", "ocr_failed", f"OCR failed: {err}", page.number)
                 _leave_without_ocr([p], "OCR failed")
                 continue
             page.stats.update(res.stats)
+            page.needs_ocr = False
+            page.ocr_confidence = round(res.mean_confidence, 2)
             if (dpi := ocr_dpi(page.width, page.height, engine.dpi)) < engine.dpi:
-                doc.issue(Severity.INFO, "ocr", f"page too large for {engine.dpi} dpi, OCRed at {dpi} dpi", page.number)
+                msg = f"page too large for {engine.dpi} dpi, OCRed at {dpi} dpi"
+                doc.issue(Severity.INFO, "ocr", "ocr_dpi_lowered", msg, page.number)
             if p.merge and page.words and not res.rotation:
                 kept = [
                     w
@@ -230,4 +231,4 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 page.source = PageSource.OCR if page.words else PageSource.EMPTY
             if res.rotation:
                 page.stats["orientation_corrected"] = res.rotation
-                doc.issue(Severity.INFO, "ocr", f"page rotated by {res.rotation}° for OCR", page.number)
+                doc.issue(Severity.INFO, "ocr", "ocr_rotated", f"page rotated by {res.rotation}° for OCR", page.number)

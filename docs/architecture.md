@@ -38,7 +38,7 @@ indentation, list markers and bold run-in labels; headings come from font
 statistics.
 
 **Garbled** (`drop_garbled` in `_pipeline/sanitize.py`). On a page whose garbled text layer OCR did
-not replace (OCR off, unavailable or over `max_ocr_pages`), blocks set mostly in a font whose
+not replace (OCR off, unavailable, over `max_ocr_pages` or failed), blocks set mostly in a font whose
 characters the PDF cannot map become `noise`, kept in `raw` output only. `drop_garbled_text=False`
 keeps them.
 
@@ -49,9 +49,10 @@ scored on small font, footer vocabulary (register court, bank, contact data),
 OCR noise, repetition and gap size. Numbered notes become `footnote` blocks
 that stay in the text.
 
-**Sanitize / flow** (`_pipeline/sanitize.py`). Removes soft hyphens, private-use glyphs
+**Sanitize / flow** (`_pipeline/sanitize.py`, `_pipeline/flow.py`). Removes soft hyphens, private-use glyphs
 and OCR junk, collapses letter-spacing, de-hyphenates, then re-joins
-paragraphs across page and column breaks.
+paragraphs across column breaks. Across a page break each page keeps its half
+and the first names the page it `continues_on`, so page citations stay right.
 
 **Result** (`_document.py`). `parse()` (`_pipeline/api.py`) turns the internal
 `Document` into the immutable `PdfDocument` (pages, blocks, metadata, report), which round-trips
