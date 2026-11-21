@@ -78,7 +78,11 @@ def test_first_failure_stops_the_run(tmp_path, letter_pdf, capsys, first, extra,
     assert error in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("flags,prefix", [(["-q"], "{f}: error: ocr p")], ids=["quiet"])
+@pytest.mark.parametrize(
+    "flags,prefix",
+    [(["-q"], "{f}: error: ocr p"), (["-q", "-v"], "{f}: [error] ocr p")],
+    ids=["quiet", "quiet-verbose"],
+)
 def test_error_issue_lines_name_file_and_page(tmp_path, capsys, flags, prefix):
     from pdfgen import T, make_scanned_pdf
     from test_pipeline import fake_tesseract

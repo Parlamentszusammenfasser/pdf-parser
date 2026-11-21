@@ -246,8 +246,9 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
                 info += " -> " + ", ".join(written)
             print(info, file=sys.stderr)
         if args.verbose:
+            indent = f"{f}: " if args.quiet else "  "  # -q drops the line above that names the file
             for i in doc.report.issues:
-                print(f"  [{i.severity}] {_issue_text(i)}", file=sys.stderr)
+                print(f"{indent}[{i.severity}] {_issue_text(i)}", file=sys.stderr)
         if errors:  # the outputs are written, but their text is likely incomplete
             if not args.verbose:
                 for i in errors:
