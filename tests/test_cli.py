@@ -78,6 +78,23 @@ def test_first_failure_stops_the_run(tmp_path, letter_pdf, capsys, first, extra,
     assert error in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("flags,prefix", [(["-q"], "{f}: error: ocr p")], ids=["quiet"])
+def test_error_issue_lines_name_file_and_page(tmp_path, capsys, flags, prefix):
+    from pdfgen import T, make_scanned_pdf
+    from test_pipeline import fake_tesseract
+
+    scan = [[T(70, 100, "Seite eins", 14)], [T(70, 100, "Seite zwei", 14)]]
+    p = write(tmp_path, "scan.pdf", make_scanned_pdf(scan, dpi=72))
+    cmd = fake_tesseract(tmp_path, tmp_path / "runs", exit_code=1)
+    assert main([str(p), "-o", str(tmp_path / "out"), "--tesseract", cmd, *flags]) == EXIT_FAILED
+    err = capsys.readouterr().err.splitlines()
+    failed = [line for line in err if "OCR failed" in line]
+    assert len(failed) == 2, err  # once per page, also with -v
+    for n, line in enumerate(failed, 1):
+        assert line.startswith(f"{prefix.format(f=p)}{n}: OCR failed: tesseract failed (1): "), line
+    assert failed[0].endswith(": page image unreadable") and "" not in err  # tesseract's newline stripped
+
+
 def test_missing_input(tmp_path, capsys):
     assert main([str(tmp_path / "nope.pdf")]) == EXIT_FAILED
 

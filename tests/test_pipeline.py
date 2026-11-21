@@ -361,6 +361,8 @@ with open({str(log)!r}, "a") as f:
     f.write("run\\n")
 sys.stdin.buffer.read()
 time.sleep(0.3)
+if {exit_code}:
+    print("Error: page image unreadable", file=sys.stderr)
 print("level\\tpage_num\\tblock_num\\tpar_num\\tline_num\\tword_num\\tleft\\ttop\\twidth\\theight\\tconf\\ttext")
 sys.exit({exit_code})
 """

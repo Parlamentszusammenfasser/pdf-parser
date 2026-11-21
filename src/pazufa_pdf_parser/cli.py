@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import PageSource, PazufaError, __version__, parse
+from . import Issue, PageSource, PazufaError, __version__, parse
 from ._options import Ocr, OcrMode, ParseOptions
 from ._pipeline.render import available_formats, get_renderer
 
@@ -158,6 +158,11 @@ def _output_stem(f: Path, extensions: list[str], used: set[str]) -> str:
     return stem
 
 
+def _issue_text(i: Issue) -> str:
+    where = f" p{i.page}" if i.page else ""
+    return f"{i.step}{where}: {i.message}"
+
+
 def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     fmts = _formats(args.format)
     unknown = [f for f in fmts if f not in available_formats()]
@@ -242,12 +247,11 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             print(info, file=sys.stderr)
         if args.verbose:
             for i in doc.report.issues:
-                where = f" p{i.page}" if i.page else ""
-                print(f"  [{i.severity}] {i.step}{where}: {i.message}", file=sys.stderr)
+                print(f"  [{i.severity}] {_issue_text(i)}", file=sys.stderr)
         if errors:  # the outputs are written, but their text is likely incomplete
             if not args.verbose:
                 for i in errors:
-                    print(f"{f}: error: {i.step}: {i.message}", file=sys.stderr)
+                    print(f"{f}: error: {_issue_text(i)}", file=sys.stderr)
             return EXIT_FAILED
     return EXIT_OK
 
