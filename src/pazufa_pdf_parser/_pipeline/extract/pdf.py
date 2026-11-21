@@ -87,14 +87,20 @@ class PageText:
     stats: dict[str, Any]
 
 
+def _suspect(c: _Char) -> bool:
+    """Counts toward the page's garbage ratio, which decides OCR; symbol-font glyphs without ToUnicode
+    land in the private use area and say the text layer cannot be read either."""
+    return _unmapped(c) or unicodedata.category(c.ch) == "Co"
+
+
+def _unmapped(c: _Char) -> bool:
+    """A character the font's encoding could not map. Unlike private-use symbols (bullets, digits of
+    symbol fonts) these mark the font itself as broken."""
+    return c.ch.startswith("\x00") or _is_garbage(c.ch)
+
+
 def _is_garbage(ch: str) -> bool:
-    cp = ord(ch)
-    if ch == "�":
-        return True
-    if 0xE000 <= cp <= 0xF8FF:  # private use area (symbol fonts without ToUnicode)
-        return True
-    cat = unicodedata.category(ch)
-    return cat in ("Cc", "Cs", "Co", "Cn") and ch not in "\t\n\r"
+    return ch == "�" or unicodedata.category(ch) in ("Cc", "Cs", "Cn") and ch not in "\t\n\r"
 
 
 # loose char boxes span ascent..descent, roughly 1.15 em for common fonts
@@ -130,7 +136,7 @@ def extract_page_words(page: pdfium.PdfPage, rotation_aware: bool = True) -> Pag
     finally:
         textpage.close()
     total = sum(1 for c in chars if not c.ch.isspace())
-    garbage = sum(1 for c in chars if c.ch.startswith("\x00") or _is_garbage(c.ch))
+    garbage = sum(1 for c in chars if _suspect(c))
     invisible = sum(1 for c in chars if c.invisible)
     words = _chars_to_words(chars)
     stats = {
@@ -232,6 +238,7 @@ def _chars_to_words(chars: list[_Char]) -> list[Word]:
                 source=TextSource.PDF,
                 angle=cur[0].angle,
                 invisible=all(c.invisible for c in cur),
+                garbage=sum(1 for c in cur if _unmapped(c)),
             )
         )
         cur.clear()

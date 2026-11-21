@@ -45,6 +45,7 @@ PUBLIC_FIELDS = {
         "min_text_chars",
         "max_garbage_ratio",
         "min_word_confidence",
+        "drop_garbled_text",
         "first_page",
         "last_page",
         "max_ocr_pages",
@@ -104,7 +105,7 @@ def test_strict_consumer_type_checks(target, error):
 
 
 # documented on Issue.step; callers filter on them, e.g. "ocr" to alert on scans left without OCR
-ISSUE_STEPS = {"extract", "ocr", "layout", "furniture", "page_numbers", "sanitize", "flow"}
+ISSUE_STEPS = {"extract", "ocr", "layout", "garbled", "furniture", "page_numbers", "sanitize", "flow"}
 
 
 def test_issue_steps_are_the_documented_ones():
@@ -112,7 +113,8 @@ def test_issue_steps_are_the_documented_ones():
 
     pipeline = Path(pazufa_pdf_parser.__file__).parent / "_pipeline"
     named = {m for f in pipeline.rglob("*.py") for m in re.findall(r'\.issue\(\s*[^,]+,\s*"(\w+)"', f.read_text())}
-    assert named == {"extract", "ocr"}  # the scan works; a new name here must be added to ISSUE_STEPS and the docs
+    # the scan works; a new name here must be added to ISSUE_STEPS and the docs
+    assert named == {"extract", "ocr", "garbled"}
     assert set(Pipeline().names()) | named == ISSUE_STEPS
 
 

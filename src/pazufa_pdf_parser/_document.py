@@ -72,8 +72,8 @@ class Severity(StrEnum):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Issue:
     severity: Severity
-    #: part of the parser that recorded it: "extract", "ocr", "layout", "furniture", "page_numbers", "sanitize" or
-    #: "flow"; stable
+    #: part of the parser that recorded it: "extract", "ocr", "layout", "garbled", "furniture", "page_numbers",
+    #: "sanitize" or "flow"; stable
     step: str
     message: str
     page: int | None = None

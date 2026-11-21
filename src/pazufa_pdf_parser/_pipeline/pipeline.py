@@ -1,4 +1,4 @@
-"""Pipeline of steps: extract -> layout -> furniture -> page_numbers -> sanitize -> flow.
+"""Pipeline of steps: extract -> layout -> garbled -> furniture -> page_numbers -> sanitize -> flow.
 
 A pipeline is an ordered list of :class:`Step` objects. Steps never see each
 other directly: they communicate through the :class:`Document` held by the
@@ -22,7 +22,7 @@ from .layout import analyze_layout
 from .layout.footers import refine_footers
 from .layout.furniture import assign_printed_pages
 from .model import Block, BlockKind, Document, Severity
-from .sanitize import is_line_structured, join_hyphenated, sanitize_block
+from .sanitize import drop_garbled, is_line_structured, join_hyphenated, sanitize_block
 from .source import OpenedPdf, Source, open_pdf
 
 
@@ -134,6 +134,16 @@ def merge_flow(doc: Document) -> int:
     return joins
 
 
+@step("garbled")
+def garbled_step(ctx: Context) -> None:
+    """Move text in garbled fonts, on pages whose text layer OCR did not replace, to noise."""
+    if not ctx.options.drop_garbled_text:
+        return
+    for page in ctx.doc.pages:
+        if n := drop_garbled(page, ctx.options.max_garbage_ratio):
+            ctx.doc.issue(Severity.INFO, "garbled", f"{n} block(s) in a garbled font moved to noise", page.number)
+
+
 @step("furniture")
 def furniture_step(ctx: Context) -> None:
     """Find page footers the repetition-based detection in ``layout`` missed:
@@ -166,6 +176,7 @@ def flow_step(ctx: Context) -> None:
 DEFAULT_STEPS: list[Step] = [
     extract_step,
     layout_step,
+    garbled_step,
     furniture_step,
     page_numbers_step,
     sanitize_step,

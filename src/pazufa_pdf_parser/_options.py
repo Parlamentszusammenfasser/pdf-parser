@@ -99,10 +99,13 @@ class ParseOptions:
     password: str | None = None
     #: a page with fewer meaningful characters than this is considered text-less
     min_text_chars: int = 25
-    #: share of garbage characters above which a text layer is considered broken
+    #: share of garbage characters above which a text layer is considered broken, and a font on it garbled
     max_garbage_ratio: float = 0.15
     #: OCR words below this confidence are dropped from sanitized outputs
     min_word_confidence: float = 25.0
+    #: on a page whose garbled text layer OCR did not replace, text in the garbled fonts becomes noise
+    #: (only in ``raw`` output) instead of body or furniture
+    drop_garbled_text: bool = True
     #: limit pages (1-based, inclusive); None = all
     first_page: int | None = None
     last_page: int | None = None

@@ -136,6 +136,20 @@ def test_bw_ascii_shift_pages_keep_their_number():
         assert set(re.findall(r"17/1201-\d+", d.text(pages=[p.number]))) == {f"17/1201-{p.number - 1}"}
 
 
+@pytest.mark.parametrize("drop", [True, False], ids=["dropped", "kept"])
+@pytest.mark.parametrize(
+    "name", ["drs-17-1201-ascii-shift.pdf", "drs-17-6014-garbled-annex.pdf"], ids=["shift", "annex"]
+)
+def test_garbled_text_left_without_ocr(name, drop):
+    # "%DGHQ" is "Baden" in the fonts shifted by ASCII +29; the Landtag's own header is set in a clean font
+    d = parse(_path(name), ParseOptions(ocr=OcrMode.NEVER, drop_garbled_text=drop))
+    assert ("%DGHQ" in render(d, "txt")) is not drop
+    assert "%DGHQ" in render(d, "raw")
+    assert all("Landtag von Baden-Württemberg" in p.furniture_text() for p in d.pages)
+    if name == "drs-17-1201-ascii-shift.pdf":
+        assert ("6HLWH" in d.pages[1].furniture_text()) is not drop  # the running "Seite" header, shifted too
+
+
 @pytest.mark.parametrize(
     "name,issued",
     [

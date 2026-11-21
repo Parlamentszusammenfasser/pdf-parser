@@ -1,8 +1,21 @@
 import pytest
 
+from pazufa_pdf_parser._pipeline.extract.pdf import _Char, _suspect, _unmapped
+from pazufa_pdf_parser._pipeline.layout.lines import make_line
+from pazufa_pdf_parser._pipeline.model import (
+    BBox,
+    Block,
+    BlockKind,
+    Page,
+    PageSource,
+    Region,
+    RegionKind,
+    Word,
+)
 from pazufa_pdf_parser._pipeline.sanitize import (
     clean_chars,
     collapse_letterspacing,
+    drop_garbled,
     fix_ocr_text,
     is_junk_line,
     is_line_structured,
@@ -125,3 +138,59 @@ def test_fix_ocr_text(raw, expected):
 def test_sanitize_text_end_to_end():
     raw = "Erste Zeile mit Tren-\nnung und ﬁ-Ligatur.\n\n____________\n\nZweiter   Absatz."
     assert sanitize_text(raw) == "Erste Zeile mit Trennung und fi-Ligatur.\n\nZweiter Absatz."
+
+
+def _garbled_page(source=PageSource.TEXT, garbage_ratio=0.9, more=()):
+    """A BW annex page: a clean header font above body text in a font shifted by ASCII +29, then
+    one block per word list in ``more``."""
+    header = [Word("Drucksache", BBox(70, 40, 130, 52), font="TimesNewRomanPSMT")]
+    body = [
+        Word("\x03\x14\x17", BBox(70, 200, 90, 212), font="NDJBHD+ArialMT", garbage=3),
+        Word("(LQJDQJ", BBox(95, 200, 140, 212), font="NDJBHD+ArialMT"),
+    ]
+    lines = [header, body, *more]
+    blocks = [Block(lines=[make_line(ws)], bbox=BBox.enclosing(w.bbox for w in ws), page=1) for ws in lines]
+    page = Page(number=1, width=595, height=842, source=source, words=[w for ws in lines for w in ws])
+    page.stats["garbage_ratio"] = garbage_ratio
+    page.layout = Region(RegionKind.LEAF, BBox(0, 0, 595, 842), blocks=blocks)
+    return page
+
+
+ARIAL = "NDJBHD+ArialMT"
+GARBLED = "\x03\x14\x17 (LQJDQJ"
+
+
+def _word(text, font="TimesNewRomanPSMT", garbage=0):
+    return Word(text, BBox(70, 300, 70 + 6 * len(text), 312), font=font, garbage=garbage)
+
+
+@pytest.mark.parametrize(
+    "page,dropped",
+    [
+        (_garbled_page(), [GARBLED]),
+        (_garbled_page(more=[[_word("Landtag"), _word("Baden-Württemberg"), _word("\x03", ARIAL, 1)]]), [GARBLED]),
+        (_garbled_page(more=[[_word("Stuttgart", "")], [_word("\x01\x02", "", 2)]]), [GARBLED, "\x01\x02"]),
+        (_garbled_page(source=PageSource.OCR), []),
+        (_garbled_page(garbage_ratio=0.05), []),
+        (Page(number=1, width=595, height=842), []),
+    ],
+    ids=["garbled-font", "mostly-clean-block", "nameless-font", "ocr-replaced-it", "clean-text-layer", "empty-page"],
+)
+def test_drop_garbled(page, dropped):
+    # the shifted font's letter words ("(LQJDQJ") go with its control characters; the clean header stays
+    assert drop_garbled(page, 0.15) == len(dropped)
+    assert [b.raw_text for b in page.extras] == dropped
+    assert all(b.kind is BlockKind.NOISE for b in page.extras)
+    assert not {b.raw_text for b in page.blocks} & set(dropped)
+
+
+@pytest.mark.parametrize(
+    "ch,suspect,unmapped",
+    [("\x00A", True, True), ("\x03", True, True), ("�", True, True), ("", True, False), ("a", False, False)],
+    ids=["map-error", "control", "replacement", "private-use-symbol", "letter"],
+)
+def test_garbage_chars(ch, suspect, unmapped):
+    # a symbol font's bullets and digits sit in the private use area: the page may need OCR, but the
+    # font is not broken, so its text must not be dropped as garbled
+    c = _Char(ch, BBox(0, 0, 1, 1), 10, "Symbol", False, False, 0, False, False)
+    assert (_suspect(c), _unmapped(c)) == (suspect, unmapped)

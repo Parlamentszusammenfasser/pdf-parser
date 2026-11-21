@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 
-from .model import Block, BlockKind, Line
+from .model import Block, BlockKind, Line, Page, PageSource, RegionKind, TextSource, Word
 
 LIGATURES = {
     "ﬀ": "ff",
@@ -252,3 +253,41 @@ def block_is_noise(block: Block) -> bool:
     if words and sum(1 for w in words if _OCR_GARBAGE_WORD_RE.match(w)) / len(words) > 0.6:
         return True
     return False
+
+
+def drop_garbled(page: Page, max_garbage_ratio: float) -> int:
+    """Move blocks set mostly in a garbled font into the page's noise extras, on a page whose text layer
+    stayed garbled because OCR did not replace it (off, unavailable, over ``max_ocr_pages``). Returns the count.
+
+    A font is garbled when more than ``max_garbage_ratio`` of its characters on the page are unmapped. BW
+    annexes shift whole fonts by ASCII +29, so their words read as letters ("6WlGWHWDJ") beside the
+    control characters that betray the font. A word without a font name is judged on its own.
+    """
+    if page.source is not PageSource.TEXT or page.stats.get("garbage_ratio", 0.0) <= max_garbage_ratio:
+        return 0
+    chars: Counter[str] = Counter()
+    unmapped: Counter[str] = Counter()
+    for w in page.words:
+        if w.source is TextSource.PDF:
+            chars[w.font] += len(w.text)
+            unmapped[w.font] += w.garbage
+    garbled = {f for f, n in chars.items() if f and unmapped[f] > max_garbage_ratio * n}
+
+    def word_garbled(w: Word) -> bool:
+        return w.font in garbled if w.font else w.garbage > max_garbage_ratio * len(w.text)
+
+    def is_garbled(b: Block) -> bool:
+        words = [w for ln in b.lines for w in ln.words]
+        return 2 * sum(len(w.text) for w in words if word_garbled(w)) >= sum(len(w.text) for w in words) > 0
+
+    dropped = [b for b in page.furniture if is_garbled(b)]
+    page.furniture = [b for b in page.furniture if not is_garbled(b)]
+    for region in page.layout.iter_regions() if page.layout else []:
+        if region.kind is RegionKind.LEAF:
+            dropped += [b for b in region.blocks if is_garbled(b)]
+            region.blocks = [b for b in region.blocks if not is_garbled(b)]
+    for b in dropped:
+        b.kind = BlockKind.NOISE
+        b.labels.add("garbled")
+    page.extras.extend(dropped)
+    return len(dropped)
