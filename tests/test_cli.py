@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -99,15 +100,25 @@ def test_verbose_prints_issues(tmp_path, capsys):
     assert "[warning] ocr" in capsys.readouterr().err
 
 
-def test_same_names_from_different_directories(tmp_path, letter_pdf, bill_pdf, capsys):
-    paths = [
-        write(tmp_path / d, "doc.pdf", pdf) for d, pdf in (("x", letter_pdf), ("y", bill_pdf), ("z/y", letter_pdf))
-    ]
+@pytest.mark.parametrize(
+    "inputs,fmt,outputs",
+    [
+        # the third "y/doc.pdf" must not overwrite the second
+        (["x/doc.pdf", "y/doc.pdf", "z/y/doc.pdf"], "txt", ["doc.txt", "y_doc.txt", "y_doc_2.txt"]),
+        # one file on case-insensitive disks (macOS, Windows)
+        (["a/Antrag.pdf", "b/antrag.pdf"], "txt", ["Antrag.txt", "b_antrag.txt"]),
+        # "x" as raw and "x.raw" as txt both write x.raw.txt
+        (["x.pdf", "x.raw.pdf"], "raw,txt", ["in_x.raw.raw.txt", "in_x.raw.txt", "x.raw.txt", "x.txt"]),
+    ],
+    ids=["same-name", "differ-in-case", "same-output-file"],
+)
+def test_outputs_never_overwrite_each_other(tmp_path, letter_pdf, bill_pdf, capsys, inputs, fmt, outputs):
+    pdfs = [letter_pdf, bill_pdf, letter_pdf]
+    paths = [write(tmp_path / "in" / Path(name).parent, Path(name).name, pdf) for name, pdf in zip(inputs, pdfs)]
     out = tmp_path / "out"
-    assert main([*map(str, paths), "-o", str(out), "--ocr", "never", "-q", "--overwrite"]) == EXIT_OK
-    # the third "y/doc.pdf" must not overwrite the second
-    assert sorted(p.name for p in out.iterdir()) == ["doc.txt", "y_doc.txt", "y_doc_2.txt"]
-    assert "Gesetz" in (out / "y_doc.txt").read_text()
+    assert main([*map(str, paths), "-f", fmt, "-o", str(out), "--ocr", "never", "-q", "--overwrite"]) == EXIT_OK
+    assert sorted(p.name for p in out.iterdir()) == outputs
+    assert "Gesetz" in (out / outputs[1]).read_text()
 
 
 @pytest.mark.parametrize(
