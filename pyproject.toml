@@ -1,6 +1,6 @@
 [project]
 name = "pazufa-pdf-parser"
-version = "0.7.4"
+version = "0.8.0"
 description = "Robust extraction of sanitized text and layout from PDF documents (letters, legal and parliamentary documents)"
 readme = "README.md"
 license = "GPL-3.0-only"
