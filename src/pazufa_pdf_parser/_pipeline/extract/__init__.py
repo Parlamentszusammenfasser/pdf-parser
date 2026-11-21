@@ -81,7 +81,7 @@ def ocr_dpi(width: float, height: float, dpi: int) -> int:
 
 
 def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> list[Page]:
-    n = len(opened.pdf)
+    n = opened.info["page_count"]  # read under the pdfium lock when opened
     first = options.first_page or 1
     last = min(n, options.last_page or n)
     if first > n:
