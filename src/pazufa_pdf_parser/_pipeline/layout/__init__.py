@@ -13,7 +13,9 @@ from .furniture import detect_furniture
 from .lines import build_lines, make_line
 from .segment import Segmenter, detect_synopsis, page_body_size
 
-__all__ = ["analyze_layout", "document_body_size"]
+__all__ = ["analyze_layout", "document_body_size", "MIN_WORD_CONFIDENCE"]
+
+MIN_WORD_CONFIDENCE = 25.0  # OCR words below this tesseract confidence are mostly specks and stamps
 
 _LINE_NUMBER_RE = re.compile(r"^\d{1,4}$")
 
@@ -54,7 +56,7 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
     for page in pages:
         upright = [w for w in page.words if w.angle == 0]
         rotated = [w for w in page.words if w.angle != 0]
-        lowconf = [w for w in upright if w.confidence is not None and w.confidence < options.min_word_confidence]
+        lowconf = [w for w in upright if w.confidence is not None and w.confidence < MIN_WORD_CONFIDENCE]
         if lowconf:
             low_ids = {id(w) for w in lowconf}
             upright = [w for w in upright if id(w) not in low_ids]
@@ -106,8 +108,7 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
             region.blocks = keep
         page.stats["body_size"] = round(seg.body_size or 0, 2)
 
-    body = document_body_size(pages)
-    doc.stats["body_font_size"] = round(body, 2)
+    body = doc.body_size = document_body_size(pages)
     all_blocks = [b for p in pages for b in p.blocks]
     classify_headings(all_blocks, body)
     for page in pages:

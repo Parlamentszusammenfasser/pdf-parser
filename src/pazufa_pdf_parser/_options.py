@@ -103,15 +103,10 @@ class ParseOptions:
     ocr: OcrMode = OcrMode.AUTO
     #: shared Tesseract settings and parallelism limit
     ocr_engine: Ocr = DEFAULT_OCR
-    #: re-raise exceptions from pipeline steps instead of recording issues
+    #: raise StepError when a step fails or an issue of severity ERROR comes up, instead of recording it
     strict: bool = False
-    password: str | None = None
-    #: a page with fewer meaningful characters than this is considered text-less
-    min_text_chars: int = 25
-    #: share of garbage characters above which a text layer is considered broken, and a font on it garbled
-    max_garbage_ratio: float = 0.15
-    #: OCR words below this confidence are dropped from sanitized outputs
-    min_word_confidence: float = 25.0
+    #: left out of repr(), so logged options don't leak it, and of ==, as it changes no output
+    password: str | None = field(default=None, repr=False, compare=False)
     #: on a page whose garbled text layer OCR did not replace, text in the garbled fonts becomes noise
     #: (only in ``raw`` output) instead of body or furniture
     drop_garbled_text: bool = True

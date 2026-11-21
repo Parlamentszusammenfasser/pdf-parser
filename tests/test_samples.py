@@ -70,6 +70,7 @@ def sample(name):
 def test_renders_and_round_trips(name):
     d = sample(name)
     assert not [i for i in d.report.issues if i.severity == "error"]
+    assert all(b.text for b in d.blocks)  # column joins in plpr 18/10 left empty blocks behind
     for fmt in ("raw", "txt", "html", "json"):
         assert render(d, fmt).strip()
     assert PdfDocument.from_json(d.to_json()) == d
@@ -145,6 +146,7 @@ def test_garbled_text_left_without_ocr(name, drop):
     d = parse(_path(name), ParseOptions(ocr=OcrMode.NEVER, drop_garbled_text=drop))
     assert ("%DGHQ" in render(d, "txt")) is not drop
     assert "%DGHQ" in render(d, "raw")
+    assert any(p.needs_ocr for p in d.pages) and not d.pages[0].needs_ocr  # page 1 is clean
     assert all("Landtag von Baden-Württemberg" in p.furniture_text() for p in d.pages)
     if name == "drs-17-1201-ascii-shift.pdf":
         assert ("6HLWH" in d.pages[1].furniture_text()) is not drop  # the running "Seite" header, shifted too

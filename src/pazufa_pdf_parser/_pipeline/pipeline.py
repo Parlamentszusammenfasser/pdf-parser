@@ -5,7 +5,8 @@ other directly: they communicate through the :class:`Document` held by the
 :class:`Context`.
 
 Failures of non-critical steps are recorded as issues on the document and the
-pipeline continues; with ``ParseOptions(strict=True)`` they are re-raised.
+pipeline continues; with ``ParseOptions(strict=True)`` they, and the first issue
+of severity ERROR, raise.
 """
 
 from __future__ import annotations
@@ -17,8 +18,8 @@ from typing import Callable, Iterable, Protocol, runtime_checkable
 
 from .._errors import PazufaError, StepError
 from .._options import ParseOptions
-from .extract import extract_pages
-from .layout import analyze_layout
+from .extract import MAX_GARBAGE_RATIO, extract_pages
+from .layout import MIN_WORD_CONFIDENCE, analyze_layout
 from .layout.footers import refine_footers
 from .layout.furniture import assign_printed_pages
 from .model import Block, BlockKind, Document, Severity
@@ -126,13 +127,28 @@ def merge_flow(doc: Document) -> int:
                 if joined is None and prose and not prev.text.rstrip().endswith(_SENTENCE_END) and b.text[:1].islower():
                     joined = prev.text.rstrip() + " " + b.text.lstrip()
             if joined is not None:
-                prev.text = joined
-                b.text = ""
-                b.labels.add("merged_into_previous")
                 joins += 1
-                continue
+                if prev.page == b.page:
+                    prev.text = joined
+                    b.text = ""
+                    b.labels.add("merged_into_previous")
+                    continue
+                _continue_on_next_page(prev, b)
+                if not b.text:
+                    continue
         prev = b
     return joins
+
+
+def _continue_on_next_page(prev: Block, b: Block) -> None:
+    """Each page keeps its own text, so page citations stay right: ``prev`` is marked to continue in ``b``,
+    and a word divided at the page break ("Ände-" / "rung") goes whole to the page it starts on."""
+    word, *rest = b.text.split(maxsplit=1)
+    whole = join_hyphenated(prev.text, word)
+    if whole is not None and whole != prev.text.rstrip() + " " + word:  # not "Aus-" / "und Fortbildung"
+        prev.text = whole
+        b.text = rest[0] if rest else ""
+    prev.continues = bool(b.text)
 
 
 @step("garbled")
@@ -141,8 +157,9 @@ def garbled_step(ctx: Context) -> None:
     if not ctx.options.drop_garbled_text:
         return
     for page in ctx.doc.pages:
-        if n := drop_garbled(page, ctx.options.max_garbage_ratio):
-            ctx.doc.issue(Severity.INFO, "garbled", f"{n} block(s) in a garbled font moved to noise", page.number)
+        if n := drop_garbled(page, MAX_GARBAGE_RATIO):
+            msg = f"{n} block(s) in a garbled font moved to noise"
+            ctx.doc.issue(Severity.INFO, "garbled", "garbled_dropped", msg, page.number)
 
 
 @step("furniture")
@@ -162,10 +179,9 @@ def page_numbers_step(ctx: Context) -> None:
 
 @step("sanitize")
 def sanitize_step(ctx: Context) -> None:
-    min_conf = ctx.options.min_word_confidence
     for page in ctx.doc.pages:
         for b in page.all_blocks:
-            b.text = sanitize_block(b, min_conf)
+            b.text = sanitize_block(b, MIN_WORD_CONFIDENCE)
 
 
 @step("flow")
@@ -224,7 +240,7 @@ class Pipeline:
         options = options or ParseOptions()
         t0 = time.perf_counter()
         opened = open_pdf(src, options.password)
-        doc = Document(source=opened.name, sha256=opened.sha256, pdf_info=dict(opened.info))
+        doc = Document(source=opened.name, sha256=opened.sha256, pdf_info=dict(opened.info), strict=options.strict)
         ctx = Context(doc=doc, options=options, opened=opened)
         try:
             self.run_context(ctx)
@@ -240,10 +256,10 @@ class Pipeline:
             try:
                 s.run(ctx)
             except Exception as e:  # noqa: BLE001
-                ctx.doc.issue(Severity.ERROR, s.name, f"{type(e).__name__}: {e}")
                 if ctx.options.strict or getattr(s, "critical", False):
                     if isinstance(e, PazufaError):  # callers catch e.g. OcrUnavailableError by its own type
                         raise
                     raise StepError(s.name, e) from e
+                ctx.doc.issue(Severity.ERROR, s.name, "step_failed", f"{type(e).__name__}: {e}")
             finally:
                 ctx.doc.timings[s.name] = round(time.perf_counter() - t, 4)

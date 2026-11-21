@@ -90,8 +90,38 @@ def test_footnotes_are_kept_and_do_not_break_the_flow():
     assert len(notes) == 1 and notes[0].text.startswith("1 Bertelsmann")
     txt = render(d, "txt")
     assert "dass die Träger nur bei voller Belegung" in txt  # joined across the page break
-    assert "nur bei voller Belegung" in d.text(pages=[1]) and d.text(pages=[2]) == ""  # owned by its first page
-    assert "1 Bertelsmann Stiftung" in txt
+    # each page keeps its own text; the footnote printed between the two halves follows the paragraph
+    assert d.text(pages=[2]) == "nur bei voller Belegung ausreichend finanziert werden."
+    assert d.text(pages=[1]).endswith(
+        "dass die Träger\n\n1 Bertelsmann Stiftung (Hrsg.) (2026): Die Personalausstattungsquote in Kitas."
+    )
+    assert txt.index("ausreichend finanziert werden.") < txt.index("1 Bertelsmann Stiftung")
+
+
+@pytest.mark.parametrize(
+    "end,start,page1,page2,joined",
+    [
+        ("bittet die Träger", "nur bei voller Belegung", "die Träger", "nur bei", "die Träger nur bei"),
+        ("Entwurfs zur Ände-", "rung des Gesetzes über", "zur Änderung", "des Gesetzes", "zur Änderung des Gesetzes"),
+        (
+            "die Mittel für die Aus-",
+            "und Fortbildung der",
+            "für die Aus-",
+            "und Fortbildung",
+            "die Aus- und Fortbildung",
+        ),
+    ],
+    ids=["continued", "word-divided-at-the-break", "hyphen-kept"],
+)
+def test_paragraph_across_a_page_break_stays_on_its_pages(end, start, page1, page2, joined):
+    # page citations need each half on its page; a word divided at the break goes to the page it starts on
+    p1 = body() + paragraph(70, 400, [f"Der Ausschuss empfiehlt nach eingehender Beratung {end}"], 11)
+    p2 = paragraph(70, 60, [f"{start} die Finanzierung der Kindertagesstätten im Land."], 11)
+    d = parse(make_pdf([p1, p2]), NO_OCR)
+    first = [b for b in d.pages[0].blocks if b.kind.is_body][-1]
+    assert first.continues and first.text.endswith(page1)
+    assert d.pages[1].text().startswith(page2)
+    assert joined in d.text()
 
 
 def _bw_first_page(row_end):

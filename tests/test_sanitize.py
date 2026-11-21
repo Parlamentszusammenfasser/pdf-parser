@@ -151,7 +151,7 @@ def _garbled_page(source=PageSource.TEXT, garbage_ratio=0.9, more=()):
     lines = [header, body, *more]
     blocks = [Block(lines=[make_line(ws)], bbox=BBox.enclosing(w.bbox for w in ws), page=1) for ws in lines]
     page = Page(number=1, width=595, height=842, source=source, words=[w for ws in lines for w in ws])
-    page.stats["garbage_ratio"] = garbage_ratio
+    page.garbage_ratio = garbage_ratio
     page.layout = Region(RegionKind.LEAF, BBox(0, 0, 595, 842), blocks=blocks)
     return page
 

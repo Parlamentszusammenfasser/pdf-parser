@@ -16,7 +16,8 @@ class OcrUnavailableError(PazufaError):
 
 
 class StepError(PazufaError):
-    """A pipeline step failed (only raised in strict mode)."""
+    """A pipeline step failed: ``extract`` or ``layout``, or with ``strict=True`` any step or any issue of
+    severity ERROR."""
 
     def __init__(self, step: str, cause: BaseException):
         super().__init__(f"step {step!r} failed: {cause!r}")
@@ -29,7 +30,7 @@ class StepError(PazufaError):
 
 
 class SchemaVersionError(PazufaError):
-    """The JSON was written with a newer schema than this parser reads; parse the PDF again."""
+    """The JSON was written with a schema this parser cannot read; parse the PDF again."""
 
 
 class UnknownFormatError(PazufaError, ValueError):

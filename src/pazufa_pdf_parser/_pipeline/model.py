@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import Any, Iterable, Iterator
 
 from .._document import BlockKind, Issue, PageSource, Severity
+from .._errors import PazufaError, StepError
 
 # --------------------------------------------------------------------------- geometry
 
@@ -143,6 +144,7 @@ class Block:
     column: int = 0  # column index inside a COLUMNS region (0 = left / single)
     text: str = ""  # sanitized text, set by the sanitize step
     labels: set[str] = field(default_factory=set)  # set by layout steps, e.g. footer:zone, merged_into_previous
+    continues: bool = False  # the paragraph goes on in the next page's first paragraph (set by flow)
 
     @property
     def raw_text(self) -> str:
@@ -207,7 +209,11 @@ class Page:
     extras: list[Block] = field(default_factory=list)  # marginal / noise blocks
     layout: Region | None = None  # body layout tree
     printed_page: str | None = None  # set by the page_numbers step
-    stats: dict[str, Any] = field(default_factory=dict)
+    garbage_ratio: float = 0.0  # share of the text layer's characters that are unmapped or symbols
+    needs_ocr: bool = False  # the text layer is unusable and OCR did not replace it
+    ocr_reason: str = ""
+    ocr_confidence: float | None = None
+    stats: dict[str, Any] = field(default_factory=dict)  # diagnostics; no step reads another's
 
     @property
     def blocks(self) -> list[Block]:
@@ -233,6 +239,8 @@ class Document:
     issues: list[Issue] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
     timings: dict[str, float] = field(default_factory=dict)
+    body_size: float = 10.0  # font size of the running text, set by layout
+    strict: bool = False  # ParseOptions.strict: an ERROR issue raises
 
     @property
     def body_blocks(self) -> list[Block]:
@@ -241,5 +249,7 @@ class Document:
     def body_text(self) -> str:
         return "\n\n".join(b.text or b.raw_text for b in self.body_blocks)
 
-    def issue(self, severity: Severity, step: str, message: str, page: int | None = None) -> None:
-        self.issues.append(Issue(severity=severity, step=step, message=message, page=page))
+    def issue(self, severity: Severity, step: str, code: str, message: str, page: int | None = None) -> None:
+        self.issues.append(Issue(severity=severity, step=step, code=code, message=message, page=page))
+        if self.strict and severity is Severity.ERROR:
+            raise StepError(step, PazufaError(message))

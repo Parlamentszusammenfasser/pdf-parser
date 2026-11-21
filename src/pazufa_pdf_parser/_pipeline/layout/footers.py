@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from statistics import median
 
 from ..model import Block, BlockKind, Document, Page, Region, RegionKind
 from .furniture import is_page_number
@@ -165,7 +164,7 @@ def _synopsis_ids(page: Page) -> set[int]:
 
 def refine_footers(doc: Document) -> int:
     """Move footer blocks of the bottom zones into page furniture. Returns the count."""
-    body_size = doc.stats.get("body_font_size") or _body_size(doc)
+    body_size = doc.body_size
     sep = max(1.8 * body_size, 14.0)
     zones: dict[int, _Zone] = {}
     for i, page in enumerate(doc.pages):
@@ -222,8 +221,3 @@ def _repeated(toks: set[str], others: list[set[str]]) -> bool:
     if len(toks) == 1:
         return sum(1 for o in others if toks <= o) >= 2
     return any(len(toks & o) / len(toks) >= 0.5 for o in others)
-
-
-def _body_size(doc: Document) -> float:
-    sizes = [b.size for p in doc.pages for b in p.blocks if b.size]
-    return median(sizes) if sizes else 10.0

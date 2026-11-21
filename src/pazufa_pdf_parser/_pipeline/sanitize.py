@@ -263,7 +263,7 @@ def drop_garbled(page: Page, max_garbage_ratio: float) -> int:
     annexes shift whole fonts by ASCII +29, so their words read as letters ("6WlGWHWDJ") beside the
     control characters that betray the font. A word without a font name is judged on its own.
     """
-    if page.source is not PageSource.TEXT or page.stats.get("garbage_ratio", 0.0) <= max_garbage_ratio:
+    if page.source is not PageSource.TEXT or page.garbage_ratio <= max_garbage_ratio:
         return 0
     chars: Counter[str] = Counter()
     unmapped: Counter[str] = Counter()

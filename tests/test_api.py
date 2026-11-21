@@ -17,7 +17,6 @@ from pazufa_pdf_parser import (
     Ocr,
     OcrMode,
     Page,
-    PageReport,
     ParseOptions,
     PdfDocument,
     PdfOpenError,
@@ -30,21 +29,27 @@ from pazufa_pdf_parser import (
 # callers build and read these by field name: adding a field (with a default) extends a list here,
 # renaming or removing one breaks callers
 PUBLIC_FIELDS = {
-    Block: ["page", "kind", "text", "bbox", "level"],
-    Page: ["number", "source", "blocks", "printed_page"],
+    Block: ["page", "kind", "text", "bbox", "level", "continues"],
+    Page: [
+        "number",
+        "width",
+        "height",
+        "source",
+        "blocks",
+        "printed_page",
+        "needs_ocr",
+        "ocr_reason",
+        "ocr_confidence",
+    ],
     Metadata: ["title", "author", "created", "modified", "page_count"],
-    PageReport: ["number", "ocr_reason", "ocr_confidence"],
-    Report: ["parser_version", "pages", "issues"],
-    Issue: ["severity", "step", "message", "page"],
+    Report: ["parser_version", "issues"],
+    Issue: ["severity", "step", "code", "message", "page"],
     PdfDocument: ["sha256", "metadata", "pages", "report"],
     ParseOptions: [
         "ocr",
         "ocr_engine",
         "strict",
         "password",
-        "min_text_chars",
-        "max_garbage_ratio",
-        "min_word_confidence",
         "drop_garbled_text",
         "first_page",
         "last_page",
@@ -68,7 +73,6 @@ def test_all_is_the_public_api():
             "PageSource",
             "Metadata",
             "Report",
-            "PageReport",
             "Issue",
             "Severity",
             "render",
@@ -104,18 +108,38 @@ def test_strict_consumer_type_checks(target, error):
         assert r.returncode == 1 and error in r.stdout, r.stdout + r.stderr
 
 
-# documented on Issue.step; callers filter on them, e.g. "ocr" to alert on scans left without OCR
+# documented on Issue.step and Issue.code; callers filter on them, e.g. "ocr_unavailable" to alert on scans
+# left without OCR
 ISSUE_STEPS = {"extract", "ocr", "layout", "garbled", "furniture", "page_numbers", "sanitize", "flow"}
+ISSUE_CODES = {
+    "page_range_empty",
+    "page_unloadable",
+    "text_layer_failed",
+    "ocr_limit",
+    "ocr_unavailable",
+    "ocr_languages_missing",
+    "ocr_failed",
+    "ocr_dpi_lowered",
+    "ocr_rotated",
+    "garbled_dropped",
+    "step_failed",
+}
 
 
-def test_issue_steps_are_the_documented_ones():
+def test_issue_steps_and_codes_are_the_documented_ones():
     from pazufa_pdf_parser._pipeline.pipeline import Pipeline
 
     pipeline = Path(pazufa_pdf_parser.__file__).parent / "_pipeline"
-    named = {m for f in pipeline.rglob("*.py") for m in re.findall(r'\.issue\(\s*[^,]+,\s*"(\w+)"', f.read_text())}
-    # the scan works; a new name here must be added to ISSUE_STEPS and the docs
-    assert named == {"extract", "ocr", "garbled"}
+    calls = [
+        m for f in pipeline.rglob("*.py") for m in re.findall(r'\.issue\(\s*[^,]+,\s*([^,]+),\s*"(\w+)"', f.read_text())
+    ]
+    # a new code must be added to ISSUE_CODES and the README; each code is recorded in one place
+    assert sorted(code for _, code in calls) == sorted(ISSUE_CODES)
+    named = {step.strip('"') for step, _ in calls if step.startswith('"')}
+    assert named == {"extract", "ocr", "garbled"}  # the scan works; the rest are step names
     assert set(Pipeline().names()) | named == ISSUE_STEPS
+    readme = (Path(__file__).parents[1] / "README.md").read_text()
+    assert all(f"`{c}`" in readme for c in ISSUE_CODES | ISSUE_STEPS)
 
 
 @pytest.mark.parametrize("cls", PUBLIC_FIELDS, ids=lambda c: c.__name__)
@@ -125,6 +149,11 @@ def test_public_types_are_frozen_and_keyword_only(cls):
     with pytest.raises(TypeError, match="positional argument but"):
         cls(*[None] * len(fields(cls)))
     assert cls.__dataclass_params__.frozen  # a shared Ocr or a cached result must not change under its users
+
+
+def test_password_stays_out_of_logs_and_cache_keys():
+    options = ParseOptions(password="geheim")
+    assert "geheim" not in repr(options) and options == ParseOptions(password="anders")
 
 
 def test_severity_orders_by_severity():

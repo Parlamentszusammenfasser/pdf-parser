@@ -43,4 +43,8 @@
      not starting at 1; text outside the CropBox is dropped; invalid page ranges, dpi and timeout are rejected;
      sha256 of the input as given; huge pages OCRed at a lower dpi; CLI survives unwritable outputs and same-named
      inputs
+[x] T29 interface review: `Page` carries width/height, `needs_ocr`, `ocr_reason`, `ocr_confidence` (no more
+     `PageReport`); `Issue.code`; `Block.continues` keeps a paragraph's halves on their pages; tuning thresholds
+     are constants; `strict` raises at the first ERROR issue; password out of repr/==; schema 2 with a readable
+     set; pdfium lock per page
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

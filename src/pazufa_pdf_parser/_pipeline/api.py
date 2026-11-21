@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
-from .._document import PARSER_VERSION, Block, BlockKind, Metadata, Page, PageReport, PdfDocument, Report
+from .._document import PARSER_VERSION, Block, BlockKind, Metadata, Page, PdfDocument, Report
 from .._options import ParseOptions
 from . import model
 from .pipeline import Pipeline
@@ -25,7 +25,7 @@ def _block(b: model.Block) -> Block:
     text = b.text.strip()
     text = " ".join(text.split()) if b.kind is BlockKind.HEADING else re.sub(r"\n{3,}", "\n\n", text)
     x0, y0, x1, y1 = b.bbox.to_list()
-    return Block(page=b.page, kind=b.kind, text=text, bbox=(x0, y0, x1, y1), level=b.level)
+    return Block(page=b.page, kind=b.kind, text=text, bbox=(x0, y0, x1, y1), level=b.level, continues=b.continues)
 
 
 # D:YYYYMMDDHHmmSS+HH'mm' (PDF 1.7, 7.9.4); everything after the year is optional
@@ -72,22 +72,17 @@ def build_document(doc: model.Document) -> PdfDocument:
         pages=tuple(
             Page(
                 number=p.number,
+                width=p.width,
+                height=p.height,
                 source=p.source,
-                blocks=tuple(_block(b) for b in p.all_blocks),
+                # a paragraph joined to the previous block leaves its own empty
+                blocks=tuple(blk for blk in map(_block, p.all_blocks) if blk.text),
                 printed_page=p.printed_page,
+                needs_ocr=p.needs_ocr,
+                ocr_reason=p.ocr_reason,
+                ocr_confidence=p.ocr_confidence,
             )
             for p in doc.pages
         ),
-        report=Report(
-            parser_version=PARSER_VERSION,
-            pages=tuple(
-                PageReport(
-                    number=p.number,
-                    ocr_reason=p.stats.get("ocr_reason", ""),
-                    ocr_confidence=p.stats.get("ocr_mean_confidence"),
-                )
-                for p in doc.pages
-            ),
-            issues=tuple(doc.issues),
-        ),
+        report=Report(parser_version=PARSER_VERSION, issues=tuple(doc.issues)),
     )
