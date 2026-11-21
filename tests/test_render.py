@@ -4,8 +4,10 @@ from typing import get_args
 
 import pytest
 
-from pazufa_pdf_parser import Format, PdfDocument, UnknownFormatError, render
+from conftest import NO_OCR
+from pazufa_pdf_parser import Format, PdfDocument, UnknownFormatError, parse, render
 from pazufa_pdf_parser._pipeline.render import available_formats, register_renderer
+from pdfgen import make_pdf, paragraph
 
 ALL_DOCS = ["letter", "bill", "email", "protocol", "judgment", "contract", "synopsis", "two_column"]
 
@@ -88,6 +90,13 @@ def test_html_is_body_in_reading_order(parsed):
     html = render(parsed["two_column"], "html")
     assert html.index("vor der rechten Spalte gelesen werden muss.") < html.index("Völlig anderer Inhalt")
     assert "Registergericht" not in render(parsed["letter"], "html")  # page footer left out
+
+
+def test_html_ties_a_paragraph_split_by_a_page_break():
+    line = "Der Ausschuss empfiehlt nach eingehender Beratung des Entwurfs die Annahme und bittet die Träger"
+    pages = [paragraph(70, 100, [line] * 3, 11), paragraph(70, 60, ["nur bei voller Belegung " * 4], 11)]
+    html = render(parse(make_pdf(pages), NO_OCR), "html")
+    assert html.count('<p data-continues-on="2">') == 1
 
 
 def test_html_escapes(parsed):
