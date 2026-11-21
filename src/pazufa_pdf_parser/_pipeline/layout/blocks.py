@@ -6,6 +6,7 @@ import re
 from statistics import median
 
 from ..model import BBox, Block, BlockKind, Line, Region, RegionKind
+from ..sanitize import HYPHENS
 from .lines import build_lines
 
 LIST_MARKER_RE = re.compile(
@@ -26,6 +27,8 @@ _DATE_LIKE_RE = re.compile(
     re.I,
 )
 _END_PUNCT = tuple(".:;!?")
+_HYPHENATED_END_RE = re.compile(rf"[a-zäöüß][{HYPHENS}]$")
+_LOWER_START_RE = re.compile(r"[a-zäöüß]")
 
 
 def starts_with_marker(text: str) -> bool:
@@ -53,6 +56,13 @@ def run_in_label(line: Line) -> int:
 
 def _is_ocr(line: Line) -> bool:
     return any(w.confidence is not None for w in line.words)
+
+
+def _continues_word(cur: Line, nxt: Line) -> bool:
+    """The next line finishes a word the current line breaks off with a hyphen."""
+    if starts_with_marker(nxt.text):
+        return False  # "a) Vor-" / "b) Nachname": the next item starts
+    return bool(_HYPHENATED_END_RE.search(cur.text) and _LOWER_START_RE.match(nxt.text))
 
 
 def _gap(a: Line, b: Line) -> float:
@@ -84,14 +94,16 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
         brk = False
         if pitches[i] > typical + 0.4 * min(h, size * 1.3) and gaps[i] > 0.25 * h:
             brk = True
+        elif nxt.bbox.x0 > cur.bbox.x1 or nxt.bbox.x1 < cur.bbox.x0:
+            brk = True
+        elif _continues_word(cur, nxt):
+            pass  # a protocol ToC entry turns from bold to regular inside "Staats-" / "vertragsentwürfe"
         elif abs(cur.size - nxt.size) > (0.35 if _is_ocr(cur) or _is_ocr(nxt) else 0.15) * size:
             brk = True
         elif _all_bold(cur) != _all_bold(nxt) and (len(cur.text) < 120 or len(nxt.text) < 120):
             brk = True
         elif run_in_label(nxt) and (not run_in_label(cur) or run_in_label(nxt) >= 2):
             brk = True  # "Präsidentin X:" / "Abg. Y (SPD):" speaker labels, bold run-in headings
-        elif nxt.bbox.x0 > cur.bbox.x1 or nxt.bbox.x1 < cur.bbox.x0:
-            brk = True
         else:
             short = cur.bbox.x1 < right - max(0.15 * width, 3 * size)
             ends = cur.text.rstrip().endswith(_END_PUNCT)
