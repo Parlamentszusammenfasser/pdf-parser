@@ -67,9 +67,9 @@ def open_pdf(src: Source, password: str | None = None) -> OpenedPdf:
     head = data.find(b"%PDF-", 0, 1024)
     if head < 0:
         raise PdfOpenError(f"{name or 'input'} is not a PDF (no %PDF- header)")
+    sha = hashlib.sha256(data).hexdigest()  # of the input as given, to match a hash of the same file elsewhere
     if head > 0:
         data = data[head:]
-    sha = hashlib.sha256(data).hexdigest()
     with PDFIUM_LOCK:
         try:
             pdf = pdfium.PdfDocument(data, password=password)
@@ -77,6 +77,8 @@ def open_pdf(src: Source, password: str | None = None) -> OpenedPdf:
             msg = str(e)
             if "password" in msg.lower():
                 raise PdfOpenError(f"{name or 'input'} is encrypted; a (correct) password is required") from e
+            if "Success" in msg:  # pdfium fails to load a page tree without pages but reports no error
+                raise PdfOpenError(f"{name or 'input'} has no pages") from e
             raise PdfOpenError(f"{name or 'input'} could not be parsed: {msg}") from e
         info: dict[str, Any] = {}
         # broken metadata or version info must not reject an otherwise readable PDF

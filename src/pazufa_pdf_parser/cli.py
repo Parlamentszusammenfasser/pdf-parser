@@ -141,6 +141,17 @@ def main(argv: list[str] | None = None) -> int:
     return _cmd_extract(args, ap)
 
 
+def _output_stem(f: Path, used: set[str]) -> str:
+    """The file name for this input's outputs; inputs of the same name from different directories get
+    their directory name, then a counter, so none overwrites another."""
+    stem = f.stem if f.stem not in used else f"{f.parent.name}_{f.stem}"
+    base, n = stem, 1
+    while stem in used:
+        n += 1
+        stem = f"{base}_{n}"
+    return stem
+
+
 def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     fmts = _formats(args.format)
     unknown = [f for f in fmts if f not in available_formats()]
@@ -163,10 +174,18 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     if args.output is None and not to_stdout:
         print("error: several inputs or formats need an output directory (-o DIR)", file=sys.stderr)
         return EXIT_USAGE
+    try:
+        opts = _options(args)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return EXIT_USAGE
     outdir = None if to_stdout else Path(args.output)
-    if outdir is not None:
-        outdir.mkdir(parents=True, exist_ok=True)
-    opts = _options(args)
+    try:
+        if outdir is not None:
+            outdir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"{outdir}: error: {e}", file=sys.stderr)
+        return EXIT_FAILED
     used_names: set[str] = set()
     for f in files:
         t0 = time.perf_counter()
@@ -181,9 +200,7 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
             status = EXIT_FAILED
             continue
         written = []
-        stem = f.stem
-        if stem in used_names:  # same file name from different directories
-            stem = f"{f.parent.name}_{stem}"
+        stem = _output_stem(f, used_names)
         used_names.add(stem)
         for fmt in fmts:
             r = get_renderer(fmt)
@@ -204,8 +221,14 @@ def _cmd_extract(args: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
                 status = EXIT_FAILED
                 continue
             tmp = target.with_suffix(target.suffix + ".part")
-            tmp.write_text(content, encoding="utf-8")
-            tmp.replace(target)
+            try:
+                tmp.write_text(content, encoding="utf-8")
+                tmp.replace(target)
+            except OSError as e:  # a full disk or read-only directory fails this file, not the batch
+                tmp.unlink(missing_ok=True)
+                print(f"{target}: error: {e}", file=sys.stderr)
+                status = EXIT_FAILED
+                continue
             written.append(str(target))
         if not args.quiet:
             ocr = sum(p.source is PageSource.OCR for p in doc.pages)

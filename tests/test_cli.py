@@ -1,9 +1,12 @@
 import json
 
+import pytest
+
 from pazufa_pdf_parser.cli import EXIT_FAILED, EXIT_OK, EXIT_USAGE, main
 
 
 def write(tmp_path, name, data):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     p = tmp_path / name
     p.write_bytes(data)
     return p
@@ -94,3 +97,42 @@ def test_verbose_prints_issues(tmp_path, capsys):
     p = write(tmp_path, "scan.pdf", make_scanned_pdf([[T(70, 100, "Hallo", 14)]], dpi=72))
     main([str(p), "-v", "--tesseract", "no-such-tesseract-binary", "-o", str(tmp_path / "o")])
     assert "[warning] ocr" in capsys.readouterr().err
+
+
+def test_same_names_from_different_directories(tmp_path, letter_pdf, bill_pdf, capsys):
+    paths = [
+        write(tmp_path / d, "doc.pdf", pdf) for d, pdf in (("x", letter_pdf), ("y", bill_pdf), ("z/y", letter_pdf))
+    ]
+    out = tmp_path / "out"
+    assert main([*map(str, paths), "-o", str(out), "--ocr", "never", "-q", "--overwrite"]) == EXIT_OK
+    # the third "y/doc.pdf" must not overwrite the second
+    assert sorted(p.name for p in out.iterdir()) == ["doc.txt", "y_doc.txt", "y_doc_2.txt"]
+    assert "Gesetz" in (out / "y_doc.txt").read_text()
+
+
+@pytest.mark.parametrize(
+    "output,errors,files",
+    [("file", 1, None), ("read-only", 2, ["brief.txt"]), ("directory-in-the-way", 1, ["a.txt", "brief.txt"])],
+)
+def test_unwritable_output(tmp_path, letter_pdf, capsys, output, errors, files):
+    a, b = write(tmp_path, "a.pdf", letter_pdf), write(tmp_path, "brief.pdf", letter_pdf)
+    out = tmp_path / "out"
+    if output == "file":
+        out.write_text("")
+    else:
+        (out / "brief.txt").mkdir(parents=True)  # the rename of brief.txt.part fails
+        if output == "read-only":
+            out.chmod(0o500)
+    try:
+        assert main([str(a), str(b), "-o", str(out), "--ocr", "never", "-q", "--overwrite"]) == EXIT_FAILED
+    finally:
+        out.chmod(0o700)
+    # one failed write doesn't end the batch, and leaves no .part file
+    assert capsys.readouterr().err.count("error:") == errors
+    assert files is None or sorted(p.name for p in out.iterdir()) == files
+
+
+def test_invalid_page_range_is_usage_error(tmp_path, letter_pdf, capsys):
+    p = write(tmp_path, "brief.pdf", letter_pdf)
+    assert main([str(p), "--pages", "3-1"]) == EXIT_USAGE
+    assert "after last_page" in capsys.readouterr().err

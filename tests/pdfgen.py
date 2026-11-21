@@ -60,8 +60,16 @@ def _content(items: list[T], height: float) -> bytes:
 
 
 def make_pdf(
-    pages: list[list[T]], *, size: tuple[float, float] = A4, rotate: int = 0, title: str | None = None
+    pages: list[list[T]],
+    *,
+    size: tuple[float, float] = A4,
+    rotate: int = 0,
+    title: str | None = None,
+    crop_box: tuple[float, float, float, float] | None = None,
+    to_unicode: dict[str, str] | None = None,
 ) -> bytes:
+    """``crop_box`` is in PDF space (bottom-left origin); ``to_unicode`` maps regular-font characters to
+    the text a ToUnicode CMap reports for them (e.g. "A" -> an emoji)."""
     w, h = size
     objs: list[bytes] = []
 
@@ -71,13 +79,29 @@ def make_pdf(
 
     catalog = add(b"")  # placeholder 1
     pages_id = add(b"")  # placeholder 2
-    f1 = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    cmap = b""
+    if to_unicode:
+        pairs = b" ".join(
+            b"<%02X> <%s>" % (ord(k), v.encode("utf-16-be", "surrogatepass").hex().upper().encode())
+            for k, v in to_unicode.items()
+        )
+        cmap = b"/ToUnicode %d 0 R " % (len(objs) + 2)
+    f1 = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding " + cmap + b">>")
+    if to_unicode:
+        cmap = (
+            b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /T def "
+            b"1 begincodespacerange <00> <FF> endcodespacerange "
+            b"%d beginbfchar %s endbfchar endcmap CMapName currentdict /CMap defineresource pop end end"
+        ) % (len(to_unicode), pairs)
+        add(b"<< /Length %d >>\nstream\n" % len(cmap) + cmap + b"\nendstream")
     f2 = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
     kids = []
     for items in pages:
         stream = _content(items, h)
         cid = add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
         rot = f" /Rotate {rotate}" if rotate else ""
+        if crop_box:
+            rot += " /CropBox [%s]" % " ".join(f"{v:g}" for v in crop_box)
         pid = add(
             (
                 f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {w:g} {h:g}]{rot} "
