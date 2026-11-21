@@ -267,7 +267,9 @@ class TestRobustness:
             (lambda: Ocr(max_parallel=0), "max_parallel"),
             (lambda: Ocr(max_parallel=1.5), "max_parallel"),  # a fractional slot count never blocks
             (lambda: Ocr(dpi=0), "dpi"),
+            (lambda: Ocr(dpi=None), "dpi"),  # None means "no limit" only for the page options
             (lambda: Ocr(timeout=0), "timeout"),
+            (lambda: Ocr(timeout=None), "timeout"),
             (lambda: ParseOptions(max_ocr_pages=-1), "max_ocr_pages"),  # would turn OCR off for every scan
             (lambda: ParseOptions(max_ocr_pages=True), "max_ocr_pages"),
             (lambda: ParseOptions(first_page=0), "first_page"),  # read as "all pages"
@@ -279,7 +281,9 @@ class TestRobustness:
             "no-slots",
             "fractional-slots",
             "dpi",
+            "no-dpi",
             "timeout",
+            "no-timeout",
             "negative-ocr-limit",
             "bool-ocr-limit",
             "page-zero",

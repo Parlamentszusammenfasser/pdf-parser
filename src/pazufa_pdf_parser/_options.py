@@ -66,11 +66,10 @@ class Ocr:
     def __post_init__(self) -> None:
         if isinstance(self.languages, str):
             object.__setattr__(self, "languages", tuple(x for x in self.languages.replace(",", "+").split("+") if x))
-        # a float would make the slot count fractional, which never blocks
-        if not isinstance(self.max_parallel, int) or self.max_parallel < 1:
-            raise ValueError(f"max_parallel must be a whole number of at least 1, got {self.max_parallel!r}")
+        _require_whole("max_parallel", self.max_parallel, 1)  # a fractional slot count never blocks
         _require_whole("dpi", self.dpi, 1)
-        if not self.timeout > 0:  # 0 would fail every page, after rendering it
+        # 0 would fail every page, after rendering it
+        if type(self.timeout) not in (int, float) or not self.timeout > 0:
             raise ValueError(f"timeout must be above 0 seconds, got {self.timeout!r}")
         self._slots  # create now: threads creating it lazily at the same time would each get their own limit
 
@@ -90,8 +89,8 @@ class Ocr:
 
 
 def _require_whole(name: str, value: object, minimum: int) -> None:
-    """``None`` passes: it means "no limit". A bool is no number of pages."""
-    if value is not None and (type(value) is not int or value < minimum):
+    """A bool is no number of pages."""
+    if type(value) is not int or value < minimum:
         raise ValueError(f"{name} must be a whole number of at least {minimum}, got {value!r}")
 
 
@@ -118,11 +117,10 @@ class ParseOptions:
     max_ocr_pages: int | None = None
 
     def __post_init__(self) -> None:
-        # a negative limit would silently turn OCR off for every scan
-        _require_whole("max_ocr_pages", self.max_ocr_pages, 0)
-        # page 0 read as "all pages", a reversed range as none
-        _require_whole("first_page", self.first_page, 1)
-        _require_whole("last_page", self.last_page, 1)
+        # a negative limit would silently turn OCR off for every scan, page 0 read as "all pages"; None: no limit
+        for name, minimum in (("max_ocr_pages", 0), ("first_page", 1), ("last_page", 1)):
+            if (value := getattr(self, name)) is not None:
+                _require_whole(name, value, minimum)
         if self.first_page and self.last_page and self.first_page > self.last_page:
             raise ValueError(f"first_page {self.first_page} is after last_page {self.last_page}")
         # ParseOptions(ocr="never") would otherwise be silently treated as "auto" by the identity checks
