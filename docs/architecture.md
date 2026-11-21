@@ -49,7 +49,7 @@ scored on small font, footer vocabulary (register court, bank, contact data),
 OCR noise, repetition and gap size. Numbered notes become `footnote` blocks
 that stay in the text.
 
-**Sanitize / flow** (`_pipeline/sanitize.py`). Removes soft hyphens, private-use glyphs
+**Sanitize / flow** (`_pipeline/sanitize.py`, `_pipeline/flow.py`). Removes soft hyphens, private-use glyphs
 and OCR junk, collapses letter-spacing, de-hyphenates, then re-joins
 paragraphs across column breaks. Across a page break each page keeps its half
 and the first is marked `continues`, so page citations stay right.

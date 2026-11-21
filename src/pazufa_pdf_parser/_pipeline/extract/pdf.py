@@ -124,7 +124,7 @@ def plausible_size(reported: float, box: BBox, angle: int) -> float:
     return reported
 
 
-def extract_page_words(page: pdfium.PdfPage, rotation_aware: bool = True) -> PageText:
+def extract_page_words(page: pdfium.PdfPage) -> PageText:
     """Extract words with font attributes from one page's text layer.
 
     Must be called with ``PDFIUM_LOCK`` held (or from a single thread).
@@ -244,7 +244,6 @@ def _chars_to_words(chars: list[_Char]) -> list[Word]:
                 font=cur[0].font,
                 source=TextSource.PDF,
                 angle=cur[0].angle,
-                invisible=all(c.invisible for c in cur),
                 garbage=sum(1 for c in cur if _unmapped(c)),
             )
         )

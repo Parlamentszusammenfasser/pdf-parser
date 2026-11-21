@@ -9,12 +9,12 @@ from dataclasses import dataclass
 
 from ..._errors import OcrUnavailableError
 from ..._options import OcrMode, ParseOptions
-from ..model import BBox, Document, Page, PageSource, Severity, Word
+from ..model import Document, Page, PageSource, Severity, Word, rotate_words
 from ..source import PDFIUM_LOCK, OpenedPdf
 from .ocr import OcrResult, ocr_image, resolve_languages
 from .pdf import extract_page_words, image_coverage, page_has_vector_glyphs
 
-__all__ = ["extract_pages", "rotate_words", "MAX_GARBAGE_RATIO"]
+__all__ = ["extract_pages", "MAX_GARBAGE_RATIO"]
 
 MIN_TEXT_CHARS = 25  # a page with fewer letters and digits has no text layer to speak of
 MAX_GARBAGE_RATIO = 0.15  # above this share of unmapped characters a text layer, or a font on it, is garbled
@@ -55,26 +55,6 @@ def _decide_ocr(mode: OcrMode, needs: bool, merge: bool, reason: str) -> tuple[b
     if mode is OcrMode.ALWAYS:
         return True, False, "ocr forced"
     return needs, merge, reason
-
-
-def rotate_words(words: list[Word], width: float, height: float, ccw: int) -> tuple[float, float]:
-    """Rotate word boxes in place by ``ccw`` degrees counter-clockwise (visual). Returns new size."""
-    ccw %= 360
-    if ccw == 0:
-        return width, height
-    for w in words:
-        b = w.bbox
-        pts = [(b.x0, b.y0), (b.x1, b.y1)]
-        if ccw == 90:
-            pts = [(y, width - x) for x, y in pts]
-        elif ccw == 180:
-            pts = [(width - x, height - y) for x, y in pts]
-        elif ccw == 270:
-            pts = [(height - y, x) for x, y in pts]
-        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        w.bbox = BBox(min(xs), min(ys), max(xs), max(ys))
-        w.angle = (w.angle + ccw) % 360
-    return (height, width) if ccw in (90, 270) else (width, height)
 
 
 def _normalize_orientation(page: Page) -> None:

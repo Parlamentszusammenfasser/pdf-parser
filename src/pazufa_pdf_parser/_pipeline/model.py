@@ -40,10 +40,6 @@ class BBox:
     def cy(self) -> float:
         return (self.y0 + self.y1) / 2
 
-    @property
-    def area(self) -> float:
-        return max(0.0, self.width) * max(0.0, self.height)
-
     def union(self, other: BBox) -> BBox:
         return BBox(
             min(self.x0, other.x0),
@@ -57,9 +53,6 @@ class BBox:
 
     def y_overlap(self, other: BBox) -> float:
         return max(0.0, min(self.y1, other.y1) - max(self.y0, other.y0))
-
-    def contains_point(self, x: float, y: float) -> bool:
-        return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
 
     def to_list(self) -> list[float]:
         return [round(self.x0, 2), round(self.y0, 2), round(self.x1, 2), round(self.y1, 2)]
@@ -104,7 +97,6 @@ class Word:
     source: TextSource = TextSource.PDF
     confidence: float | None = None  # OCR confidence 0..100
     angle: int = 0  # text direction in degrees, 0 = upright
-    invisible: bool = False  # text render mode 3 (e.g. an existing OCR layer)
     garbage: int = 0  # characters the text layer could not map to text (broken font encoding)
 
 
@@ -141,7 +133,6 @@ class Block:
     kind: BlockKind = BlockKind.PARAGRAPH
     level: int = 0  # heading level (1 = top) for HEADING blocks
     region: str = ""  # id of the layout region holding the block
-    column: int = 0  # column index inside a COLUMNS region (0 = left / single)
     text: str = ""  # sanitized text, set by the sanitize step
     labels: set[str] = field(default_factory=set)  # set by layout steps, e.g. footer:zone, merged_into_previous
     continues: bool = False  # the paragraph goes on in the next page's first paragraph (set by flow)
@@ -196,6 +187,26 @@ class Region:
             yield from child.iter_regions()
 
 
+def rotate_words(words: list[Word], width: float, height: float, ccw: int) -> tuple[float, float]:
+    """Rotate word boxes in place by ``ccw`` degrees counter-clockwise (visual). Returns new size."""
+    ccw %= 360
+    if ccw == 0:
+        return width, height
+    for w in words:
+        b = w.bbox
+        pts = [(b.x0, b.y0), (b.x1, b.y1)]
+        if ccw == 90:
+            pts = [(y, width - x) for x, y in pts]
+        elif ccw == 180:
+            pts = [(width - x, height - y) for x, y in pts]
+        elif ccw == 270:
+            pts = [(height - y, x) for x, y in pts]
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        w.bbox = BBox(min(xs), min(ys), max(xs), max(ys))
+        w.angle = (w.angle + ccw) % 360
+    return (height, width) if ccw in (90, 270) else (width, height)
+
+
 @dataclass(slots=True)
 class Page:
     number: int  # 1-based
@@ -219,6 +230,11 @@ class Page:
     def blocks(self) -> list[Block]:
         """Body blocks in reading order."""
         return list(self.layout.iter_blocks()) if self.layout else []
+
+    def synopsis_block_ids(self) -> set[int]:
+        """ids of the blocks in a synopsis: its columns are parallel versions, never one text flow."""
+        regions = self.layout.iter_regions() if self.layout else []
+        return {id(b) for r in regions if r.synopsis for b in r.iter_blocks()}
 
     @property
     def all_blocks(self) -> list[Block]:

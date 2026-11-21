@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
-from .._document import PARSER_VERSION, Block, BlockKind, Metadata, Page, PdfDocument, Report
+from .._document import PARSER_VERSION, Block, Metadata, Page, PdfDocument, Report
 from .._options import ParseOptions
 from . import model
 from .pipeline import Pipeline
@@ -22,10 +22,8 @@ def parse(src: Source, options: ParseOptions | None = None) -> PdfDocument:
 
 
 def _block(b: model.Block) -> Block:
-    text = b.text.strip()
-    text = " ".join(text.split()) if b.kind is BlockKind.HEADING else re.sub(r"\n{3,}", "\n\n", text)
     x0, y0, x1, y1 = b.bbox.to_list()
-    return Block(page=b.page, kind=b.kind, text=text, bbox=(x0, y0, x1, y1), level=b.level, continues=b.continues)
+    return Block(page=b.page, kind=b.kind, text=b.text, bbox=(x0, y0, x1, y1), level=b.level, continues=b.continues)
 
 
 # D:YYYYMMDDHHmmSS+HH'mm' (PDF 1.7, 7.9.4); everything after the year is optional

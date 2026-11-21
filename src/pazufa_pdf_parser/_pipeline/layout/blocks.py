@@ -69,7 +69,7 @@ def _gap(a: Line, b: Line) -> float:
     return b.bbox.y0 - a.bbox.y1
 
 
-def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int = 0) -> list[Block]:
+def split_blocks(lines: list[Line], page: int, region_id: str = "") -> list[Block]:
     """Split vertically ordered lines of one flow region into blocks."""
     if not lines:
         return []
@@ -125,7 +125,6 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
                 page=page,
                 kind=kind,
                 region=region_id,
-                column=column,
             )
         )
     return out
@@ -134,15 +133,10 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "", column: int 
 def fill_leaves(region: Region, page: int) -> None:
     """Build blocks for every leaf of a region tree (consumes the leaf words)."""
 
-    def visit(r: Region, column: int) -> None:
+    for r in region.iter_regions():
         if r.kind is RegionKind.LEAF:
-            r.blocks = split_blocks(build_lines(r.words), page, r.id, column)
+            r.blocks = split_blocks(build_lines(r.words), page, r.id)
             r.words = []
-            return
-        for i, c in enumerate(r.children):
-            visit(c, i if r.kind is RegionKind.COLUMNS else column)
-
-    visit(region, 0)
 
 
 _HEADING_PATTERNS = [

@@ -6,9 +6,9 @@ import copy
 import re
 
 from ..._options import ParseOptions
-from ..model import BBox, Block, BlockKind, Document, Page, Region, RegionKind, Word
-from ..sanitize import block_is_noise
-from .blocks import classify_headings, fill_leaves, split_blocks
+from ..model import BBox, Block, BlockKind, Document, Page, Region, RegionKind, Word, rotate_words
+from ..sanitize import is_ocr_noise
+from .blocks import classify_headings, fill_leaves
 from .furniture import detect_furniture
 from .lines import build_lines, make_line
 from .segment import Segmenter, detect_synopsis, page_body_size
@@ -22,8 +22,6 @@ _LINE_NUMBER_RE = re.compile(r"^\d{1,4}$")
 
 def _marginal_blocks(page: Page, words: list[Word]) -> list[Block]:
     """Rotated text: group per direction, rebuild lines in an upright frame."""
-    from ..extract import rotate_words
-
     out: list[Block] = []
     by_angle: dict[int, list[Word]] = {}
     for w in words:
@@ -100,7 +98,7 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
                 continue
             keep: list[Block] = []
             for b in region.blocks:
-                if any(w.confidence is not None for ln in b.lines for w in ln.words) and block_is_noise(b):
+                if any(w.confidence is not None for ln in b.lines for w in ln.words) and is_ocr_noise(b):
                     b.kind = BlockKind.NOISE
                     page.extras.append(b)
                 else:
@@ -114,7 +112,3 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
     for page in pages:
         if page.layout is not None:
             detect_synopsis(page.layout, lambda r: " ".join(b.raw_text for b in r.iter_blocks()))
-
-
-# re-exported helpers for library users
-__all__ += ["build_lines", "split_blocks", "Segmenter"]

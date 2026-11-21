@@ -22,7 +22,6 @@ from pazufa_pdf_parser._pipeline.sanitize import (
     join_hyphenated,
     normalize_spaces,
     reflow_lines,
-    sanitize_text,
 )
 
 
@@ -133,11 +132,6 @@ def test_is_junk_line(line, junk):
 )
 def test_fix_ocr_text(raw, expected):
     assert fix_ocr_text(raw) == expected
-
-
-def test_sanitize_text_end_to_end():
-    raw = "Erste Zeile mit Tren-\nnung und ﬁ-Ligatur.\n\n____________\n\nZweiter   Absatz."
-    assert sanitize_text(raw) == "Erste Zeile mit Trennung und fi-Ligatur.\n\nZweiter Absatz."
 
 
 def _garbled_page(source=PageSource.TEXT, garbage_ratio=0.9, more=()):

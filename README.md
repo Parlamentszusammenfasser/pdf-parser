@@ -141,7 +141,7 @@ for issue in doc.report.issues:
 | `"txt"` | clean running text |
 | `"raw"` | every block in reading order, including headers, footers, page numbers, margin notes and noise; pages separated by form feeds |
 | `"html"` | headings, paragraphs, lists and footnotes in reading order |
-| `"json"` | the whole `PdfDocument`, same as `doc.to_json()` |
+| `"json"` | the whole `PdfDocument`: `doc.to_json()` plus a final newline |
 
 ### Errors
 
