@@ -96,6 +96,7 @@ def merge_flow(doc: Document) -> int:
     are joined.
     """
     skip = _synopsis_block_ids(doc)
+    widths = {p.number: p.width or 1.0 for p in doc.pages}  # numbers count from the PDF's page 1, not first_page
     prev: Block | None = None
     joins = 0
     for b in doc.body_blocks:
@@ -109,7 +110,7 @@ def merge_flow(doc: Document) -> int:
             and b.kind is BlockKind.PARAGRAPH
         ):
             same_region = prev.page == b.page and prev.region == b.region
-            page_w = doc.pages[b.page - 1].width or 1.0
+            page_w = widths[b.page]
             compatible = same_region or (
                 min(prev.bbox.width, b.bbox.width) >= 0.35 * page_w
                 and min(prev.bbox.width, b.bbox.width) / max(prev.bbox.width, b.bbox.width, 1.0) >= 0.6

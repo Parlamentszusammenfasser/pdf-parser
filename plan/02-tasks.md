@@ -39,4 +39,8 @@
 [x] T27 `ParseOptions.drop_garbled_text` (#33, on by default): on a page whose garbled text layer OCR did not
      replace, blocks set mostly in a garbled font become noise (raw only); scraper-bw's paragraph scorer is not
      ported, on parser output it only hit real text (uppercase titles, Czech, tables)
+[x] T28 whole-repo review fixes: emoji (surrogate pairs) no longer break every output; flow works for page ranges
+     not starting at 1; text outside the CropBox is dropped; invalid page ranges, dpi and timeout are rejected;
+     sha256 of the input as given; huge pages OCRed at a lower dpi; CLI survives unwritable outputs and same-named
+     inputs
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

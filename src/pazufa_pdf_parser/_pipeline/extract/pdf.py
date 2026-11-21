@@ -135,6 +135,9 @@ def extract_page_words(page: pdfium.PdfPage, rotation_aware: bool = True) -> Pag
         chars = _read_chars(textpage, affine)
     finally:
         textpage.close()
+    # pdfium reports text the CropBox cuts away too; the page shows only the view box
+    w, h = page.get_size()
+    chars = [c for c in chars if c.ch == " " or (0 <= c.box.cx <= w and 0 <= c.box.cy <= h)]
     total = sum(1 for c in chars if not c.ch.isspace())
     garbage = sum(1 for c in chars if _suspect(c))
     invisible = sum(1 for c in chars if c.invisible)
@@ -158,14 +161,18 @@ def _read_chars(textpage: pdfium.PdfTextPage, affine: Affine) -> list[_Char]:
     name_buf = ctypes.create_string_buffer(256)
     flags = ctypes.c_int()
     prev: _Char | None = None
+    low = False
     for i in range(n):
+        if low:  # second half of a surrogate pair, already read
+            low = False
+            continue
         cp = R.FPDFText_GetUnicode(tp, i)
         if cp == 0:
             continue
-        try:
-            ch = chr(cp)
-        except ValueError:
-            ch = "�"
+        if 0xD800 <= cp < 0xDC00 and i + 1 < n and 0xDC00 <= (lo := R.FPDFText_GetUnicode(tp, i + 1)) < 0xE000:
+            cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00)  # pdfium reports UTF-16 units: emoji take two
+            low = True
+        ch = "�" if 0xD800 <= cp < 0xE000 or cp > 0x10FFFF else chr(cp)  # a lone surrogate cannot be UTF-8
         generated = bool(R.FPDFText_IsGenerated(tp, i))
         if ch.isspace() or generated and ch in " \r\n":
             out.append(_Char(" ", BBox(0, 0, 0, 0), 0, "", False, False, 0, False, False))

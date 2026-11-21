@@ -83,10 +83,21 @@ def _normalize_orientation(page: Page) -> None:
     page.stats["orientation_corrected"] = (360 - angle) % 360
 
 
+MAX_OCR_PIXELS = 100_000_000  # 400 MB as RGBA; an A1 plan at 300 dpi has 70 million
+
+
+def ocr_dpi(width: float, height: float, dpi: int) -> int:
+    """The resolution to render a page of this size (in points) at for OCR: ``dpi``, or less for a huge page."""
+    fit = int((MAX_OCR_PIXELS / max(width * height, 1.0)) ** 0.5 * 72)
+    return max(1, min(dpi, fit))
+
+
 def extract_pages(opened: OpenedPdf, options: ParseOptions, doc: Document) -> list[Page]:
     n = len(opened.pdf)
-    first = max(1, options.first_page or 1)
+    first = options.first_page or 1
     last = min(n, options.last_page or n)
+    if first > n:
+        doc.issue(Severity.WARNING, "extract", f"first_page {first} is beyond the last page, {n}")
     probes: list[_Probe] = []
     with PDFIUM_LOCK:
         for idx in range(first - 1, last):
@@ -175,13 +186,14 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
         try:
             # the slot also covers rendering: a 300 dpi page image is ~25 MB, so waiting pages stay unrendered
             with engine._slots:
+                dpi = ocr_dpi(p.page.width, p.page.height, engine.dpi)
                 with PDFIUM_LOCK:
                     pg = opened.pdf[p.index]
-                    img = pg.render(scale=engine.dpi / 72.0, may_draw_forms=True).to_pil()
+                    img = pg.render(scale=dpi / 72.0, may_draw_forms=True).to_pil()
                     pg.close()
                 result = ocr_image(
                     img,
-                    engine.dpi,
+                    dpi,
                     lang,
                     detect_orientation=engine.detect_orientation,
                     cmd=engine.tesseract_cmd,
@@ -201,6 +213,8 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 _leave_without_ocr([p], "OCR failed")
                 continue
             page.stats.update(res.stats)
+            if (dpi := ocr_dpi(page.width, page.height, engine.dpi)) < engine.dpi:
+                doc.issue(Severity.INFO, "ocr", f"page too large for {engine.dpi} dpi, OCRed at {dpi} dpi", page.number)
             if p.merge and page.words and not res.rotation:
                 kept = [
                     w
