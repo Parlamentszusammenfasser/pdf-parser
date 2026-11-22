@@ -132,7 +132,7 @@ def _wraps_line_above(line: Line, lines: list[Line]) -> bool:
     """A number at most a sliver below the text line above it wrapped at ordinary leading:
     "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. Page numbers leave a gap."""
     b = line.bbox
-    above = [o.bbox.y1 for o in lines if o.bbox.y0 < b.y0 and o.bbox.x_overlap(b) > 0]
+    above = [o.bbox.y1 for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0]
     return bool(above) and max(above) > b.y0 - WRAP_GAP * b.height
 
 
