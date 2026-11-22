@@ -96,7 +96,7 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
             lines = bands[pi][which]
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
-                if is_page_number(ln.text):
+                if is_page_number(ln.text) and not _wraps_line_above(ln, page.lines):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
                 if li == which == 0 and _is_one_off_header(pi, ln.text):
@@ -115,6 +115,14 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     # trailing/leading page numbers glued to a header line ("... Wahlperiode   12") are
     # handled by the similarity test because digits are normalised.
     return result
+
+
+def _wraps_line_above(line: Line, lines: list[Line]) -> bool:
+    """A number whose box overlaps the text line above it in its column wrapped at ordinary leading:
+    "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. Page numbers leave a gap."""
+    b = line.bbox
+    above = [o.bbox.y1 for o in lines if o.bbox.y0 < b.y0 and o.bbox.x_overlap(b) > 0]
+    return bool(above) and max(above) > b.y0
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:

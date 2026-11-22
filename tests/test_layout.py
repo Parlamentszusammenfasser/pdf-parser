@@ -374,6 +374,22 @@ class TestFurniture:
         pages = [self.page(1, "Einmaliger Briefkopf der Firma")]
         assert detect_furniture(pages) == {}
 
+    @pytest.mark.parametrize(
+        "text,number,is_number",
+        [
+            ((300, 60, "– Drucksache"), (300, 68, "17/1076"), False),
+            ((300, 784, "Ende der rechten Spalte"), (45, 792, "910"), True),
+            (None, (280, 810, "910"), True),
+        ],
+        ids=["wrap-under-header", "beside-other-column", "nothing-above"],
+    )
+    def test_number_overlapping_the_line_above(self, text, number, is_number):
+        # line boxes overlap at a protocol's tight leading; page numbers sit below a gap (#45)
+        ws = words_for(*number) + (words_for(*text) if text else [])
+        p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
+        kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
+        assert (kinds.get(number[2]) is BlockKind.PAGE_NUMBER) is is_number
+
     def test_page_number_patterns(self):
         for t in ["3", "- 3 -", "Seite 3", "Seite 3 von 10", "3 / 10", "S. 4", "ii", "XIV"]:
             assert is_page_number(t), t
