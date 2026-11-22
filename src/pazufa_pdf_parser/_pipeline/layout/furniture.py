@@ -100,7 +100,9 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
             lines = bands[pi][which]
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
-                if is_page_number(ln.text) and not _wrapped_reference(ln, page.lines):
+                if _wrapped_reference(ln, page.lines):
+                    continue  # body text, also where "1 / 3" page numbers would make its key repeat
+                if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
                 if li == which == 0 and _is_one_off_header(pi, ln.text):

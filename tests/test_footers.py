@@ -310,6 +310,15 @@ def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, i
     assert (number in d.pages[0].text()) is in_body
 
 
+def test_wrapped_number_stays_body_beside_slash_page_numbers():
+    lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", "17/1076"]
+    wrap = paragraph(70, 690, lines, 11, leading=1.0)
+    pages = [body(200) + (wrap if n == 2 else []) + [T(280, 790, f"{n} / 3", 9)] for n in (1, 2, 3)]
+    d = parse(make_pdf(pages), NO_OCR)
+    assert [p.printed_page for p in d.pages] == ["1", "2", "3"]
+    assert "17/1076" in d.pages[1].text()
+
+
 def _row(y, *cells):
     return [T(70 + 250 * c, y, cell, 11) for c, cell in enumerate(cells)]
 
