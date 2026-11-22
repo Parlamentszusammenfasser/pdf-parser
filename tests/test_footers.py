@@ -287,9 +287,16 @@ def test_page_number_cell_leaves_its_line():
         ("17/1076", 0, "910", "910", True),
         ("17/1076", 2.3, "910", "910", True),
         ("17/1076", 6.3, "910", "17", False),
+        ("17/1076", 0, None, None, True),
         ("- 910 -", 0, None, "910", False),
     ],
-    ids=["wrapped-at-leading", "wrapped-with-ocr-gap", "below-a-page-number-gap", "only-page-number"],
+    ids=[
+        "wrapped-at-leading",
+        "wrapped-with-ocr-gap",
+        "below-a-page-number-gap",
+        "no-other-page-number",
+        "dashed-page-number-under-text",
+    ],
 )
 def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);

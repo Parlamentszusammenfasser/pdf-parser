@@ -378,15 +378,15 @@ class TestFurniture:
         "text,number,is_number",
         [
             ((300, 60, "– Drucksache"), (300, 68, "17/1076"), False),
-            ((300, 784, "Ende der rechten Spalte"), (45, 792, "910"), True),
-            ((290, 50, "rw", 30), (300, 60, "4"), True),
+            ((300, 784, "Ende der rechten Spalte"), (45, 792, "17/1076"), True),
+            ((290, 50, "rw", 30), (300, 60, "2/3"), True),
         ],
         ids=["wrap-under-header", "beside-other-column", "inside-a-taller-line"],
     )
     def test_number_overlapping_the_line_above(self, text, number, is_number):
         # line boxes overlap at a protocol's tight leading; page numbers sit below a gap (#45);
-        # "- 9 -" is the page's real page number; an OCR'd logo ("rw") can enclose a number
-        ws = words_for(*number) + words_for(*text) + words_for(280, 20, "- 9 -")
+        # an OCR'd logo ("rw") can enclose a number
+        ws = words_for(*number) + words_for(*text)
         p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
         kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
         assert (kinds.get(number[2]) is BlockKind.PAGE_NUMBER) is is_number

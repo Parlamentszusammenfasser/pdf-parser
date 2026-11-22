@@ -25,6 +25,8 @@ _PAGE_NUMBER_RES = [
     re.compile(rf"^{_ROMAN}$", re.I),
 ]
 _ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
+# "17/1076" is as much Drucksache 17/1076 as page 17 of 1076; "- 2 -" or "Seite 2" are only page numbers
+_SLASH_NUMBER = re.compile(r"^\d{1,4}\s*/\s*\d{1,4}$")
 _PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "… | Seite 1 von 2" in a header
 # page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
 _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
@@ -94,12 +96,11 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     need = max(1, round(REPEAT_SHARE * (n - 1))) if n > 1 else None
     for pi, page in enumerate(pages):
         index = {id(ln): li for li, ln in enumerate(page.lines)}
-        wrapped = _wrapped_numbers([*bands[pi][0], *bands[pi][1]], page.lines)
         for which, kind in ((0, BlockKind.HEADER), (1, BlockKind.FOOTER)):
             lines = bands[pi][which]
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
-                if is_page_number(ln.text) and id(ln) not in wrapped:
+                if is_page_number(ln.text) and not _wrapped_reference(ln, page.lines):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
                 if li == which == 0 and _is_one_off_header(pi, ln.text):
@@ -120,17 +121,11 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     return result
 
 
-def _wrapped_numbers(band_lines: list[Line], lines: list[Line]) -> set[int]:
-    """Ids of page-number-like band lines that wrapped from the line above, when the page has another
-    page-number line: a page's only number stays one even when it sits tightly under a header line."""
-    numbers = {id(ln): ln for ln in band_lines if is_page_number(ln.text)}
-    wrapped = {i for i, ln in numbers.items() if _wraps_line_above(ln, lines)}
-    return wrapped if len(wrapped) < len(numbers) else set()
-
-
-def _wraps_line_above(line: Line, lines: list[Line]) -> bool:
-    """A number at most a sliver below the text line above it wrapped at ordinary leading:
+def _wrapped_reference(line: Line, lines: list[Line]) -> bool:
+    """An "N/M" line at most a sliver below the text line above it wrapped at ordinary leading:
     "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. Page numbers leave a gap."""
+    if not _SLASH_NUMBER.match(line.text.strip()):
+        return False
     b = line.bbox
     above = [o.bbox.y1 for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0]
     return bool(above) and max(above) > b.y0 - WRAP_GAP * b.height
