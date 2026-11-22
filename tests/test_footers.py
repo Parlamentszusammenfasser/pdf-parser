@@ -282,18 +282,22 @@ def test_page_number_cell_leaves_its_line():
 
 
 @pytest.mark.parametrize(
-    "number,gap,in_body",
-    [("17/1076", 0, True), ("911", 8, False)],
-    ids=["wrapped-at-leading", "page-number-below-a-gap"],
+    "number,gap,real_number,printed,in_body",
+    [
+        ("17/1076", 0, "910", "910", True),
+        ("911", 8, None, "911", False),
+        ("- 910 -", 0, None, "910", False),
+    ],
+    ids=["wrapped-at-leading", "page-number-below-a-gap", "only-page-number"],
 )
-def test_number_wrapped_from_the_line_above(number, gap, in_body):
+def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
     # the protocol's tight leading makes the two line boxes overlap
     lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", number]
     text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.05)]
-    page = body(200) + text + ([T(70, 790, "910", 9)] if in_body else [])
+    page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])
     d = parse(make_pdf([page]), NO_OCR)
-    assert d.pages[0].printed_page == ("910" if in_body else number)
+    assert d.pages[0].printed_page == printed
     assert (number in d.pages[0].text()) is in_body
 
 

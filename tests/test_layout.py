@@ -384,8 +384,9 @@ class TestFurniture:
         ids=["wrap-under-header", "beside-other-column", "nothing-above"],
     )
     def test_number_overlapping_the_line_above(self, text, number, is_number):
-        # line boxes overlap at a protocol's tight leading; page numbers sit below a gap (#45)
-        ws = words_for(*number) + (words_for(*text) if text else [])
+        # line boxes overlap at a protocol's tight leading; page numbers sit below a gap (#45);
+        # "- 9 -" is the page's real page number
+        ws = words_for(*number) + (words_for(*text) if text else []) + words_for(280, 20, "- 9 -")
         p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
         kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
         assert (kinds.get(number[2]) is BlockKind.PAGE_NUMBER) is is_number
