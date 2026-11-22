@@ -117,6 +117,20 @@ def test_page_holding_only_a_kept_number_is_not_empty(monkeypatch):
     assert (page.source, page.printed_page) == (PageSource.OCR, "7")
 
 
+@pytest.mark.xfail(
+    strict=True, reason="#45 not covered: tesseract boxes leave a wrap 3-5 pt below a line without descenders"
+)
+def test_wrapped_number_on_a_scan_stays_body():
+    lines = [
+        "mit großer Mehrheit die Annahme in der vorliegenden Fassung empfohlen.",
+        "Gesetzes über die Grundsteuer – Drucksache",
+    ]
+    page = parse(
+        make_scanned_pdf([paragraph(70, 700, [*lines, "17/1076"], 11, leading=1.1) + [T(290, 790, "910", 9)]])
+    ).pages[0]
+    assert (page.printed_page, "17/1076" in page.text()) == ("910", True)
+
+
 @pytest.mark.parametrize(
     "user_limit,expected",
     [(None, "1"), ("3", "3")],

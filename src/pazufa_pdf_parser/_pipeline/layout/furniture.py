@@ -13,7 +13,8 @@ MAX_BAND_LINES = 5  # association letters print "1 von 3" above a four-line foot
 SIMILAR = 0.85  # fuzzy match ratio for repeated header/footer lines
 REPEAT_SHARE = 0.4  # below one half: left/right pages carry different running headers
 MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
-# of a line's height: tight OCR boxes leave wrapped lines < 1 pt apart, page numbers sit ≥ 5 pt below text
+# share of the number line's height: a wrapped line overlaps the line above or (OCR) sits < 1 pt below it;
+# real page numbers sit ≥ 0.32 of their height below the text (PlPr 17/19 p. 8, under a subscript "CO2")
 WRAP_GAP = 0.25
 
 _PAGE_WORD = r"(?:seite|page|s\.|blatt)"
