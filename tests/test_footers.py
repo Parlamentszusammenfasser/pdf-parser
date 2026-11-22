@@ -285,16 +285,18 @@ def test_page_number_cell_leaves_its_line():
     "number,gap,real_number,printed,in_body",
     [
         ("17/1076", 0, "910", "910", True),
-        ("911", 8, None, "911", False),
+        ("17/1076", 2.3, "910", "910", True),
+        ("17/1076", 6.3, "910", "17", False),
         ("- 910 -", 0, None, "910", False),
     ],
-    ids=["wrapped-at-leading", "page-number-below-a-gap", "only-page-number"],
+    ids=["wrapped-at-leading", "wrapped-with-ocr-gap", "below-a-page-number-gap", "only-page-number"],
 )
 def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
-    # the protocol's tight leading makes the two line boxes overlap
+    # the protocol's tight leading makes the two line boxes overlap, OCR boxes leave ~1 pt; 5 pt below the text
+    # (gap 6.3) is where real page numbers sit, so a wrap that far down still reads as one
     lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", number]
-    text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.05)]
+    text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.0)]
     page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])
     d = parse(make_pdf([page]), NO_OCR)
     assert d.pages[0].printed_page == printed

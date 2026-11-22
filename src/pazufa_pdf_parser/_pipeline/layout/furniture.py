@@ -13,6 +13,8 @@ MAX_BAND_LINES = 5  # association letters print "1 von 3" above a four-line foot
 SIMILAR = 0.85  # fuzzy match ratio for repeated header/footer lines
 REPEAT_SHARE = 0.4  # below one half: left/right pages carry different running headers
 MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
+# of a line's height: tight OCR boxes leave wrapped lines < 1 pt apart, page numbers sit ≥ 5 pt below text
+WRAP_GAP = 0.25
 
 _PAGE_WORD = r"(?:seite|page|s\.|blatt)"
 _ROMAN = r"(?=[ivxl])(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})"  # up to 89 for front matter; rejects OCR "ll"
@@ -127,11 +129,11 @@ def _wrapped_numbers(band_lines: list[Line], lines: list[Line]) -> set[int]:
 
 
 def _wraps_line_above(line: Line, lines: list[Line]) -> bool:
-    """A number whose box overlaps the text line above it wrapped at ordinary leading:
+    """A number at most a sliver below the text line above it wrapped at ordinary leading:
     "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. Page numbers leave a gap."""
     b = line.bbox
     above = [o.bbox.y1 for o in lines if o.bbox.y0 < b.y0 and o.bbox.x_overlap(b) > 0]
-    return bool(above) and max(above) > b.y0
+    return bool(above) and max(above) > b.y0 - WRAP_GAP * b.height
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:
