@@ -104,6 +104,7 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
                 # a header stacked as "Drucksache" / "17/273" is furniture above the number, a wrapped reference isn't
+                # (bands run top-down, so a band line above the number is already classified)
                 prev = _continued_line(ln, page.lines)
                 if prev is not None and (pi, index[id(prev)]) not in result:
                     continue  # body text, also where "1 / 3" page numbers would make its key repeat
@@ -140,17 +141,15 @@ def _continued_line(line: Line, lines: list[Line]) -> Line | None:
     before, prev = above[-2:]
     # the row above spans both protocol columns: compare with the cell over the number
     cell = max(split_cells(prev.words), key=lambda c: BBox.enclosing(w.bbox for w in c).x_overlap(b))
-    edge = min(w.bbox.x0 for w in cell)
     size = make_line(cell).size
+    if line.words[0].source is not TextSource.OCR and abs(line.size - size) > SAME_SIZE * size:
+        return None
+    if abs(b.x0 - min(w.bbox.x0 for w in cell)) > SAME_EDGE * size:
+        return None
     leading = prev.bbox.y0 - before.bbox.y1
-    return (
-        prev
-        if (abs(line.size - size) <= SAME_SIZE * size or line.words[0].source is TextSource.OCR)
-        and abs(b.x0 - edge) <= SAME_EDGE * size
-        and leading <= size
-        and b.y0 - prev.bbox.y1 <= leading + DESCENDER * size
-        else None
-    )
+    if leading > size:  # a lone line after a gap, such as a footer or signature, is no paragraph to continue
+        return None
+    return prev if b.y0 - prev.bbox.y1 <= leading + DESCENDER * size else None
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:
