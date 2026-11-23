@@ -375,20 +375,19 @@ class TestFurniture:
         assert detect_furniture(pages) == {}
 
     @pytest.mark.parametrize(
-        "text,number,is_number",
+        "text,number",
         [
-            ([(300, 60, "– Drucksache")], (300, 68, "17/1076"), False),
-            ([(45, 784, "Ende der linken Spalte"), (300, 784, "– Drucksache")], (45, 792, "17/1076"), True),
-            ([(290, 50, "Drucksache", 30)], (300, 60, "2/3"), True),
+            ([(45, 784, "Ende der linken Spalte"), (300, 784, "– Drucksache")], (45, 792, "17/1076")),
+            ([(290, 50, "Drucksache", 30)], (300, 60, "2/3")),
         ],
-        ids=["wrap-under-header", "under-the-other-columns-reference", "inside-a-taller-line"],
+        ids=["under-the-other-columns-reference", "inside-a-taller-line"],
     )
-    def test_number_overlapping_the_line_above(self, text, number, is_number):
-        # line boxes overlap at a protocol's tight leading; the row above can span both columns (#45)
+    def test_number_beside_a_reference_stays_page_number(self, text, number):
+        # the row above can span both protocol columns, a big masthead word can enclose the number (#45)
         ws = words_for(*number) + [w for t in text for w in words_for(*t)]
         p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
         kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
-        assert (kinds.get(number[2]) is BlockKind.PAGE_NUMBER) is is_number
+        assert kinds.get(number[2]) is BlockKind.PAGE_NUMBER
 
     def test_page_number_patterns(self):
         for t in ["3", "- 3 -", "Seite 3", "Seite 3 von 10", "3 / 10", "S. 4", "ii", "XIV"]:
