@@ -242,6 +242,10 @@ def _band(x, y, text):
         ([("", "80333 München"), ("", "80334 München")], [None, None]),
         ([("", "Recyclingpapier\tI"), ("", "II")], ["I", "II"]),
         ([("", "poststelle@lfv.de\t1 / 2"), ("", "2 / 2")], ["1", "2"]),
+        (
+            [("", "Musterverband e.V. · Hauptstraße 1\n1 / 2"), ("", "Musterverband e.V. · Hauptstraße 1\n2 / 2")],
+            ["1", "2"],
+        ),
         ([("Bayerisches\t177", ""), ("178\tBayerisches", "")], ["177", "178"]),
         ([("Landtag\t5", ""), ("Landtag\t9", "")], [None, None]),
     ],
@@ -262,6 +266,7 @@ def _band(x, y, text):
         "five-digit-number",
         "number-cell-beside-footer",
         "fraction-cell",
+        "page-of-total-under-footer-line",
         "number-cell-beside-heading",
         "not-consecutive-cells",
     ],
@@ -285,34 +290,22 @@ def test_page_number_cell_leaves_its_line():
     "number,gap,real_number,printed,in_body",
     [
         ("17/1076", 0, "910", "910", True),
-        ("17/1076", 2.3, "910", "910", True),
-        ("2/3", 6.3, None, "2", False),
-        pytest.param(
-            "17/1076",
-            6.3,
-            "910",
-            "910",
-            True,
-            marks=pytest.mark.xfail(
-                strict=True, reason="#45 not covered: a wrap this far down looks like a page number"
-            ),
-        ),
+        ("17/1076", 12.4, "910", "910", True),
+        ("2/3", 14.8, None, "2", False),
         ("17/1076", 0, None, None, True),
         ("- 910 -", 0, None, "910", False),
     ],
     ids=[
         "wrapped-at-leading",
-        "wrapped-with-ocr-gap",
-        "slash-page-number-below-a-gap",
-        "wrapped-below-a-page-number-gap",
+        "wrapped-almost-a-line-below",
+        "slash-page-number-a-line-below",
         "no-other-page-number",
         "dashed-page-number-under-text",
     ],
 )
 def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
-    # the protocol's tight leading makes the two line boxes overlap, OCR boxes can leave ~1 pt; real page numbers
-    # sit 5 pt or more below the text (gap 6.3)
+    # the protocol's tight leading makes the two line boxes overlap; a line height below (gap 13.6) is a page number
     lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", number]
     text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.0)]
     page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])

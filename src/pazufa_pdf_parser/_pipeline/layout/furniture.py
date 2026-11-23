@@ -13,9 +13,6 @@ MAX_BAND_LINES = 5  # association letters print "1 von 3" above a four-line foot
 SIMILAR = 0.85  # fuzzy match ratio for repeated header/footer lines
 REPEAT_SHARE = 0.4  # below one half: left/right pages carry different running headers
 MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
-# share of the number line's height: a wrapped line overlaps the line above or (OCR) sits < 1 pt below it;
-# real page numbers sit ≥ 0.32 of their height below the text (PlPr 17/19 p. 8, under a subscript "CO2")
-WRAP_GAP = 0.25
 
 _PAGE_WORD = r"(?:seite|page|s\.|blatt)"
 _ROMAN = r"(?=[ivxl])(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})"  # up to 89 for front matter; rejects OCR "ll"
@@ -28,6 +25,7 @@ _PAGE_NUMBER_RES = [
 _ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
 # "17/1076" is as much Drucksache 17/1076 as page 17 of 1076; "- 2 -" or "Seite 2" are only page numbers
 _SLASH_NUMBER = re.compile(r"^\d{1,4}\s*/\s*\d{1,4}$")
+_REFERENCE_END = re.compile(r"\b(Drucksachen?|Drs\.|Plenarprotokoll)$")
 _PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "… | Seite 1 von 2" in a header
 # page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
 _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
@@ -125,13 +123,18 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
 
 
 def _wrapped_reference(line: Line, lines: list[Line]) -> bool:
-    """An "N/M" line at most a sliver below the text line above it wrapped at ordinary leading:
-    "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. Page numbers leave a gap."""
+    """An "N/M" line within a line height under text ending in "Drucksache" is that reference's number:
+    "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. "1 / 3" under a footer is a page number."""
     if not _SLASH_NUMBER.match(line.text.strip()):
         return False
     b = line.bbox
-    above = [o.bbox.y1 for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0]
-    return bool(above) and max(above) > b.y0 - WRAP_GAP * b.height
+    above = [o for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0]
+    if not above or max(o.bbox.y1 for o in above) <= b.y0 - b.height:
+        return False
+    # the row above spans both protocol columns: read the cell over the number
+    prev = max(above, key=lambda o: o.bbox.y1)
+    cells = [c for c in split_cells(prev.words) if BBox.enclosing(w.bbox for w in c).x_overlap(b) > 0]
+    return any(_REFERENCE_END.search(" ".join(w.text for w in c)) for c in cells)
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:

@@ -377,16 +377,15 @@ class TestFurniture:
     @pytest.mark.parametrize(
         "text,number,is_number",
         [
-            ((300, 60, "– Drucksache"), (300, 68, "17/1076"), False),
-            ((300, 784, "Ende der rechten Spalte"), (45, 792, "17/1076"), True),
-            ((290, 50, "rw", 30), (300, 60, "2/3"), True),
+            ([(300, 60, "– Drucksache")], (300, 68, "17/1076"), False),
+            ([(45, 784, "Ende der linken Spalte"), (300, 784, "– Drucksache")], (45, 792, "17/1076"), True),
+            ([(290, 50, "Drucksache", 30)], (300, 60, "2/3"), True),
         ],
-        ids=["wrap-under-header", "beside-other-column", "inside-a-taller-line"],
+        ids=["wrap-under-header", "under-the-other-columns-reference", "inside-a-taller-line"],
     )
     def test_number_overlapping_the_line_above(self, text, number, is_number):
-        # line boxes overlap at a protocol's tight leading; page numbers sit below a gap (#45);
-        # an OCR'd logo ("rw") can enclose a number
-        ws = words_for(*number) + words_for(*text)
+        # line boxes overlap at a protocol's tight leading; the row above can span both columns (#45)
+        ws = words_for(*number) + [w for t in text for w in words_for(*t)]
         p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
         kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
         assert (kinds.get(number[2]) is BlockKind.PAGE_NUMBER) is is_number
