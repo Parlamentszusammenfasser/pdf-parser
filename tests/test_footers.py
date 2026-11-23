@@ -310,7 +310,7 @@ def test_page_number_cell_leaves_its_line():
 )
 def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
-    # the protocol's tight leading makes the two line boxes overlap; a line height below (gap 13.6) is a page number
+    # the protocol's tight leading makes the two line boxes overlap; a line height below is a page number
     lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", number]
     text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.0)]
     page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])
