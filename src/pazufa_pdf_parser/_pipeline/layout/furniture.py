@@ -147,6 +147,7 @@ def _continued_line(line: Line, lines: list[Line]) -> Line | None:
         prev
         if (abs(line.size - size) <= SAME_SIZE * size or line.words[0].source is TextSource.OCR)
         and abs(b.x0 - edge) <= SAME_EDGE * size
+        and leading <= size
         and b.y0 - prev.bbox.y1 <= leading + DESCENDER * size
         else None
     )
