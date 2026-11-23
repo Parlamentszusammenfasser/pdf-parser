@@ -246,6 +246,10 @@ def _band(x, y, text):
             [("", "Musterverband e.V. · Hauptstraße 1\n1 / 2"), ("", "Musterverband e.V. · Hauptstraße 1\n2 / 2")],
             ["1", "2"],
         ),
+        (
+            [("", "Stellungnahme zur Drucksache\n1 / 2"), ("", "Stellungnahme zur Drucksache\n2 / 2")],
+            ["1", "2"],
+        ),
         ([("Bayerisches\t177", ""), ("178\tBayerisches", "")], ["177", "178"]),
         ([("Landtag\t5", ""), ("Landtag\t9", "")], [None, None]),
     ],
@@ -267,6 +271,7 @@ def _band(x, y, text):
         "number-cell-beside-footer",
         "fraction-cell",
         "page-of-total-under-footer-line",
+        "page-of-total-under-footer-ending-in-drucksache",
         "number-cell-beside-heading",
         "not-consecutive-cells",
     ],
@@ -323,11 +328,16 @@ def test_wrapped_number_stays_body_beside_slash_page_numbers():
     assert "17/1076" in d.pages[1].text()
 
 
-def test_stacked_running_header_number_stays_furniture():
+@pytest.mark.parametrize("numbers", [["17/273"] * 3, ["17/273", "17/ 273", "17/273"]], ids=["same", "ocr-variant"])
+def test_stacked_running_header_number_stays_furniture(numbers):
     # "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once
-    pages = [body(200) + [T(450, 40, "Drucksache", 9), T(450, 50, "17/273", 9)] for _ in range(3)]
+    pages = [
+        body(200) + [T(450, 40, "Drucksache", 9), T(450, 50, n, 9), T(290, 790, str(i), 9)]
+        for i, n in enumerate(numbers, 1)
+    ]
     d = parse(make_pdf(pages), NO_OCR)
-    assert not any("17/273" in p.text() for p in d.pages)
+    assert [p.printed_page for p in d.pages] == ["1", "2", "3"]
+    assert not any("273" in p.text() for p in d.pages)
 
 
 def _row(y, *cells):

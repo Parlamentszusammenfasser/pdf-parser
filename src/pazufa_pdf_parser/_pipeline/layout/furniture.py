@@ -91,7 +91,6 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     result: dict[tuple[int, int], BlockKind] = {}
     bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
     keys = [([normalize_key(ln.text) for ln in top], [normalize_key(ln.text) for ln in bot]) for top, bot in bands]
-    texts = [{ln.text for ln in (*top, *bot)} for top, bot in bands]
     n = len(pages)
     need = max(1, round(REPEAT_SHARE * (n - 1))) if n > 1 else None
     for pi, page in enumerate(pages):
@@ -100,9 +99,9 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
             lines = bands[pi][which]
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
-                # a running header stacked as "Drucksache" / "17/273" repeats verbatim, a wrapped reference doesn't
-                repeats = any(ln.text in texts[pj] for pj in range(n) if pj != pi)
-                if not repeats and _wrapped_reference(ln, page.lines):
+                # a header stacked as "Drucksache" / "17/273" is furniture above the number, a wrapped reference isn't
+                above = _reference_above(ln, page.lines)
+                if above is not None and (pi, index[id(above)]) not in result:
                     continue  # body text, also where "1 / 3" page numbers would make its key repeat
                 if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
@@ -125,19 +124,19 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     return result
 
 
-def _wrapped_reference(line: Line, lines: list[Line]) -> bool:
-    """An "N/M" line within a line height under text ending in "Drucksache" is that reference's number:
+def _reference_above(line: Line, lines: list[Line]) -> Line | None:
+    """The line an "N/M" line continues when it sits within a line height under text ending in "Drucksache":
     "… – Drucksache" / "17/1076" at the bottom of a BW protocol column. "1 / 3" under a footer is a page number."""
     if not _SLASH_NUMBER.match(line.text.strip()):
-        return False
+        return None
     b = line.bbox
     above = [o for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0]
     if not above or max(o.bbox.y1 for o in above) <= b.y0 - b.height:
-        return False
+        return None
     # the row above spans both protocol columns: read the cell over the number
     prev = max(above, key=lambda o: o.bbox.y1)
     cells = [c for c in split_cells(prev.words) if BBox.enclosing(w.bbox for w in c).x_overlap(b) > 0]
-    return any(_REFERENCE_END.search(" ".join(w.text for w in c)) for c in cells)
+    return prev if any(_REFERENCE_END.search(" ".join(w.text for w in c)) for c in cells) else None
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:
