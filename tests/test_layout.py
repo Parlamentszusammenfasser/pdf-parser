@@ -375,19 +375,24 @@ class TestFurniture:
         assert detect_furniture(pages) == {}
 
     @pytest.mark.parametrize(
-        "text,number",
+        "text,number,kind",
         [
-            ([(45, 784, "Ende der linken Spalte"), (300, 784, "– Drucksache")], (45, 792, "17/1076")),
-            ([(290, 50, "Drucksache", 30)], (300, 60, "2/3")),
+            (
+                [(45, 770, "Anfang der linken"), (300, 770, "Anfang der rechten"), (45, 784, "Ende der linken Spalte")]
+                + [(300, 784, "– Drucksache")],
+                (300, 792, "17/1076"),
+                None,
+            ),
+            ([(290, 30, "Landtag"), (290, 50, "Drucksache", 30)], (300, 60, "2/3"), BlockKind.PAGE_NUMBER),
         ],
-        ids=["under-the-other-columns-reference", "inside-a-taller-line"],
+        ids=["under-the-right-column", "inside-a-taller-line"],
     )
-    def test_number_beside_a_reference_stays_page_number(self, text, number):
-        # the row above can span both protocol columns, a big masthead word can enclose the number (#45)
+    def test_number_under_a_two_column_row(self, text, number, kind):
+        # protocol rows span both columns, a big masthead word can enclose the number (#45)
         ws = words_for(*number) + [w for t in text for w in words_for(*t)]
         p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
         kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
-        assert kinds.get(number[2]) is BlockKind.PAGE_NUMBER
+        assert kinds.get(number[2]) is kind
 
     def test_page_number_patterns(self):
         for t in ["3", "- 3 -", "Seite 3", "Seite 3 von 10", "3 / 10", "S. 4", "ii", "XIV"]:

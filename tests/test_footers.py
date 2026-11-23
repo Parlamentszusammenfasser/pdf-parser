@@ -292,33 +292,42 @@ def test_page_number_cell_leaves_its_line():
 
 
 @pytest.mark.parametrize(
-    "end,number,gap,real_number,printed,in_body",
+    "end,number,move,real_number,printed,in_body",
     [
-        ("– Drucksache", "17/1076", 0, "910", "910", True),
-        ("– Drucksache", "17/1076", 12.4, "910", "910", True),
-        ("– Drucksache", "2/3", 14.8, None, "2", False),
-        ("– Drucksache", "17/1076", 0, None, None, True),
-        ("– Drucksache", "- 910 -", 0, None, "910", False),
-        ("– Drs.", "17/1076", 0, "910", "910", True),
-        ("im Plenarprotokoll", "17/19", 0, "910", "910", True),
-        ("– Drucksache 17/50 beschlossen", "2/3", 0, None, "2", False),
+        ("– Drucksache", "17/1076", (0, 0, 11), "910", "910", True),
+        ("– Drucksache", "17/1076", (0, 2.5, 11), "910", "910", True),
+        ("– Drucksachen 17/1075 und", "17/1076", (0, 0, 11), "910", "910", True),
+        ("– Landtagsdrucksache", "17/1076", (0, 0, 11), "910", "910", True),
+        ("– Drucksache", "17/1076", (0, 0, 11), None, None, True),
+        ("– Drucksache", "2/3", (0, 5.5, 11), None, "2", False),
+        ("– Drucksache", "2/3", (0, 14.8, 11), None, "2", False),
+        ("– Drucksache", "2/3", (0, 0, 9), None, "2", False),
+        ("– Drucksache", "2/3", (20, 0, 11), None, "2", False),
+        ("– Drucksache", "- 910 -", (0, 0, 11), None, "910", False),
     ],
     ids=[
         "wrapped-at-leading",
-        "wrapped-almost-a-line-below",
-        "slash-page-number-a-line-below",
+        "wrapped-a-descender-below",
+        "wrapped-after-a-reference-list",
+        "wrapped-after-a-compound",
         "no-other-page-number",
+        "slash-page-number-half-a-line-below",
+        "slash-page-number-a-line-below",
+        "slash-page-number-in-a-smaller-font",
+        "slash-page-number-indented",
         "dashed-page-number-under-text",
-        "wrapped-after-drs",
-        "wrapped-after-plenarprotokoll",
-        "reference-inside-the-line",
     ],
 )
-def test_number_wrapped_from_the_line_above(end, number, gap, real_number, printed, in_body):
+def test_number_wrapped_from_the_line_above(end, number, move, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
-    # the protocol's tight leading makes the two line boxes overlap; a line height below is a page number
+    # the protocol's tight leading makes the two line boxes overlap; page numbers sit further down, in another
+    # font size or off the paragraph's left edge
+    dx, dy, size = move
     lines = [*PROSE[:2], f"Gesetzes über die Grundsteuer (ÄndGLGrStG) {end}", number]
-    text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.0)]
+    text = [
+        replace(t, x=t.x + dx, y=t.y + dy, size=size) if t.text == number else t
+        for t in paragraph(70, 690, lines, 11, leading=1.0)
+    ]
     page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])
     d = parse(make_pdf([page]), NO_OCR)
     assert d.pages[0].printed_page == printed
