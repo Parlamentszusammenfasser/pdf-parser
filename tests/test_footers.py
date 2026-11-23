@@ -292,13 +292,16 @@ def test_page_number_cell_leaves_its_line():
 
 
 @pytest.mark.parametrize(
-    "number,gap,real_number,printed,in_body",
+    "end,number,gap,real_number,printed,in_body",
     [
-        ("17/1076", 0, "910", "910", True),
-        ("17/1076", 12.4, "910", "910", True),
-        ("2/3", 14.8, None, "2", False),
-        ("17/1076", 0, None, None, True),
-        ("- 910 -", 0, None, "910", False),
+        ("– Drucksache", "17/1076", 0, "910", "910", True),
+        ("– Drucksache", "17/1076", 12.4, "910", "910", True),
+        ("– Drucksache", "2/3", 14.8, None, "2", False),
+        ("– Drucksache", "17/1076", 0, None, None, True),
+        ("– Drucksache", "- 910 -", 0, None, "910", False),
+        ("– Drs.", "17/1076", 0, "910", "910", True),
+        ("im Plenarprotokoll", "17/19", 0, "910", "910", True),
+        ("– Drucksache 17/50 beschlossen", "2/3", 0, None, "2", False),
     ],
     ids=[
         "wrapped-at-leading",
@@ -306,12 +309,15 @@ def test_page_number_cell_leaves_its_line():
         "slash-page-number-a-line-below",
         "no-other-page-number",
         "dashed-page-number-under-text",
+        "wrapped-after-drs",
+        "wrapped-after-plenarprotokoll",
+        "reference-inside-the-line",
     ],
 )
-def test_number_wrapped_from_the_line_above(number, gap, real_number, printed, in_body):
+def test_number_wrapped_from_the_line_above(end, number, gap, real_number, printed, in_body):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
     # the protocol's tight leading makes the two line boxes overlap; a line height below is a page number
-    lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", number]
+    lines = [*PROSE[:2], f"Gesetzes über die Grundsteuer (ÄndGLGrStG) {end}", number]
     text = [replace(t, y=t.y + gap) if t.text == number else t for t in paragraph(70, 690, lines, 11, leading=1.0)]
     page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])
     d = parse(make_pdf([page]), NO_OCR)
