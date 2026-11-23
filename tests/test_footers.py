@@ -323,6 +323,13 @@ def test_wrapped_number_stays_body_beside_slash_page_numbers():
     assert "17/1076" in d.pages[1].text()
 
 
+def test_stacked_running_header_number_stays_furniture():
+    # "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once
+    pages = [body(200) + [T(450, 40, "Drucksache", 9), T(450, 50, "17/273", 9)] for _ in range(3)]
+    d = parse(make_pdf(pages), NO_OCR)
+    assert not any("17/273" in p.text() for p in d.pages)
+
+
 def _row(y, *cells):
     return [T(70 + 250 * c, y, cell, 11) for c, cell in enumerate(cells)]
 

@@ -91,6 +91,7 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     result: dict[tuple[int, int], BlockKind] = {}
     bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
     keys = [([normalize_key(ln.text) for ln in top], [normalize_key(ln.text) for ln in bot]) for top, bot in bands]
+    texts = [{ln.text for ln in (*top, *bot)} for top, bot in bands]
     n = len(pages)
     need = max(1, round(REPEAT_SHARE * (n - 1))) if n > 1 else None
     for pi, page in enumerate(pages):
@@ -99,7 +100,9 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
             lines = bands[pi][which]
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
-                if _wrapped_reference(ln, page.lines):
+                # a running header stacked as "Drucksache" / "17/273" repeats verbatim, a wrapped reference doesn't
+                repeats = any(ln.text in texts[pj] for pj in range(n) if pj != pi)
+                if not repeats and _wrapped_reference(ln, page.lines):
                     continue  # body text, also where "1 / 3" page numbers would make its key repeat
                 if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
