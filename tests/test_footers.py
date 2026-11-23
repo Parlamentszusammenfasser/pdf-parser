@@ -349,9 +349,9 @@ def test_wrapped_number_stays_body_beside_slash_page_numbers():
 
 @pytest.mark.parametrize("numbers", [["17/273"] * 3, ["17/273", "17/ 273", "17/273"]], ids=["same", "ocr-variant"])
 def test_stacked_running_header_number_stays_furniture(numbers):
-    # "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once
+    # "Landtag" / "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once
     pages = [
-        body(200) + [T(450, 40, "Drucksache", 9), T(450, 50, n, 9), T(290, 790, str(i), 9)]
+        body(200) + [T(450, 30, "Landtag", 9), T(450, 40, "Drucksache", 9), T(450, 50, n, 9), T(290, 790, str(i), 9)]
         for i, n in enumerate(numbers, 1)
     ]
     d = parse(make_pdf(pages), NO_OCR)
