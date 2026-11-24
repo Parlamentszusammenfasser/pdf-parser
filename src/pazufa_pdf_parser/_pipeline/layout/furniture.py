@@ -135,7 +135,9 @@ def _continued_line(line: Line, lines: list[Line]) -> Line | None:
     if not _SLASH_NUMBER.match(line.text.strip()):
         return None
     b = line.bbox
-    above = sorted((o for o in lines if o.bbox.y0 < b.y0 and o.bbox.x_overlap(b) > 0), key=lambda o: o.bbox.y1)
+    above = sorted(
+        (o for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0), key=lambda o: o.bbox.y1
+    )
     if len(above) < 2:
         return None
     before, prev = above[-2:]

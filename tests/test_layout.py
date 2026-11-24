@@ -1,5 +1,7 @@
 """Layout analysis on synthetic word geometry (no PDF involved)."""
 
+from dataclasses import replace
+
 import pytest
 
 from pazufa_pdf_parser._pipeline.layout.blocks import classify_headings, fill_leaves, split_blocks, starts_with_marker
@@ -11,7 +13,7 @@ from pazufa_pdf_parser._pipeline.layout.furniture import (
 )
 from pazufa_pdf_parser._pipeline.layout.lines import build_lines
 from pazufa_pdf_parser._pipeline.layout.segment import Segmenter, detect_synopsis
-from pazufa_pdf_parser._pipeline.model import BBox, BlockKind, Page, RegionKind, Word
+from pazufa_pdf_parser._pipeline.model import BBox, BlockKind, Page, RegionKind, TextSource, Word
 
 
 def words_for(x, y, text, size=10.0, bold=False, char_w=None):
@@ -375,21 +377,22 @@ class TestFurniture:
         assert detect_furniture(pages) == {}
 
     @pytest.mark.parametrize(
-        "text,number,kind",
+        "text,number,source,kind",
         [
             (
                 [(45, 770, "Anfang der linken"), (300, 770, "Anfang der rechten"), (45, 784, "Ende der linken Spalte")]
                 + [(300, 784, "– Drucksache")],
                 (300, 792, "17/1076"),
+                TextSource.PDF,
                 None,
             ),
-            ([(290, 30, "Landtag"), (290, 50, "Drucksache", 30)], (300, 60, "2/3"), BlockKind.PAGE_NUMBER),
+            ([(290, 30, "Landtag"), (285, 50, "rw", 30)], (292, 60, "1/2"), TextSource.OCR, BlockKind.PAGE_NUMBER),
         ],
-        ids=["under-the-right-column", "inside-a-taller-line"],
+        ids=["under-the-right-column", "inside-a-scanned-logo"],
     )
-    def test_number_under_a_two_column_row(self, text, number, kind):
-        # protocol rows span both columns, a big masthead word can enclose the number (#45)
-        ws = words_for(*number) + [w for t in text for w in words_for(*t)]
+    def test_number_under_a_two_column_row(self, text, number, source, kind):
+        # protocol rows span both columns; on a scan a logo's box can enclose the number, and OCR sizes aren't compared
+        ws = [replace(w, source=source) for t in [number, *text] for w in words_for(*t)]
         p = Page(number=1, width=595, height=842, words=ws, lines=build_lines(ws))
         kinds = {p.lines[li].text: k for (_, li), k in detect_furniture([p]).items()}
         assert kinds.get(number[2]) is kind
