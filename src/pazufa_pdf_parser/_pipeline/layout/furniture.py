@@ -90,7 +90,9 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     similar line (digits normalised, fuzzy) appears in the same band on enough
     other pages. The first line of the first page is a header also without
     repetition when it is a Drucksache or Plenarprotokoll masthead, the first
-    line of any page when it is a Gesetzblatt running header.
+    line of any page when it is a Gesetzblatt running header. An "N/M" line that
+    continues the body text above it (a wrapped "Drucksache 17/1076") is never
+    furniture.
     """
     result: dict[tuple[int, int], BlockKind] = {}
     bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
