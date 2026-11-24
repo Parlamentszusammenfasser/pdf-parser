@@ -89,43 +89,53 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     furniture only when a neighbouring page counts on from it or repeats it.
     """
     result: dict[tuple[int, int], BlockKind] = {}
-    bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
-    keys = [([normalize_key(ln.text) for ln in top], [normalize_key(ln.text) for ln in bot]) for top, bot in bands]
-    n = len(pages)
-    need = max(1, round(REPEAT_SHARE * (n - 1))) if n > 1 else None
+    bands = [_band_lines(p) for p in pages]
+    keys = [[[normalize_key(ln.text) for ln in band] for band in page_bands] for page_bands in bands]
+    need = max(1, round(REPEAT_SHARE * (len(pages) - 1)))
     for pi, page in enumerate(pages):
         index = {id(ln): li for li, ln in enumerate(page.lines)}
         for which, kind in ((0, BlockKind.HEADER), (1, BlockKind.FOOTER)):
-            lines = bands[pi][which]
-            for k, ln in enumerate(lines):
+            # a neighbour's last cell: "poststelle@lfv.de<tab>1 / 2" counts on to "2 / 2"
+            near = {_squeeze(o.text.split("\t")[-1]) for j in _near(pi, pages) for o in bands[j][which]}
+            others = [keys[pj][which] for pj in range(len(pages)) if pj != pi]
+            for ln, key in zip(bands[pi][which], keys[pi][which], strict=True):
                 li = index[id(ln)]
-                if m := _SLASH_NUMBER.match("".join(ln.text.split())):
-                    near = {"".join(o.text.split("\t")[-1].split()) for j in _near(pi, pages) for o in bands[j][which]}
-                    # a one-page letter attached to a statement has no neighbour to count on from
-                    if m[0] == "1/1" or {f"{int(m[1]) + d}/{m[2]}" for d in (-1, 1)} & near:
-                        result[(pi, li)] = BlockKind.PAGE_NUMBER
-                    elif m[0] in near:  # a running header stacked as "Drucksache" / "17/273"
-                        result[(pi, li)] = kind
-                    continue  # else a wrapped "Drucksache 17/1076", or a page number of a one-page parse
-                if is_page_number(ln.text):
-                    result[(pi, li)] = BlockKind.PAGE_NUMBER
-                    continue
-                if li == which == 0 and _is_one_off_header(pi, ln.text):
-                    result[(pi, li)] = kind
-                    continue
-                key = keys[pi][which][k]
-                if need is None or len(key) < MIN_KEY_LEN:
-                    continue
-                hits = 0
-                for pj in range(n):
-                    if pj != pi and any(_similar(key, other) for other in keys[pj][which]):
-                        hits += 1
-                        if hits >= need:
-                            result[(pi, li)] = kind
-                            break
-    # trailing/leading page numbers glued to a header line ("... Wahlperiode   12") are
-    # handled by the similarity test because digits are normalised.
+                if m := _SLASH_NUMBER.match(_squeeze(ln.text)):
+                    found = _slash_number_kind(m, near, kind)
+                elif is_page_number(ln.text):
+                    found = BlockKind.PAGE_NUMBER
+                elif li == which == 0 and _is_one_off_header(pi, ln.text):
+                    found = kind
+                else:  # digits are normalised: "… Wahlperiode 12" repeats as "… Wahlperiode 13"
+                    found = kind if _repeats(key, others, need) else None
+                if found:
+                    result[(pi, li)] = found
     return result
+
+
+def _squeeze(text: str) -> str:
+    return "".join(text.split())  # OCR reads "17/273" as "17/ 273" on some pages
+
+
+def _slash_number_kind(m: re.Match[str], near: set[str], kind: BlockKind) -> BlockKind | None:
+    """A "2/5" line is a page number when a neighbouring page reads "1/5" or "3/5", a running header when one
+    repeats it ("Drucksache" / "17/273" stacked on every page), else body text: a wrapped "Drucksache 17/1076"."""
+    # a one-page letter attached to a statement has no neighbour to count on from
+    if m[0] == "1/1" or {f"{int(m[1]) + d}/{m[2]}" for d in (-1, 1)} & near:
+        return BlockKind.PAGE_NUMBER
+    return kind if m[0] in near else None
+
+
+def _repeats(key: str, others: list[list[str]], need: int) -> bool:
+    """A similar key appears in the band of at least ``need`` other pages."""
+    if len(key) < MIN_KEY_LEN:
+        return False
+    hits = 0
+    for keys in others:
+        hits += any(_similar(key, other) for other in keys)
+        if hits >= need:  # stop early: _similar is the slow part
+            return True
+    return False
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:
