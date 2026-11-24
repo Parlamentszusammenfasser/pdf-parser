@@ -251,6 +251,7 @@ def _band(x, y, text):
             ["1", "2"],
         ),
         ([("", "Musterverband e.V. · Hauptstraße 1\n1 / 1")], ["1"]),
+        ([("", "Musterverband e.V. · Hauptstraße 1\n2 / 3")], [None]),
         ([("", "Musterverband e.V. · Hauptstraße 1\n1 / 2"), ("", "Bankverbindung DE12 3456\n2 / 2")], ["1", "2"]),
         ([("Bayerisches\t177", ""), ("178\tBayerisches", "")], ["177", "178"]),
         ([("Landtag\t5", ""), ("Landtag\t9", "")], [None, None]),
@@ -275,6 +276,7 @@ def _band(x, y, text):
         "page-of-total-under-footer-line",
         "page-of-total-under-footer-ending-in-drucksache",
         "page-of-total-under-a-single-footer-line",
+        "page-of-total-on-a-single-parsed-page",
         "page-of-total-under-changing-footer-lines",
         "number-cell-beside-heading",
         "not-consecutive-cells",
@@ -296,53 +298,17 @@ def test_page_number_cell_leaves_its_line():
 
 
 @pytest.mark.parametrize(
-    "end,number,move,real_number,printed,in_body",
-    [
-        ("– Drucksache", "17/1076", (0, 0, 11), "910", "910", True),
-        ("– Drucksache", "17/1076", (0, 2.5, 11), "910", "910", True),
-        ("– Drucksachen 17/1075 und", "17/1076", (0, 0, 11), "910", "910", True),
-        ("– Landtagsdrucksache", "17/1076", (0, 0, 11), "910", "910", True),
-        ("– Drucksache", "17/1076", (0, 0, 11), None, None, True),
-        ("– Drucksache", "2/3", (0, 5.5, 11), None, "2", False),
-        ("– Drucksache", "2/3", (0, 0, 9), None, "2", False),
-        ("– Drucksache", "2/3", (20, 0, 11), None, "2", False),
-        ("– Drucksache", "- 910 -", (0, 0, 11), None, "910", False),
-    ],
-    ids=[
-        "wrapped-at-leading",
-        "wrapped-a-descender-below",
-        "wrapped-after-a-reference-list",
-        "wrapped-after-a-compound",
-        "no-other-page-number",
-        "slash-page-number-half-a-line-below",
-        "slash-page-number-in-a-smaller-font",
-        "slash-page-number-indented",
-        "dashed-page-number-under-text",
-    ],
+    "footers,printed",
+    [(["909", "910", "911"], "910"), (["1 / 3", "2 / 3", "3 / 3"], "2"), ([None] * 3, None)],
+    ids=["beside-page-numbers", "beside-slash-page-numbers", "without-page-numbers"],
 )
-def test_number_wrapped_from_the_line_above(end, number, move, real_number, printed, in_body):
-    # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45);
-    # the protocol's tight leading makes the two line boxes overlap; page numbers sit further down, in another
-    # font size or off the paragraph's left edge
-    dx, dy, size = move
-    lines = [*PROSE[:2], f"Gesetzes über die Grundsteuer (ÄndGLGrStG) {end}", number]
-    text = [
-        replace(t, x=t.x + dx, y=t.y + dy, size=size) if t.text == number else t
-        for t in paragraph(70, 690, lines, 11, leading=1.0)
-    ]
-    page = body(200) + text + ([T(70, 790, real_number, 9)] if real_number else [])
-    d = parse(make_pdf([page]), NO_OCR)
-    assert d.pages[0].printed_page == printed
-    assert (number in d.pages[0].text()) is in_body
-
-
-def test_wrapped_number_stays_body_beside_slash_page_numbers():
+def test_wrapped_drucksache_number_stays_body(footers, printed):
+    # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45)
     lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", "17/1076"]
     wrap = paragraph(70, 690, lines, 11, leading=1.0)
-    pages = [body(200) + (wrap if n == 2 else []) + [T(280, 790, f"{n} / 3", 9)] for n in (1, 2, 3)]
-    d = parse(make_pdf(pages), NO_OCR)
-    assert [p.printed_page for p in d.pages] == ["1", "2", "3"]
-    assert "17/1076" in d.pages[1].text()
+    pages = [body(200) + (wrap if i == 1 else []) + ([T(280, 790, f, 9)] if f else []) for i, f in enumerate(footers)]
+    page = parse(make_pdf(pages), NO_OCR).pages[1]
+    assert (page.printed_page, "17/1076" in page.text()) == (printed, True)
 
 
 @pytest.mark.parametrize("numbers", [["17/273"] * 3, ["17/273", "17/ 273", "17/273"]], ids=["same", "ocr-variant"])

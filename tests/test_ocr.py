@@ -118,23 +118,6 @@ def test_page_holding_only_a_kept_number_is_not_empty(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "last",
-    ["Gesetzes über die Grundsteuer – Drucksache", "Mobilisierung von Bauland (ÄndGLGrStG) – Drucksache"],
-    ids=["no-descenders", "descenders"],
-)
-def test_wrapped_number_on_a_scan_stays_body(last):
-    # tesseract's tight boxes leave the number 3-5 pt below a line without descenders, and size a line of
-    # digits from their cap height, a fifth below the text with descenders above it (#45)
-    # tesseract merges or garbles a few tight lines alone on a page; with a page of text it reads them
-    prose = ["Der Landtag hat in seiner Sitzung die Vorlage beraten und", "mit großer Mehrheit die Annahme empfohlen."]
-    text = paragraph(70, 200, prose * 6, 11, leading=1.15) + paragraph(
-        70, 700, [*prose, last, "17/1076"], 11, leading=1.15
-    )
-    page = parse(make_scanned_pdf([text + [T(290, 790, "910", 9)]])).pages[0]
-    assert (page.printed_page, "17/1076" in page.text()) == ("910", True)
-
-
-@pytest.mark.parametrize(
     "user_limit,expected",
     [(None, "1"), ("3", "3")],
     ids=["default-single-thread", "explicit-setting-wins"],

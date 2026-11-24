@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 
-from ..model import BBox, Block, BlockKind, Line, Page, TextSource
+from ..model import BBox, Block, BlockKind, Line, Page
 from .lines import make_line, split_cells
 
 BAND = 0.14  # fraction of the page height considered header / footer zone
@@ -13,11 +13,6 @@ MAX_BAND_LINES = 5  # association letters print "1 von 3" above a four-line foot
 SIMILAR = 0.85  # fuzzy match ratio for repeated header/footer lines
 REPEAT_SHARE = 0.4  # below one half: left/right pages carry different running headers
 MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
-# a wrapped number keeps the paragraph's font; BW page numbers are 1.4x the text above them. OCR can't tell:
-# tesseract sizes a line from its ink, and digits reach only cap height
-SAME_SIZE = 0.15
-SAME_EDGE = 0.25  # of the font size: OCR jitters the left edge of a line by a point or two
-DESCENDER = 0.4  # of the font size: tesseract ends a line without descenders that much higher
 
 _PAGE_WORD = r"(?:seite|page|s\.|blatt)"
 _ROMAN = r"(?=[ivxl])(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})"  # up to 89 for front matter; rejects OCR "ll"
@@ -28,8 +23,8 @@ _PAGE_NUMBER_RES = [
     re.compile(rf"^{_ROMAN}$", re.I),
 ]
 _ROMAN_VALUES = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100}
-# "17/1076" is as much Drucksache 17/1076 as page 17 of 1076; "- 2 -" or "Seite 2" are only page numbers
-_SLASH_NUMBER = re.compile(r"^\d{1,4}\s*/\s*\d{1,4}$")
+# "17/1076" is as much Drucksache 17/1076 as page 17 of 1076: only neighbouring pages tell which
+_SLASH_NUMBER = re.compile(r"^(\d{1,4})/(\d{1,4})$")
 _PAGE_WORD_NUMBER = re.compile(rf"\b{_PAGE_WORD}\s*(\d{{1,4}})\b", re.I)  # "… | Seite 1 von 2" in a header
 # page 1 masthead ending in the document's own number: "Landtag von Baden-Württemberg<tab>Drucksache 17 / 273"
 _MASTHEAD = re.compile(r"(^|\t(\d{1,2}\.\d{1,2}\.\d{4} )?)(Drucksache|Plenarprotokoll) \d+ ?/ ?\d+$")
@@ -90,9 +85,8 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     similar line (digits normalised, fuzzy) appears in the same band on enough
     other pages. The first line of the first page is a header also without
     repetition when it is a Drucksache or Plenarprotokoll masthead, the first
-    line of any page when it is a Gesetzblatt running header. An "N/M" line that
-    continues the body text above it (a wrapped "Drucksache 17/1076") is never
-    furniture.
+    line of any page when it is a Gesetzblatt running header. An "N/M" line is
+    furniture only when a neighbouring page counts on from it or repeats it.
     """
     result: dict[tuple[int, int], BlockKind] = {}
     bands: list[tuple[list[Line], list[Line]]] = [_band_lines(p) for p in pages]
@@ -105,11 +99,14 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
             lines = bands[pi][which]
             for k, ln in enumerate(lines):
                 li = index[id(ln)]
-                # a header stacked as "Drucksache" / "17/273" is furniture above the number, a wrapped reference isn't
-                # (bands run top-down, so a band line above the number is already classified)
-                prev = _continued_line(ln, page.lines)
-                if prev is not None and (pi, index[id(prev)]) not in result:
-                    continue  # body text, also where "1 / 3" page numbers would make its key repeat
+                if m := _SLASH_NUMBER.match("".join(ln.text.split())):
+                    near = {"".join(o.text.split("\t")[-1].split()) for j in _near(pi, pages) for o in bands[j][which]}
+                    # a one-page letter attached to a statement has no neighbour to count on from
+                    if m[0] == "1/1" or {f"{int(m[1]) + d}/{m[2]}" for d in (-1, 1)} & near:
+                        result[(pi, li)] = BlockKind.PAGE_NUMBER
+                    elif m[0] in near:  # a running header stacked as "Drucksache" / "17/273"
+                        result[(pi, li)] = kind
+                    continue  # else a wrapped "Drucksache 17/1076", or a page number of a one-page parse
                 if is_page_number(ln.text):
                     result[(pi, li)] = BlockKind.PAGE_NUMBER
                     continue
@@ -129,31 +126,6 @@ def detect_furniture(pages: list[Page]) -> dict[tuple[int, int], BlockKind]:
     # trailing/leading page numbers glued to a header line ("... Wahlperiode   12") are
     # handled by the similarity test because digits are normalised.
     return result
-
-
-def _continued_line(line: Line, lines: list[Line]) -> Line | None:
-    """The line an "N/M" line continues: set in the same font, on the same left edge, at that paragraph's own
-    line spacing. "… – Drucksache" / "17/1076" at the bottom of a BW protocol column."""
-    if not _SLASH_NUMBER.match(line.text.strip()):
-        return None
-    b = line.bbox
-    above = sorted(
-        (o for o in lines if o.bbox.y0 < b.y0 and o.bbox.y1 < b.y1 and o.bbox.x_overlap(b) > 0), key=lambda o: o.bbox.y1
-    )
-    if len(above) < 2:
-        return None
-    before, prev = above[-2:]
-    # the row above spans both protocol columns: compare with the cell over the number
-    cell = max(split_cells(prev.words), key=lambda c: BBox.enclosing(w.bbox for w in c).x_overlap(b))
-    size = make_line(cell).size
-    if line.words[0].source is not TextSource.OCR and abs(line.size - size) > SAME_SIZE * size:
-        return None
-    if abs(b.x0 - min(w.bbox.x0 for w in cell)) > SAME_EDGE * size:
-        return None
-    leading = prev.bbox.y0 - before.bbox.y1
-    if leading > size:  # a lone line after a gap, such as a footer or signature, is no paragraph to continue
-        return None
-    return prev if b.y0 - prev.bbox.y1 <= leading + DESCENDER * size else None
 
 
 def _is_one_off_header(page_index: int, text: str) -> bool:
