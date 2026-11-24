@@ -17,7 +17,7 @@ MIN_KEY_LEN = 3  # keys like "#" (a bare number) would repeat on every page
 # tesseract sizes a line from its ink, and digits reach only cap height
 SAME_SIZE = 0.15
 SAME_EDGE = 0.25  # of the font size: OCR jitters the left edge of a line by a point or two
-DESCENDER = 0.3  # of the font size: tesseract ends a line without descenders that much higher
+DESCENDER = 0.4  # of the font size: tesseract ends a line without descenders that much higher
 
 _PAGE_WORD = r"(?:seite|page|s\.|blatt)"
 _ROMAN = r"(?=[ivxl])(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})"  # up to 89 for front matter; rejects OCR "ll"
