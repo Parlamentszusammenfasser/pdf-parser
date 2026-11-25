@@ -49,4 +49,8 @@
      set; pdfium lock per page; cross-step values typed (`Page.garbage_ratio`, `Document.body_size`)
 [x] T30 internal cleanup: `merge_flow` in `flow.py`; one synopsis helper on `Page`; `rotate_words` in the model;
      block text normalised in sanitize; dead code removed (column, area, contains_point, media_type, tesseract_available, sanitize_text, ...)
+[x] T31 ruled tables (#47): extract keeps thin paths as `Page.rules`; rules that meet in a grid with an inner border
+     cut the page at row borders (unless text runs on across one: merged cells, text beside) and rows at column
+     borders, so cells read whole and in column order; one-line rows stay one line; flow never joins table rows.
+     Open: rotated pages keep their page number in a marginal block (no printed page)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)

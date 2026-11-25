@@ -160,7 +160,7 @@ def refine_footers(doc: Document) -> int:
     sep = max(1.8 * body_size, 14.0)
     zones: dict[int, _Zone] = {}
     for i, page in enumerate(doc.pages):
-        z = _bottom_zone(page, sep, page.synopsis_block_ids())
+        z = _bottom_zone(page, sep, page.block_ids(lambda r: r.synopsis))
         if z is not None:
             zones[i] = z
     # bottom text per page for the repetition test: zone blocks + footers found earlier

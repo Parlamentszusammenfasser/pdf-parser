@@ -26,6 +26,16 @@ class T:
     tf_one: bool = False  # draw with "1 Tf" and scale through the text matrix (Outlook style)
 
 
+@dataclass
+class Rule:
+    """A filled rectangle, the way Word draws a table border; y measured from the page top."""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
 def _escape(text: str) -> bytes:
     raw = text.encode("cp1252", errors="replace")
     out = bytearray()
@@ -39,9 +49,12 @@ def _escape(text: str) -> bytes:
     return bytes(out)
 
 
-def _content(items: list[T], height: float) -> bytes:
+def _content(items: list[T | Rule], height: float) -> bytes:
     ops = []
     for it in items:
+        if isinstance(it, Rule):
+            ops.append(f"{it.x0:.2f} {height - it.y1:.2f} {it.x1 - it.x0:.2f} {it.y1 - it.y0:.2f} re f".encode())
+            continue
         font = "/F2" if it.bold else "/F1"
         base_y = height - it.y - it.size * 0.8
         a = math.radians(it.angle)
@@ -60,7 +73,7 @@ def _content(items: list[T], height: float) -> bytes:
 
 
 def make_pdf(
-    pages: list[list[T]],
+    pages: list[list[T | Rule]],
     *,
     size: tuple[float, float] = A4,
     rotate: int = 0,

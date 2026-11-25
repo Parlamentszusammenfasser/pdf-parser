@@ -328,6 +328,21 @@ def test_bw_gesetzblatt_page_2():
     assert txt.index("Strobl") < txt.index("Dr. Bayaz")
 
 
+def test_bw_anhoerung_table_read_cell_by_cell():
+    # #47: the landscape Anhörung synopsis has gutters narrower than one em; its rules give rows and cells
+    txt = _txt("drs-18-0623-anhoerung-table.pdf")
+    assert "vom 14. Februar 2026 vereinbarte Mindestbetrag in Höhe von 100 Euro müsse" in txt
+    row = [
+        "BBW Beamtenbund",
+        "Zu Artikel 1",
+        "Der in der Tarifeinigung",
+        "Im Gesetzentwurf nicht",
+        "Der Gesetzentwurf hat",
+    ]
+    assert sorted(row, key=txt.index) == row
+    assert "A 7 511,38 493,74 476,13" in txt  # a Besoldungstabelle row stays one line
+
+
 @pytest.mark.ocr
 def test_letter_signatures_side_by_side_read_left_first():
     # the two signatories pair up line for line in one size, so neither is a sidebar
