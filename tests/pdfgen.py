@@ -80,9 +80,11 @@ def make_pdf(
     title: str | None = None,
     crop_box: tuple[float, float, float, float] | None = None,
     to_unicode: dict[str, str] | None = None,
+    form: tuple[float, float, float, float, float, float] | None = None,
 ) -> bytes:
     """``crop_box`` is in PDF space (bottom-left origin); ``to_unicode`` maps regular-font characters to
-    the text a ToUnicode CMap reports for them (e.g. "A" -> an emoji)."""
+    the text a ToUnicode CMap reports for them (e.g. "A" -> an emoji); ``form`` draws each page as a form
+    XObject placed with this matrix, as stamping tools do."""
     w, h = size
     objs: list[bytes] = []
 
@@ -111,6 +113,17 @@ def make_pdf(
     kids = []
     for items in pages:
         stream = _content(items, h)
+        res = f"/Font << /F1 {f1} 0 R /F2 {f2} 0 R >>"
+        if form:
+            xobj = b"<< /Type /XObject /Subtype /Form /BBox [0 0 %g %g] /Resources << %s >> /Length %d >>" % (
+                w,
+                h,
+                res.encode(),
+                len(stream),
+            )
+            fid = add(xobj + b"\nstream\n" + stream + b"\nendstream")
+            stream = ("q " + " ".join(f"{v:g}" for v in form) + " cm /Fm0 Do Q").encode()
+            res += f" /XObject << /Fm0 {fid} 0 R >>"
         cid = add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
         rot = f" /Rotate {rotate}" if rotate else ""
         if crop_box:
@@ -118,7 +131,7 @@ def make_pdf(
         pid = add(
             (
                 f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {w:g} {h:g}]{rot} "
-                f"/Resources << /Font << /F1 {f1} 0 R /F2 {f2} 0 R >> >> /Contents {cid} 0 R >>"
+                f"/Resources << {res} >> /Contents {cid} 0 R >>"
             ).encode()
         )
         kids.append(pid)

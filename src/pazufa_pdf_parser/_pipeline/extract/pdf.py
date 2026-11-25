@@ -304,12 +304,21 @@ def page_rules(page: pdfium.PdfPage) -> list[BBox]:
     # shortcut: a grid drawn as one path, or as stroked cell rectangles, is missed; read path segments then
     affine = page_affine(page)
     try:
-        # max_depth=1: objects inside a form XObject report bounds in the form's own space
-        objs = page.get_objects(filter=[R.FPDF_PAGEOBJ_PATH], max_depth=1)
-        boxes = [affine.box(*obj.get_bounds()) for obj in objs]
+        boxes = [affine.box(*_page_bounds(obj)) for obj in page.get_objects(filter=[R.FPDF_PAGEOBJ_PATH])]
     except Exception:  # damaged content stream: segment by whitespace alone
         return []
     return [b for b in boxes if min(b.width, b.height) <= MAX_RULE_WIDTH < max(b.width, b.height)]
+
+
+def _page_bounds(obj: pdfium.PdfObject) -> tuple[float, float, float, float]:
+    """An object's bounds in page space. Stamping tools and LaTeX's pdfpages place a whole page as a form
+    XObject, whose objects report their bounds in the form's own space."""
+    bounds = obj.get_bounds()
+    form = obj.container
+    while form is not None:
+        bounds = form.get_matrix().on_rect(*bounds)
+        form = form.container
+    return bounds
 
 
 def page_has_vector_glyphs(page: pdfium.PdfPage) -> int:

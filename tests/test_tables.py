@@ -48,10 +48,14 @@ ANHOERUNG = [
 ]
 
 
-@pytest.mark.parametrize("rotate", [0, 90])
-def test_table_read_row_by_row_each_cell_whole(rotate):
+@pytest.mark.parametrize(
+    "placed",
+    [{}, {"rotate": 90}, {"form": (0.9, 0, 0, 0.9, 20, 40)}],
+    ids=["upright", "rotated", "form-xobject"],
+)
+def test_table_read_row_by_row_each_cell_whole(placed):
     # a row of one-line cells stays one line, and rows never join as one paragraph ("12" / "für Kreise")
-    d = parse(make_pdf([ANHOERUNG], rotate=rotate), NO_OCR)
+    d = parse(make_pdf([ANHOERUNG], **placed), NO_OCR)
     assert [b.text for b in d.pages[0].blocks] == [
         "Übersicht über die von den Verbänden im Anhörungsverfahren vorgetragenen Anliegen",
         "Verband Anliegen Begründung Votum",
