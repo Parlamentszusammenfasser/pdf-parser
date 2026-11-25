@@ -22,6 +22,9 @@ MAX_DEPTH = 10
 ROW_TOLERANCE = 0.3  # of a line height: centres closer than this sit on one printed row
 RULE_JOIN = 1.0  # pt; the pieces of a Word table's borders meet at the cell corners
 RULE_SLACK = 0.25  # of the body size: loose glyph boxes reach this far over a cell's padding
+# a page-high Word table drawn twice (stroke and fill, Drs. 18/623) has ~1000 border pieces; far more is a
+# drawing, like the hatching of a Bebauungsplan map
+MAX_RULES = 3000
 
 Interval = tuple[float, float]
 
@@ -276,8 +279,9 @@ class Segmenter:
 def _table_rules(rules: list[BBox]) -> list[BBox]:
     """The rules of ruled tables: rules that meet in a grid with an inner border. An underline, a separator
     line or the frame around a note (BY Tagesordnung) is no table."""
-    # shortcut: grids are joined pairwise; a vector map of thousands of hairlines takes seconds, index rules by
-    # position when one shows up
+    if len(rules) > MAX_RULES:
+        return []
+    # shortcut: grids are joined pairwise, ~1 s at MAX_RULES; index rules by position if real tables come near it
     grids: list[list[BBox]] = []
     for r in rules:
         grid, apart = [r], []

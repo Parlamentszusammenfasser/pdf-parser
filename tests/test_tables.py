@@ -1,9 +1,13 @@
 """Ruled tables: rows and cells come from the table's border lines (#47)."""
 
+import time
+
 import pytest
 
 from conftest import NO_OCR
 from pazufa_pdf_parser import parse
+from pazufa_pdf_parser._pipeline.layout.segment import _table_rules
+from pazufa_pdf_parser._pipeline.model import BBox
 from pdfgen import Rule, T, make_pdf, paragraph
 
 
@@ -149,6 +153,14 @@ def test_text_between_tables_keeps_its_paragraphs():
         "Beratungen des Finanzausschusses\nüber den Einzelplan 04",
         "Kap. 0402\nAllgemeine Bewilligungen\nTit. Gr. 91",
     ]
+
+
+def test_map_hatching_is_no_table():
+    # a Bebauungsplan map hatched in thousands of separate strokes; joining them pairwise takes seconds
+    strokes = [BBox(x, y, x + 3, y + 0.3) for x in range(0, 600, 6) for y in range(0, 800, 20)]
+    start = time.perf_counter()
+    assert _table_rules(strokes) == []
+    assert time.perf_counter() - start < 0.5
 
 
 def test_table_without_text():
