@@ -30,7 +30,8 @@ run at once across all parses). Orientation
 detection only runs when the first pass looks bad.
 
 **Layout** (`_pipeline/layout/`). Words become lines. Running headers, footers and page
-numbers are found by fuzzy repetition across pages (`furniture.py`). Each page
+numbers are found by fuzzy repetition across pages (`furniture.py`); on a sideways page turned
+upright, text upright on the paper beyond the body is its header, footer or page number. Each page
 is split by a recursive XY-cut (`segment.py`), which handles letter sidebars,
 multi-column text and two-column synopses without splitting tables or list
 markers into columns. A table drawn with border lines is cut at them instead:

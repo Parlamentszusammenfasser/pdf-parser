@@ -178,10 +178,7 @@ def _numbers(first, last):
     [
         ("plpr-18-10.pdf", ["II", *_numbers(259, 305)]),  # page-number lines
         ("protokollauszug-24p.pdf", _numbers(1, 23)),  # "… 19. Wahlperiode 1"
-        (
-            "gvbl-landscape-tables.pdf",  # "178 Bayerisches …", "… 179"; rotated pages print theirs in the margin
-            [*_numbers(178, 192), None, None, None, *_numbers(196, 204)],
-        ),
+        ("gvbl-landscape-tables.pdf", _numbers(178, 204)),  # "178 Bayerisches …", "… 179", also beside a sideways table
         ("plenum-tagesordnung.pdf", _numbers(2, 23)),  # "Bayerischer Landtag Seite 2"
         ("drs-clean.pdf", _numbers(2, 3)),  # "Drucksache 19/9342 … Seite 2"
         ("drs-17-0273-clean.pdf", _numbers(2, 4)),  # constant "Drucksache 17 / 273" is no page number
@@ -198,6 +195,7 @@ def _numbers(first, last):
             marks=pytest.mark.ocr,
         ),
         pytest.param("drs-17-6014-garbled-annex.pdf", ["14", "19"], marks=pytest.mark.ocr),  # pages of an annex
+        ("drs-18-0623-anhoerung-table.pdf", ["64", "65"]),  # beside a sideways table
     ],
     ids=[
         "page-number-line",
@@ -215,6 +213,7 @@ def _numbers(first, last):
         "attachment",
         "ascii-shift",
         "annex",
+        "sideways-page",
     ],
 )
 def test_printed_pages(name, printed):
@@ -278,6 +277,7 @@ def test_bw_protocol_speech_stays_in_body():
         ("protokollauszug-24p.pdf", 2, "41. Plenum, 04.02.2025 Bayerischer Landtag – 19. Wahlperiode", None),
         ("gbl-2026-12.pdf", 2, "Seite 2 von 2", None),
         ("email-forwarded-with-statement.pdf", 3, "1 von 3", None),  # above a four-line footer
+        ("drs-18-0623-anhoerung-table.pdf", 2, "Landtag von Baden-Württemberg Drucksache 18 / 623", None),
     ],
     ids=[
         "bw-masthead",
@@ -289,6 +289,7 @@ def test_bw_protocol_speech_stays_in_body():
         "header-beside-number",
         "seite-von",
         "page-number-above-footer",
+        "beside-sideways-table",
     ],
 )
 def test_furniture_text(name, page, line, last_page):
