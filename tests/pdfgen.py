@@ -26,6 +26,16 @@ class T:
     tf_one: bool = False  # draw with "1 Tf" and scale through the text matrix (Outlook style)
 
 
+@dataclass
+class Rule:
+    """A filled rectangle, the way Word draws a table border; y measured from the page top."""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
 def _escape(text: str) -> bytes:
     raw = text.encode("cp1252", errors="replace")
     out = bytearray()
@@ -39,9 +49,12 @@ def _escape(text: str) -> bytes:
     return bytes(out)
 
 
-def _content(items: list[T], height: float) -> bytes:
+def _content(items: list[T | Rule], height: float) -> bytes:
     ops = []
     for it in items:
+        if isinstance(it, Rule):
+            ops.append(f"{it.x0:.2f} {height - it.y1:.2f} {it.x1 - it.x0:.2f} {it.y1 - it.y0:.2f} re f".encode())
+            continue
         font = "/F2" if it.bold else "/F1"
         base_y = height - it.y - it.size * 0.8
         a = math.radians(it.angle)
@@ -60,16 +73,18 @@ def _content(items: list[T], height: float) -> bytes:
 
 
 def make_pdf(
-    pages: list[list[T]],
+    pages: list[list[T | Rule]],
     *,
     size: tuple[float, float] = A4,
     rotate: int = 0,
     title: str | None = None,
     crop_box: tuple[float, float, float, float] | None = None,
     to_unicode: dict[str, str] | None = None,
+    form: tuple[float, float, float, float, float, float] | None = None,
 ) -> bytes:
     """``crop_box`` is in PDF space (bottom-left origin); ``to_unicode`` maps regular-font characters to
-    the text a ToUnicode CMap reports for them (e.g. "A" -> an emoji)."""
+    the text a ToUnicode CMap reports for them (e.g. "A" -> an emoji); ``form`` draws each page as a form
+    XObject placed with this matrix, as stamping tools do."""
     w, h = size
     objs: list[bytes] = []
 
@@ -98,6 +113,17 @@ def make_pdf(
     kids = []
     for items in pages:
         stream = _content(items, h)
+        res = f"/Font << /F1 {f1} 0 R /F2 {f2} 0 R >>"
+        if form:
+            xobj = b"<< /Type /XObject /Subtype /Form /BBox [0 0 %g %g] /Resources << %s >> /Length %d >>" % (
+                w,
+                h,
+                res.encode(),
+                len(stream),
+            )
+            fid = add(xobj + b"\nstream\n" + stream + b"\nendstream")
+            stream = ("q " + " ".join(f"{v:g}" for v in form) + " cm /Fm0 Do Q").encode()
+            res += f" /XObject << /Fm0 {fid} 0 R >>"
         cid = add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
         rot = f" /Rotate {rotate}" if rotate else ""
         if crop_box:
@@ -105,7 +131,7 @@ def make_pdf(
         pid = add(
             (
                 f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {w:g} {h:g}]{rot} "
-                f"/Resources << /Font << /F1 {f1} 0 R /F2 {f2} 0 R >> >> /Contents {cid} 0 R >>"
+                f"/Resources << {res} >> /Contents {cid} 0 R >>"
             ).encode()
         )
         kids.append(pid)

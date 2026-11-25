@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 from .._document import BlockKind, Issue, PageSource, Severity
 from .._errors import PazufaError, StepError
@@ -56,6 +56,18 @@ class BBox:
 
     def to_list(self) -> list[float]:
         return [round(self.x0, 2), round(self.y0, 2), round(self.x1, 2), round(self.y1, 2)]
+
+    def rotated(self, width: float, height: float, ccw: int) -> BBox:
+        """This box on a ``width`` x ``height`` page turned by ``ccw`` degrees counter-clockwise (visual)."""
+        pts = [(self.x0, self.y0), (self.x1, self.y1)]
+        if ccw == 90:
+            pts = [(y, width - x) for x, y in pts]
+        elif ccw == 180:
+            pts = [(width - x, height - y) for x, y in pts]
+        elif ccw == 270:
+            pts = [(height - y, x) for x, y in pts]
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        return BBox(min(xs), min(ys), max(xs), max(ys))
 
     @staticmethod
     def enclosing(boxes: Iterable[BBox]) -> BBox:
@@ -167,6 +179,8 @@ class Region:
     synopsis: bool = False
     # COLUMNS region whose narrow right column is an aside (letter sidebar): read it first
     aside_first: bool = False
+    # inside a row of a ruled table: its rows and cells stand alone
+    ruled: bool = False
     # transient: words of a LEAF before blocks are built
     words: list[Word] = field(default_factory=list, repr=False)
 
@@ -193,16 +207,7 @@ def rotate_words(words: list[Word], width: float, height: float, ccw: int) -> tu
     if ccw == 0:
         return width, height
     for w in words:
-        b = w.bbox
-        pts = [(b.x0, b.y0), (b.x1, b.y1)]
-        if ccw == 90:
-            pts = [(y, width - x) for x, y in pts]
-        elif ccw == 180:
-            pts = [(width - x, height - y) for x, y in pts]
-        elif ccw == 270:
-            pts = [(height - y, x) for x, y in pts]
-        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        w.bbox = BBox(min(xs), min(ys), max(xs), max(ys))
+        w.bbox = w.bbox.rotated(width, height, ccw)
         w.angle = (w.angle + ccw) % 360
     return (height, width) if ccw in (90, 270) else (width, height)
 
@@ -215,6 +220,7 @@ class Page:
     rotation: int = 0
     source: PageSource = PageSource.TEXT
     words: list[Word] = field(default_factory=list)  # every word extracted from the page
+    rules: list[BBox] = field(default_factory=list)  # ruling lines: table borders, underlines
     lines: list[Line] = field(default_factory=list)  # all lines (incl. furniture), top-down
     furniture: list[Block] = field(default_factory=list)  # headers, footers, page numbers
     extras: list[Block] = field(default_factory=list)  # marginal / noise blocks
@@ -231,10 +237,10 @@ class Page:
         """Body blocks in reading order."""
         return list(self.layout.iter_blocks()) if self.layout else []
 
-    def synopsis_block_ids(self) -> set[int]:
-        """ids of the blocks in a synopsis: its columns are parallel versions, never one text flow."""
+    def block_ids(self, where: Callable[[Region], bool]) -> set[int]:
+        """ids of the blocks in the regions ``where`` picks."""
         regions = self.layout.iter_regions() if self.layout else []
-        return {id(b) for r in regions if r.synopsis for b in r.iter_blocks()}
+        return {id(b) for r in regions if where(r) for b in r.iter_blocks()}
 
     @property
     def all_blocks(self) -> list[Block]:

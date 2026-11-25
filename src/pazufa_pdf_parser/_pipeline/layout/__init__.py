@@ -83,7 +83,7 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
         if not words:
             page.layout = Region(RegionKind.STACK, BBox(0, 0, page.width, page.height), id="r")
             continue
-        seg = Segmenter(page.width, page.height, body_size=page_body_size(words))
+        seg = Segmenter(page.width, page.height, body_size=page_body_size(words), rules=page.rules)
         page.layout = seg.segment(words)
         fill_leaves(page.layout, page.number)
         # move OCR noise and line-number columns out of the body

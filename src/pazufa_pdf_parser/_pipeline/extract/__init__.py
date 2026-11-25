@@ -12,7 +12,7 @@ from ..._options import OcrMode, ParseOptions
 from ..model import Document, Page, PageSource, Severity, Word, rotate_words
 from ..source import PDFIUM_LOCK, OpenedPdf
 from .ocr import OcrResult, ocr_image, resolve_languages
-from .pdf import extract_page_words, image_coverage, page_has_vector_glyphs
+from .pdf import extract_page_words, image_coverage, page_has_vector_glyphs, page_rules
 
 __all__ = ["extract_pages", "MAX_GARBAGE_RATIO"]
 
@@ -67,8 +67,10 @@ def _normalize_orientation(page: Page) -> None:
     angle, n = counts.most_common(1)[0]
     if angle == 0 or n < 0.6 * sum(counts.values()):
         return
-    page.width, page.height = rotate_words(page.words, page.width, page.height, (360 - angle) % 360)
-    page.stats["orientation_corrected"] = (360 - angle) % 360
+    ccw = (360 - angle) % 360
+    page.rules = [r.rotated(page.width, page.height, ccw) for r in page.rules]
+    page.width, page.height = rotate_words(page.words, page.width, page.height, ccw)
+    page.stats["orientation_corrected"] = ccw
 
 
 MAX_OCR_PIXELS = 100_000_000  # 400 MB as RGBA; an A1 plan at 300 dpi has 70 million
@@ -121,6 +123,7 @@ def _probe(opened: OpenedPdf, idx: int, options: ParseOptions, doc: Document) ->
                 )
                 page.stats = {"chars": 0, "garbage_ratio": 0.0}
             page.stats["image_coverage"] = round(image_coverage(pg), 3)
+            page.rules = page_rules(pg)
             if _meaningful_chars(page.words) < MIN_TEXT_CHARS:
                 page.stats["paths"] = page_has_vector_glyphs(pg)
         finally:
@@ -230,5 +233,6 @@ def _run_ocr(opened: OpenedPdf, options: ParseOptions, doc: Document, todo: list
                 page.width, page.height = res.width, res.height
                 page.source = PageSource.OCR if page.words else PageSource.EMPTY
             if res.rotation:
+                page.rules = []  # the words now lie in the turned scan's frame
                 page.stats["orientation_corrected"] = res.rotation
                 doc.issue(Severity.INFO, "ocr", "ocr_rotated", f"page rotated by {res.rotation}° for OCR", page.number)

@@ -33,7 +33,8 @@ detection only runs when the first pass looks bad.
 numbers are found by fuzzy repetition across pages (`furniture.py`). Each page
 is split by a recursive XY-cut (`segment.py`), which handles letter sidebars,
 multi-column text and two-column synopses without splitting tables or list
-markers into columns. Lines become blocks on changes in pitch, font,
+markers into columns. A table drawn with border lines is cut at them instead:
+row by row, each cell whole, a row of one-line cells kept as one line. Lines become blocks on changes in pitch, font,
 indentation, list markers and bold run-in labels; headings come from font
 statistics.
 

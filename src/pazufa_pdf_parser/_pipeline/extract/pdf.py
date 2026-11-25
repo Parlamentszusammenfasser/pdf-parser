@@ -293,6 +293,34 @@ def image_coverage(page: pdfium.PdfPage) -> float:
     return min(total / (w * h), 1.0)
 
 
+MAX_RULE_WIDTH = 2.0  # pt; table borders and underlines are hairlines, shaded cells and frames are wider
+
+
+def page_rules(page: pdfium.PdfPage) -> list[BBox]:
+    """Horizontal and vertical ruling lines in view space, as Word draws table borders: one thin path each.
+
+    Must be called with ``PDFIUM_LOCK`` held (or from a single thread).
+    """
+    # shortcut: a grid drawn as one path, or as stroked cell rectangles, is missed; read path segments then
+    affine = page_affine(page)
+    try:
+        boxes = [affine.box(*_page_bounds(obj)) for obj in page.get_objects(filter=[R.FPDF_PAGEOBJ_PATH])]
+    except Exception:  # damaged content stream: segment by whitespace alone
+        return []
+    return [b for b in boxes if min(b.width, b.height) <= MAX_RULE_WIDTH < max(b.width, b.height)]
+
+
+def _page_bounds(obj: pdfium.PdfObject) -> tuple[float, float, float, float]:
+    """An object's bounds in page space. Stamping tools and LaTeX's pdfpages place a whole page as a form
+    XObject, whose objects report their bounds in the form's own space."""
+    bounds = obj.get_bounds()
+    form = obj.container
+    while form is not None:
+        bounds = form.get_matrix().on_rect(*bounds)
+        form = form.container
+    return bounds
+
+
 def page_has_vector_glyphs(page: pdfium.PdfPage) -> int:
     """Number of path objects (outlined text shows up as many paths)."""
     try:
@@ -301,4 +329,4 @@ def page_has_vector_glyphs(page: pdfium.PdfPage) -> int:
         return 0
 
 
-__all__ = ["PageText", "extract_page_words", "image_coverage", "page_has_vector_glyphs", "PDFIUM_LOCK"]
+__all__ = ["PageText", "extract_page_words", "image_coverage", "page_has_vector_glyphs", "page_rules", "PDFIUM_LOCK"]

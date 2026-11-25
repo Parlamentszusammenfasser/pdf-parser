@@ -18,7 +18,8 @@ def merge_flow(doc: Document) -> int:
     sidebar); inside a region only clear continuations (next block starts lower-case)
     are joined.
     """
-    skip = {i for p in doc.pages for i in p.synopsis_block_ids()}
+    # a synopsis' columns are parallel versions, a ruled table's rows and cells stand alone
+    skip = {i for p in doc.pages for i in p.block_ids(lambda r: r.synopsis or r.ruled)}
     widths = {p.number: p.width or 1.0 for p in doc.pages}  # numbers count from the PDF's page 1, not first_page
     prev: Block | None = None
     joins = 0
