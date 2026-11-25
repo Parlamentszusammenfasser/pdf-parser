@@ -104,5 +104,16 @@ def test_rules_that_are_no_row_border_keep_a_paragraph_whole(rules):
     assert " ".join(PROSE) in texts(paragraph(60, 100, PROSE) + rules)
 
 
+def test_table_closing_the_page_is_no_footer():
+    # 17/1104 p. 36 ends on a small table of budget figures, whose one-line rows score like footer lines
+    rows = [("2021", "2022"), ("3.000,0", "3.000,0")]
+    table = [
+        t for i, row in enumerate(rows) for x, v in zip((70, 150), row) for t in paragraph(x, 758 + 14 * i, [v], 7)
+    ]
+    d = parse(make_pdf([paragraph(60, 670, PROSE) + table + grid([65, 140, 220], [755, 769, 783])]), NO_OCR)
+    assert "2021 2022" in d.text()
+    assert "3.000,0 3.000,0" in d.text()
+
+
 def test_table_without_text():
     assert texts(grid([60, 200, 340], [100, 120, 140])) == []

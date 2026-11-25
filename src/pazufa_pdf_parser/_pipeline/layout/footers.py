@@ -175,8 +175,9 @@ def refine_footers(doc: Document) -> int:
     for i, z in zones.items():
         page = doc.pages[i]
         others = [other for j, other in bottom_tokens.items() if j != i and other]
+        table = page.block_ids(lambda r: r.ruled)  # a small table closing the page (17/1104 p. 36) is no footer
         for b in _zone_footers(z, page.number, body_size, others):
-            if page.layout is not None and _detach(page.layout, b):
+            if id(b) not in table and page.layout is not None and _detach(page.layout, b):
                 b.kind = BlockKind.FOOTER
                 b.labels.add("footer:zone")
                 page.furniture.append(b)
