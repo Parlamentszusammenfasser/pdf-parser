@@ -296,18 +296,29 @@ def test_page_number_cell_leaves_its_line():
     ]
 
 
+_WRAPS = [  # a debate cites the same Drucksache again pages later
+    [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", "17/1076"],
+    [
+        *PROSE[2:],
+        "Der Landtag stimmt dem Gesetzentwurf zu und folgt der",
+        "Beschlussempfehlung zu Drucksache",
+        "17/1076",
+    ],
+]
+
+
 @pytest.mark.parametrize(
-    "footers,printed",
-    [(["909", "910", "911"], "910"), (["1 / 3", "2 / 3", "3 / 3"], "2"), ([None] * 3, None)],
-    ids=["beside-page-numbers", "beside-slash-page-numbers", "without-page-numbers"],
+    "footers,wrapped,printed",
+    [(["909", "910", "911"], [1], "910"), (["1 / 3", "2 / 3", "3 / 3"], [1], "2"), ([None] * 10, [1, 8], None)],
+    ids=["beside-page-numbers", "beside-slash-page-numbers", "on-distant-pages"],
 )
-def test_wrapped_drucksache_number_stays_body(footers, printed):
+def test_wrapped_drucksache_number_stays_body(footers, wrapped, printed):
     # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45)
-    lines = [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", "17/1076"]
-    wrap = paragraph(70, 690, lines, 11, leading=1.0)
-    pages = [body(200) + (wrap if i == 1 else []) + ([T(280, 790, f, 9)] if f else []) for i, f in enumerate(footers)]
-    page = parse(make_pdf(pages), NO_OCR).pages[1]
-    assert (page.printed_page, "17/1076" in page.text()) == (printed, True)
+    wraps = {i: paragraph(70, 690, lines, 11, leading=1.0) for i, lines in zip(wrapped, _WRAPS)}
+    pages = [body(200) + wraps.get(i, []) + ([T(280, 790, f, 9)] if f else []) for i, f in enumerate(footers)]
+    d = parse(make_pdf(pages), NO_OCR)
+    assert d.pages[1].printed_page == printed
+    assert all("17/1076" in d.pages[i].text() for i in wrapped)
 
 
 @pytest.mark.parametrize("numbers", [["17/273"] * 3, ["17/273", "17/ 273", "17/273"]], ids=["same", "ocr-variant"])
