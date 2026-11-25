@@ -6,10 +6,10 @@ import copy
 import re
 
 from ..._options import ParseOptions
-from ..model import BBox, Block, BlockKind, Document, Page, Region, RegionKind, Word, rotate_words
+from ..model import BBox, Block, BlockKind, Document, Line, Page, Region, RegionKind, Word, rotate_words
 from ..sanitize import is_ocr_noise
 from .blocks import classify_headings, fill_leaves
-from .furniture import detect_furniture
+from .furniture import BAND, detect_furniture, is_page_number
 from .lines import build_lines, make_line
 from .segment import Segmenter, detect_synopsis, page_body_size
 
@@ -20,21 +20,54 @@ MIN_WORD_CONFIDENCE = 25.0  # OCR words below this tesseract confidence are most
 _LINE_NUMBER_RE = re.compile(r"^\d{1,4}$")
 
 
-def _marginal_blocks(page: Page, words: list[Word]) -> list[Block]:
-    """Rotated text: group per direction, rebuild lines in an upright frame."""
+def _rotated_blocks(page: Page, words: list[Word], body: BBox) -> list[Block]:
+    """Rotated text, per direction, as marginal blocks of lines rebuilt in that direction's upright frame.
+    On a page turned upright, lines upright on the paper beyond the ``body`` are its header, footer or page
+    number instead: a sideways table keeps them in the paper's direction (BW Drs. 18/623 pp. 56-90)."""
     out: list[Block] = []
     by_angle: dict[int, list[Word]] = {}
     for w in words:
         by_angle.setdefault(w.angle, []).append(w)
+    # upright on the paper is upright in user space: /Rotate turns only the view
+    ccw = page.stats.get("orientation_corrected")
+    paper = None if ccw is None else (ccw - page.rotation) % 360
     for angle, ws in by_angle.items():
         copies = [copy.copy(w) for w in ws]
-        rotate_words(copies, page.width, page.height, (360 - angle) % 360)
+        turn = (360 - angle) % 360
+        frame = rotate_words(copies, page.width, page.height, turn)
         lines = build_lines(copies)
+        if angle == paper:
+            paper_body = body.rotated(page.width, page.height, turn)
+            rest = []
+            for ln in lines:
+                if furniture := _margin_furniture(ln, paper_body, frame, angle, page.number):
+                    out.append(furniture)
+                else:
+                    rest.append(ln)
+            lines = rest
         if lines:
-            out.append(
-                Block(lines=lines, bbox=BBox.enclosing(w.bbox for w in ws), page=page.number, kind=BlockKind.MARGINAL)
-            )
+            bbox = BBox.enclosing(ln.bbox for ln in lines).rotated(*frame, angle)
+            out.append(Block(lines=lines, bbox=bbox, page=page.number, kind=BlockKind.MARGINAL))
     return out
+
+
+def _margin_furniture(line: Line, body: BBox, frame: tuple[float, float], angle: int, page: int) -> Block | None:
+    """A line in the paper's top or bottom band and beyond the body (both in the paper's frame) as a header,
+    footer or page-number block, turned back to view space; its words then stack vertically, so the
+    page_numbers step never splits it."""
+    height = frame[1]
+    if line.bbox.y1 <= body.y0 and line.bbox.y0 <= height * BAND:
+        kind = BlockKind.HEADER
+    elif line.bbox.y0 >= body.y1 and line.bbox.y1 >= height * (1 - BAND):
+        kind = BlockKind.FOOTER
+    else:
+        return None
+    if is_page_number(line.text):
+        kind = BlockKind.PAGE_NUMBER
+    rotate_words(line.words, *frame, angle)
+    # shortcut: Page.all_blocks orders furniture by view y, so two stacked footer lines can swap (BY GVBl p. 193)
+    line.bbox = line.bbox.rotated(*frame, angle)
+    return Block(lines=[line], bbox=line.bbox, page=page, kind=kind)
 
 
 def document_body_size(pages: list[Page]) -> float:
@@ -66,7 +99,9 @@ def analyze_layout(pages: list[Page], options: ParseOptions, doc: Document) -> N
                     kind=BlockKind.NOISE,
                 )
             )
-        page.extras[:0] = _marginal_blocks(page, rotated)
+        blocks = _rotated_blocks(page, rotated, BBox.enclosing(w.bbox for w in upright))
+        page.furniture += [b for b in blocks if b.kind.is_furniture]
+        page.extras[:0] = [b for b in blocks if not b.kind.is_furniture]
         page.lines = build_lines(upright)
         body_words.append(upright)
 

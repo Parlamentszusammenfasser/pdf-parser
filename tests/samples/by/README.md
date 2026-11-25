@@ -15,7 +15,7 @@ Source = sha256 file name in the full corpus.
 | plenum-tagesordnung.pdf | plenary agenda, 23 p | time column ("anschließend ohne Aussprache", "Beratungszeit") read before/among the items, BY variant of #8 | 87ed7f58 |
 | protokollauszug.pdf | Protokollauszug, most common type (291×), 2 p | speaker list p1; "Protokollauszug 16. Plenum …" header stays in body | c4b4aba1 |
 | plenarprotokoll-page.pdf | full plenary protocol page | running header "Protokoll 19/49 … 5513" stays in body | 57ae5ac1 |
-| gvbl-landscape-tables.pdf | GVBl (InDesign), ToC, landscape pp. 17–19 | landscape pages auto-rotated; table headers scrambled ("2. Se- 3. Se- … mester mester"); no furniture on rotated pages | 5bd18ddb |
+| gvbl-landscape-tables.pdf | GVBl (InDesign), ToC, landscape pp. 17–19 | landscape pages auto-rotated; table headers scrambled ("2. Se- 3. Se- … mester mester"); rotated pages: header, footer and page number beside the table are furniture | 5bd18ddb |
 | email-forwarded-with-statement.pdf | forwarded e-mail + attached statement (PDF24), mixed page sizes | reads well; flagged as synopsis (false positive) | 2d7fc202 |
 | email-multiline-subject.pdf | e-mail print (Qt) | multi-line Betreff: value lands after "Gesendet am", label "Betreff:" alone | c2ba1ec5 |
 | letter-clean.pdf | plain Word letter (PDF-XChange) | clean; control sample | 2b066f03 |

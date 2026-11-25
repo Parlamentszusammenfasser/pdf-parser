@@ -372,6 +372,39 @@ def test_printed_page_in_a_page_range():
     assert parse(pdf, replace(NO_OCR, last_page=1)).pages[0].printed_page is None
 
 
+def _sideways_table(paper, angle=90):
+    """A table set sideways on portrait paper (y 570-760), plus ``paper`` text upright on the paper."""
+    y = 760 if angle == 90 else 570  # turned left the text runs up from its origin, turned right down
+    return [T(100 + i * 16, y, f"Zeile {i} der quer gesetzten Tabelle", 11, angle=angle) for i in range(8)] + paper
+
+
+@pytest.mark.parametrize("angle", [90, 270], ids=["turned-left", "turned-right"])
+def test_sideways_page_number_in_the_margin(angle):
+    # BW Drs. 18/623 pp. 56-90: the page is read turned, its header and number print upright on the paper (#47)
+    header = [T(70, 40, "Landtag von Baden-Württemberg", 9), T(400, 40, "Drucksache 18 / 623", 9)]
+    d = parse(make_pdf([_sideways_table([*header, T(290, 800, n, 9)], angle) for n in ("64", "65")]), NO_OCR)
+    assert [p.printed_page for p in d.pages] == ["64", "65"]
+    page = d.pages[0]
+    assert page.furniture_text().splitlines() == ["Landtag von Baden-Württemberg Drucksache 18 / 623", "64"]
+    assert all(b.bbox[2] < 100 or b.bbox[0] > 700 for b in page.blocks if b.kind.is_furniture)  # turned page's side
+
+
+@pytest.mark.parametrize(
+    "paper",
+    [
+        [T(300, 740, "7", 9)],
+        [T(300, 820, "12", 11, angle=90)],
+        [T(70, 150, "Die Übersicht ergänzt die Angaben auf Seite 12 der Begründung.", 11)],
+    ],
+    ids=["label-in-the-table", "sidebar-nothing-on-the-paper", "intro-above-the-table"],
+)
+def test_sideways_page_text_is_no_furniture(paper):
+    # upright on the paper within the table's extent, though in the paper's bottom band: a label; in the table's
+    # direction beside it: a sidebar; above the table, though beyond it: an intro
+    page = parse(make_pdf([_sideways_table(paper)]), NO_OCR).pages[0]
+    assert page.printed_page is None and page.furniture_text() == ""
+
+
 @pytest.mark.parametrize(
     "first_line,is_header",
     [
