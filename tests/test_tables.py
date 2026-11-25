@@ -2,12 +2,14 @@
 
 import time
 
+import pypdfium2 as pdfium
 import pytest
 
 from conftest import NO_OCR
-from pazufa_pdf_parser import parse
+from pazufa_pdf_parser import OcrMode, ParseOptions, parse
+from pazufa_pdf_parser._pipeline.extract.ocr import OcrResult
 from pazufa_pdf_parser._pipeline.layout.segment import _table_rules
-from pazufa_pdf_parser._pipeline.model import BBox
+from pazufa_pdf_parser._pipeline.model import BBox, TextSource, Word
 from pdfgen import Rule, T, make_pdf, paragraph
 
 
@@ -165,6 +167,30 @@ def test_map_hatching_is_no_table():
     start = time.perf_counter()
     assert _table_rules(strokes) == []
     assert time.perf_counter() - start < 0.5
+
+
+@pytest.mark.ocr
+def test_rules_dropped_when_ocr_turns_the_page(monkeypatch):
+    # the rules lie in the frame of the page as printed, the OCR words in that of the turned scan
+    words = []
+    for ln, y in zip(PROSE, LINE_TOP):
+        x = 60.0
+        for t in ln.split():
+            words.append(Word(t, BBox(x, y, x + 6 * len(t), y + 11), 11, source=TextSource.OCR, confidence=95))
+            x += 6 * (len(t) + 1)
+    turned = OcrResult(words=words, width=842.0, height=595.0, rotation=90, mean_confidence=95)
+    monkeypatch.setattr("pazufa_pdf_parser._pipeline.extract.ocr_image", lambda *a, **k: turned)
+    d = parse(make_pdf([ANHOERUNG]), ParseOptions(ocr=OcrMode.ALWAYS))
+    assert " ".join(PROSE) in d.text()
+
+
+def test_unreadable_page_objects_leave_the_text(monkeypatch):
+    # a damaged content stream: pdfium cannot list the paths, so the page is cut by whitespace alone
+    def broken(*args, **kwargs):
+        raise pdfium.PdfiumError("Failed to get pageobject.")
+
+    monkeypatch.setattr(pdfium.PdfPage, "get_objects", broken)
+    assert " ".join(PROSE) in texts(paragraph(60, 100, PROSE) + grid([60, 150, 250, 330], [90, 170]))
 
 
 def test_table_without_text():
