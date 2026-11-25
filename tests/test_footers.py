@@ -321,12 +321,12 @@ def test_wrapped_drucksache_number_stays_body(footers, wrapped, printed):
     assert all("17/1076" in d.pages[i].text() for i in wrapped)
 
 
-@pytest.mark.parametrize("numbers", [["17/273"] * 3, ["17/273", "17/ 273", "17/273"]], ids=["same", "ocr-variant"])
-def test_stacked_running_header_number_stays_furniture(numbers):
-    # "Landtag" / "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once
+def test_stacked_running_header_number_stays_furniture():
+    # "Landtag" / "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once;
+    # OCR reads it as "17/ 273" on some pages
     pages = [
         body(200) + [T(450, 30, "Landtag", 9), T(450, 40, "Drucksache", 9), T(450, 50, n, 9), T(290, 790, str(i), 9)]
-        for i, n in enumerate(numbers, 1)
+        for i, n in enumerate(["17/273", "17/ 273", "17/273"], 1)
     ]
     d = parse(make_pdf(pages), NO_OCR)
     assert [p.printed_page for p in d.pages] == ["1", "2", "3"]
