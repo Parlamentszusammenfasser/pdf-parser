@@ -69,20 +69,30 @@ def _gap(a: Line, b: Line) -> float:
     return b.bbox.y0 - a.bbox.y1
 
 
-def split_blocks(lines: list[Line], page: int, region_id: str = "") -> list[Block]:
-    """Split vertically ordered lines of one flow region into blocks."""
-    if not lines:
-        return []
-    heights = [ln.bbox.height for ln in lines]
-    h = median(heights)
+def _pitches(lines: list[Line]) -> list[float]:
     # line pitch (top-to-top) is more stable than gaps, esp. for OCR boxes whose
     # heights vary with ascenders/descenders
-    pitches = [b.bbox.y0 - a.bbox.y0 for a, b in zip(lines, lines[1:])]
-    pos = [p for p in pitches if p > 0.5 * h]
-    typical = median(pos) if pos else h * 1.2
+    return [b.bbox.y0 - a.bbox.y0 for a, b in zip(lines, lines[1:])]
+
+
+def line_pitch(lines: list[Line]) -> float:
+    """The typical pitch of consecutive lines: the leading of the running text."""
+    h = median(ln.bbox.height for ln in lines)
+    pos = [p for p in _pitches(lines) if p > 0.5 * h]
     if len(pos) < 3:
         # too few lines to know the leading: assume at most ~1.3 line heights
-        typical = min(typical, h * 1.3)
+        return min(median(pos) if pos else h * 1.2, h * 1.3)
+    return median(pos)
+
+
+def split_blocks(lines: list[Line], page: int, region_id: str = "", pitch: float | None = None) -> list[Block]:
+    """Split vertically ordered lines of one flow region into blocks. ``pitch``: the leading of the area the
+    region was cut from, for a region of too few running lines to show its own."""
+    if not lines:
+        return []
+    h = median(ln.bbox.height for ln in lines)
+    pitches = _pitches(lines)
+    typical = line_pitch(lines) if pitch is None else min(line_pitch(lines), pitch)
     gaps = [_gap(a, b) for a, b in zip(lines, lines[1:])]
     right = max(ln.bbox.x1 for ln in lines)
     left = min(ln.bbox.x0 for ln in lines)
@@ -130,13 +140,17 @@ def split_blocks(lines: list[Line], page: int, region_id: str = "") -> list[Bloc
     return out
 
 
-def fill_leaves(region: Region, page: int) -> None:
+def fill_leaves(region: Region, page: int, pitch: float | None = None) -> None:
     """Build blocks for every leaf of a region tree (consumes the leaf words)."""
-
-    for r in region.iter_regions():
-        if r.kind is RegionKind.LEAF:
-            r.blocks = split_blocks(build_lines(r.words), page, r.id)
-            r.words = []
+    if pitch is None and any(c.ruled for c in region.children):
+        # the rows of a table cut the text between them into leaves of a heading and an item or two, whose
+        # paragraph gaps would pass for the leading (17/1104 p. 36); the whole area's lines show it
+        pitch = line_pitch(build_lines([w for r in region.iter_regions() for w in r.words]))
+    if region.kind is RegionKind.LEAF:
+        region.blocks = split_blocks(build_lines(region.words), page, region.id, pitch)
+        region.words = []
+    for c in region.children:
+        fill_leaves(c, page, pitch)
 
 
 _HEADING_PATTERNS = [

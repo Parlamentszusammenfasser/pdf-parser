@@ -4,7 +4,7 @@ import pytest
 
 from conftest import NO_OCR
 from pazufa_pdf_parser import parse
-from pdfgen import Rule, make_pdf, paragraph
+from pdfgen import Rule, T, make_pdf, paragraph
 
 
 def grid(xs, ys, w=0.5):
@@ -113,6 +113,31 @@ def test_table_closing_the_page_is_no_footer():
     d = parse(make_pdf([paragraph(60, 670, PROSE) + table + grid([65, 140, 220], [755, 769, 783])]), NO_OCR)
     assert "2021 2022" in d.text()
     assert "3.000,0 3.000,0" in d.text()
+
+
+def test_text_between_tables_keeps_its_paragraphs():
+    # 17/1104 p. 36: a title over items that each end in a small table; cut off by the tables, the title's own
+    # spaced-out lines would pass for the leading and run on into one paragraph
+    items = [
+        *paragraph(250, 100, ["Übersicht"], 10, bold=True),
+        *paragraph(210, 125, ["über die Förderung des Schulhausbaus"], 9, bold=True),
+        *paragraph(110, 150, ["Beratungen des Finanzausschusses", "über den Einzelplan 04"], 9, bold=True),
+        *paragraph(110, 190, ["Kap. 0402", "Allgemeine Bewilligungen", "Tit. Gr. 91"], 9),
+    ]
+    for y in (240, 340):
+        items += paragraph(110, y, ["Tit. 883 91A Zuweisungen an kommunale Träger"], 9, bold=True)
+        items += paragraph(125, y + 22, ["Planansätze in Tsd. EUR:"], 9)
+        items += [
+            T(x, y + dy, v, 7)
+            for x, dy, v in [(330, 30, "2021"), (410, 30, "2022"), (330, 42, "1,0"), (410, 42, "2,0")]
+        ]
+        items += grid([300, 380, 460], [y + 28, y + 40, y + 52])
+    assert texts(items)[:4] == [
+        "Übersicht",
+        "über die Förderung des Schulhausbaus",
+        "Beratungen des Finanzausschusses\nüber den Einzelplan 04",
+        "Kap. 0402\nAllgemeine Bewilligungen\nTit. Gr. 91",
+    ]
 
 
 def test_table_without_text():
