@@ -145,10 +145,12 @@ class TestRobustness:
         assert d.pages[0].stats.get("orientation_corrected") in (90, 270)
         assert "Zeile 0 mit seitlich gedrehtem Text" in d.body_text()
 
-    def test_rotated_margin_note_goes_to_extras(self):
+    @pytest.mark.parametrize("rotate", [0, 90, 270], ids=["upright", "rotate-90", "rotate-270"])
+    def test_rotated_margin_note_goes_to_extras(self, rotate):
+        # /Rotate shows the page sideways: the note then reads upright on screen, yet runs across the paper
         items = paragraph(70, 100, ["Haupttext der Seite in normaler Ausrichtung.", "Noch eine Zeile Haupttext."])
-        items.append(T(30, 600, "Randvermerk", 8, angle=90))
-        d = parse(make_pdf([items]), NO_OCR)
+        items.append(T(30, 600, "Randvermerk", 8, angle=rotate or 90))
+        d = parse(make_pdf([items], rotate=rotate), NO_OCR)
         assert "Randvermerk" not in render(d, "txt")
         assert "Randvermerk" in render(d, "raw")
         assert any(b.kind is BlockKind.MARGINAL for b in d.blocks)

@@ -28,12 +28,15 @@ def _rotated_blocks(page: Page, words: list[Word], body: BBox) -> list[Block]:
     by_angle: dict[int, list[Word]] = {}
     for w in words:
         by_angle.setdefault(w.angle, []).append(w)
+    # upright on the paper is upright in user space: /Rotate turns only the view
+    ccw = page.stats.get("orientation_corrected")
+    paper = None if ccw is None else (ccw - page.rotation) % 360
     for angle, ws in by_angle.items():
         copies = [copy.copy(w) for w in ws]
         turn = (360 - angle) % 360
         frame = rotate_words(copies, page.width, page.height, turn)
         lines = build_lines(copies)
-        if angle == page.stats.get("orientation_corrected"):
+        if angle == paper:
             paper_body = body.rotated(page.width, page.height, turn)
             rest = []
             for ln in lines:
