@@ -9,7 +9,7 @@ from ..._options import ParseOptions
 from ..model import BBox, Block, BlockKind, Document, Line, Page, Region, RegionKind, Word, rotate_words
 from ..sanitize import is_ocr_noise
 from .blocks import classify_headings, fill_leaves
-from .furniture import detect_furniture, is_page_number
+from .furniture import BAND, detect_furniture, is_page_number
 from .lines import build_lines, make_line
 from .segment import Segmenter, detect_synopsis, page_body_size
 
@@ -52,11 +52,16 @@ def _rotated_blocks(page: Page, words: list[Word], body: BBox) -> list[Block]:
 
 
 def _margin_furniture(line: Line, body: BBox, frame: tuple[float, float], angle: int, page: int) -> Block | None:
-    """A line above or below the body (both in the paper's frame) as a header, footer or page-number block,
-    turned back to view space; its words then stack vertically, so the page_numbers step never splits it."""
-    if line.bbox.y1 > body.y0 and line.bbox.y0 < body.y1:
+    """A line in the paper's top or bottom band and beyond the body (both in the paper's frame) as a header,
+    footer or page-number block, turned back to view space; its words then stack vertically, so the
+    page_numbers step never splits it."""
+    height = frame[1]
+    if line.bbox.y1 <= body.y0 and line.bbox.y0 <= height * BAND:
+        kind = BlockKind.HEADER
+    elif line.bbox.y0 >= body.y1 and line.bbox.y1 >= height * (1 - BAND):
+        kind = BlockKind.FOOTER
+    else:
         return None
-    kind = BlockKind.HEADER if line.bbox.y1 <= body.y0 else BlockKind.FOOTER
     if is_page_number(line.text):
         kind = BlockKind.PAGE_NUMBER
     rotate_words(line.words, *frame, angle)

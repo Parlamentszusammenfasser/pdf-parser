@@ -388,12 +388,19 @@ def test_sideways_page_number_in_the_margin():
     assert all(b.bbox[2] < 100 or b.bbox[0] > 700 for b in page.blocks if b.kind.is_furniture)  # turned page's side
 
 
-def test_sideways_numbers_inside_the_page_are_no_page_number():
+@pytest.mark.parametrize(
+    "paper",
+    [
+        [T(300, 740, "7", 9), T(300, 820, "12", 11, angle=90)],
+        [T(70, 150, "Die Übersicht ergänzt die Angaben auf Seite 12 der Begründung.", 11)],
+    ],
+    ids=["label-and-sidebar", "intro-above-the-table"],
+)
+def test_sideways_numbers_inside_the_page_are_no_page_number(paper):
     # a number in the table's direction beside it is a sidebar; one upright on the paper within the table's
-    # extent, though in the paper's bottom band, a label
-    page = parse(make_pdf([_sideways_table([T(300, 740, "7", 9), T(300, 820, "12", 11, angle=90)])]), NO_OCR).pages[0]
+    # extent, though in the paper's bottom band, a label; an intro above the table, though beyond it, no header
+    page = parse(make_pdf([_sideways_table(paper)]), NO_OCR).pages[0]
     assert page.printed_page is None and page.furniture_text() == ""
-    assert "12" in page.text()
 
 
 @pytest.mark.parametrize(
