@@ -22,6 +22,7 @@ MAX_DEPTH = 10
 ROW_TOLERANCE = 0.3  # of a line height: centres closer than this sit on one printed row
 RULE_JOIN = 1.0  # pt; the pieces of a Word table's borders meet at the cell corners
 RULE_SLACK = 0.25  # of the body size: loose glyph boxes reach this far over a cell's padding
+RUN_ON = 1.0  # of the body size: the lines of one paragraph or cell lie closer than this
 # a page-high Word table drawn twice (stroke and fill, Drs. 18/623) has ~1000 border pieces; far more is a
 # drawing, like the hatching of a Bebauungsplan map
 MAX_RULES = 3000
@@ -221,11 +222,12 @@ class Segmenter:
     def _crossed(self, y: float, flat: list[BBox], words: list[Word]) -> bool:
         """Text runs on across ``y`` where no rule marks it: a cell spanning two sub-rows (BY Gesetzblatt
         Anlage) or running text beside the table."""
-        near = self.body_size or median_size(words)
+        reach = RUN_ON * (self.body_size or median_size(words))
         ruled = [r for r in flat if abs(r.cy - y) <= RULE_JOIN]
-        above = [w.bbox for w in words if w.bbox.cy < y < w.bbox.y1 + near]
-        below = [w.bbox for w in words if w.bbox.y0 - near < y < w.bbox.cy]
-        return any(a.x_overlap(b) > 0 and not any(r.x0 <= b.cx <= r.x1 for r in ruled) for a in above for b in below)
+        above = [w.bbox for w in words if w.bbox.cy < y < w.bbox.y1 + reach]
+        under = [w.bbox for w in words if w.bbox.y0 - reach < y < w.bbox.cy]
+        below = [b for b in under if not any(r.x0 <= b.cx <= r.x1 for r in ruled)]  # no rule at y over them
+        return any(a.x_overlap(b) > 0 for a in above for b in below)
 
     def _cell_borders(self, words: list[Word]) -> list[float]:
         """x of the table rules running the words' full height, so a heading over several columns stays whole.
