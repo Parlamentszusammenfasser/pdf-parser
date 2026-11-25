@@ -52,5 +52,7 @@
 [x] T31 ruled tables (#47): extract keeps thin paths as `Page.rules`; rules that meet in a grid with an inner border
      cut the page at row borders (unless text runs on across one: merged cells, text beside) and rows at column
      borders, so cells read whole and in column order; one-line rows stay one line; flow never joins table rows.
+     Review: table rows are never zone footers; text between tables splits with the leading of the whole area;
+     rules inside form XObjects count; pages of >3000 hairlines skip tables.
      Open: rotated pages keep their page number in a marginal block (no printed page)
 [-] T16 type-aware `letter_footer` step after classify: dropped, classification and fields removed (#14)
