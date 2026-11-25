@@ -241,7 +241,16 @@ def _band(x, y, text):
         ([("", "Quelle: Statistisches Landesamt ²")] * 2, [None, None]),
         ([("", "80333 München"), ("", "80334 München")], [None, None]),
         ([("", "Recyclingpapier\tI"), ("", "II")], ["I", "II"]),
-        ([("", "poststelle@lfv.de\t1 / 2"), ("", "2 / 2")], ["1", "2"]),
+        ([("", ""), ("", "poststelle@lfv.de\t1 / 2"), ("", "2 / 2")], [None, "1", "2"]),
+        (
+            [("", "Musterverband e.V. · Hauptstraße 1\n1 / 2"), ("", "Musterverband e.V. · Hauptstraße 1\n2 / 2")],
+            ["1", "2"],
+        ),
+        ([("", "1 / 2"), ("", "2 / 2"), ("", "Musterverband e.V. · Hauptstraße 1\n1 / 1")], ["1", "2", "1"]),
+        ([("", "Musterverband e.V. · Hauptstraße 1\n2 / 3")], [None]),
+        ([("", ""), ("", "2 / 2")], [None, "2"]),
+        ([("", "Seite 1/2"), ("", "2/2")], ["1", "2"]),
+        ([("", "1 / 3"), ("", "2 / 3"), ("", ""), ("", "3 / 3")], ["1", "2", None, "3"]),
         ([("Bayerisches\t177", ""), ("178\tBayerisches", "")], ["177", "178"]),
         ([("Landtag\t5", ""), ("Landtag\t9", "")], [None, None]),
     ],
@@ -261,7 +270,13 @@ def _band(x, y, text):
         "footnote-mark",
         "five-digit-number",
         "number-cell-beside-footer",
-        "fraction-cell",
+        "fraction-cell-after-cover",
+        "page-of-total-under-footer-line",
+        "attached-one-page-letter",
+        "page-of-total-without-neighbours",
+        "page-of-total-after-unnumbered-page",
+        "page-of-total-after-seite",
+        "page-of-total-across-annex",
         "number-cell-beside-heading",
         "not-consecutive-cells",
     ],
@@ -279,6 +294,43 @@ def test_page_number_cell_leaves_its_line():
         (BlockKind.FOOTER, "Recyclingpapier"),
         (BlockKind.PAGE_NUMBER, "I"),
     ]
+
+
+_WRAPS = [  # a debate cites the same Drucksache again pages later
+    [*PROSE[:2], "Gesetzes über die Grundsteuer (ÄndGLGrStG) – Drucksache", "17/1076"],
+    [
+        *PROSE[2:],
+        "Der Landtag stimmt dem Gesetzentwurf zu und folgt der",
+        "Beschlussempfehlung zu Drucksache",
+        "17/1076",
+    ],
+]
+
+
+@pytest.mark.parametrize(
+    "footers,wrapped,printed",
+    [(["909", "910", "911"], [1], "910"), (["1 / 3", "2 / 3", "3 / 3"], [1], "2"), ([None] * 10, [1, 8], None)],
+    ids=["beside-page-numbers", "beside-slash-page-numbers", "on-distant-pages"],
+)
+def test_wrapped_drucksache_number_stays_body(footers, wrapped, printed):
+    # PlPr 17/19 p. 31: an agenda item's "– Drucksache" wraps its number "17/1076" into the bottom band (#45)
+    wraps = {i: paragraph(70, 690, lines, 11, leading=1.0) for i, lines in zip(wrapped, _WRAPS)}
+    pages = [body(200) + wraps.get(i, []) + ([T(280, 790, f, 9)] if f else []) for i, f in enumerate(footers)]
+    d = parse(make_pdf(pages), NO_OCR)
+    assert d.pages[1].printed_page == printed
+    assert all("17/1076" in d.pages[i].text() for i in wrapped)
+
+
+def test_stacked_running_header_number_stays_furniture():
+    # "Landtag" / "Drucksache" over "17/273" on every page is a running header, not a reference wrapped once;
+    # OCR reads it as "17/ 273" on some pages
+    pages = [
+        body(200) + [T(450, 30, "Landtag", 9), T(450, 40, "Drucksache", 9), T(450, 50, n, 9), T(290, 790, str(i), 9)]
+        for i, n in enumerate(["17/273", "17/ 273", "17/273"], 1)
+    ]
+    d = parse(make_pdf(pages), NO_OCR)
+    assert [p.printed_page for p in d.pages] == ["1", "2", "3"]
+    assert not any("273" in p.text() for p in d.pages)
 
 
 def _row(y, *cells):
