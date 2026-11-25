@@ -333,6 +333,8 @@ def test_bw_anhoerung_table_read_cell_by_cell():
     txt = _txt("drs-18-0623-anhoerung-table.pdf")
     assert "vom 14. Februar 2026 vereinbarte Mindestbetrag in Höhe von 100 Euro müsse" in txt
     row = [
+        "Lfd. Nr.",
+        "Gewerkschaft/ Verband",  # a cell's padding is no gap between its border and the words
         "BBW Beamtenbund",
         "Zu Artikel 1",
         "Der in der Tarifeinigung",

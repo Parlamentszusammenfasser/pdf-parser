@@ -26,7 +26,9 @@ def cell(col, y, lines, bold=False):
 
 
 ANHOERUNG = [
-    *paragraph(60, 60, ["Übersicht über die von den Verbänden im Anhörungsverfahren vorgetragenen Anliegen"], 11, True),
+    *paragraph(
+        60, 60, ["Übersicht über die von den Verbänden im Anhörungsverfahren vorgetragenen Anliegen"], 11, bold=True
+    ),
     *[t for i, h in enumerate(["Verband", "Anliegen", "Begründung", "Votum"]) for t in cell(i, 100, [h], True)],
     *cell(0, 117, ["Beamtenbund"]),
     *cell(1, 117, ["Lineare Erhöhung um 3,19", "Prozent ab 1. April 2026."]),
@@ -97,8 +99,17 @@ BETWEEN_2_AND_3 = (LINE_TOP[1] + 11 + LINE_TOP[2]) / 2
             *grid([420, 480, 540], [LINE_TOP[0] - 3, BETWEEN_2_AND_3, LINE_TOP[3] + 14]),
             *[t for x, y, v in [(423, 100, "12"), (483, 100, "34"), (423, 135, "56")] for t in paragraph(x, y, [v])],
         ],
+        # the column borders of a table under the paragraph run nowhere beside it (Drs. 18/623 p. 20)
+        [
+            *grid([60, 150, 250, 330], [LINE_TOP[3] + 20, LINE_TOP[3] + 36, LINE_TOP[3] + 52]),
+            *[
+                t
+                for x, v in [(63, "A 7"), (153, "511,38"), (253, "493,74")]
+                for t in paragraph(x, LINE_TOP[3] + 23, [v])
+            ],
+        ],
     ],
-    ids=["frame", "underline", "table-beside"],
+    ids=["frame", "underline", "table-beside", "table-below"],
 )
 def test_rules_that_are_no_row_border_keep_a_paragraph_whole(rules):
     assert " ".join(PROSE) in texts(paragraph(60, 100, PROSE) + rules)
